@@ -5,7 +5,7 @@
 Current status:
 
 - **V1 / Phase A — Semantic Studio Timeline UI implemented**
-- **V2.0 — Audio Editor implemented; Phase B editor-basics polish is next**
+- **V2.0 / Phase B — Audio Editor Basics implemented; ComfyUI interaction verification pending**
 - **V2.1 — Effects planned; not implemented yet**
 
 Neither V1 nor V2 patches ComfyUI core, MiniMax Music3 model code, KSampler, or VAE code.
@@ -152,7 +152,7 @@ Preview Audio / Save Audio (Advanced)
 2. Queue the workflow once. This loads immutable source preview metadata.
 3. Click **Open Audio Editor**.
 4. Edit the clip plan.
-5. Click **Save to Node**.
+5. Click **Save Edits**.
 6. Queue again to produce the authoritative edited AUDIO.
 
 The browser editor previews source takes and the **last queued rendered result**. Unsaved edits are intentionally not treated as final audio; the Python renderer computes the output from source AUDIO plus `edit_json`.
@@ -164,10 +164,9 @@ The browser editor previews source takes and the **last queued rendered result**
 - drag selection
 - V1 semantic-section overlay when one upstream V1 node can be identified
 - clip split, trim, move, duplicate, reverse
-- non-ripple region delete / silence gaps
 - overlapping clip mix and equal-power crossfade helper
 - clip gain, pan, fade-in/out
-- draggable gain envelope
+- draggable gain envelope with amber/orange UI; overlay defaults Off
 - master gain
 - `preserve`, `mono`, `stereo`, `left_only`, `right_only`, `swap_lr` channel modes
 - optional peak normalization
@@ -177,18 +176,45 @@ The browser editor previews source takes and the **last queued rendered result**
 
 Connected takes must have compatible sample rate, batch size, and channel layout in V2.0.
 
-### Phase B — Audio Editor Basics next
+### Phase B — Audio Editor Basics
 
-Phase B focuses on conventional audio-editor operations before V2.1 DSP effects:
+Phase B adds conventional waveform-editor operations without changing the immutable-source architecture:
 
-- Cut / Copy / Paste
-- Split / Duplicate / Delete / Silence
-- keyboard shortcuts and context menu
-- clearer DAW-style gain-envelope presentation
-- fade interaction polish
-- track controls and peak-meter UI
+- **Cut / Copy / Paste at playhead** using an internal editor clipboard
+- **Split / Duplicate / Reverse / Mute**
+- **Delete / Ripple** — removes the range and closes the gap
+- **Silence / Leave Gap** — removes the range without shifting later material
+- **Cut & Leave Gap**
+- right-click context menu with shortcut hints
+- compact selected-clip track strip for Mute / Gain / Pan
+- L/R or mono **Preview Peak** meter
+- existing Fade and Gain Envelope editing retained
 
-Pitch/time-stretch and effect processing remain outside Phase B.
+The internal clipboard stores declarative clip slices and immutable source references; it does not put PCM audio on the OS clipboard.
+
+Keyboard shortcuts:
+
+```text
+Ctrl/Cmd+X       Cut
+Ctrl/Cmd+C       Copy
+Ctrl/Cmd+V       Paste at playhead
+Ctrl/Cmd+I       Split
+Ctrl/Cmd+D       Duplicate
+Delete/Backspace Delete / Ripple
+Ctrl/Cmd+L       Silence / Leave Gap
+Ctrl/Cmd+Alt+X   Cut & Leave Gap
+M                Mute / Unmute clip
+Ctrl/Cmd+Z       Undo
+Ctrl/Cmd+Shift+Z Redo
+Ctrl/Cmd+Y       Redo
+Ctrl/Cmd+S       Save Edits
+Ctrl/Cmd+0       Fit
+Space            Play / Pause
+```
+
+The Preview Peak meter describes the currently playing Source/Rendered browser preview. Unsaved edits are not authoritative audio until **Save Edits -> Queue**.
+
+See [`docs/PHASE_B_AUDIO_EDITOR.md`](docs/PHASE_B_AUDIO_EDITOR.md) for the Phase B interaction and compatibility contract.
 
 ### V2 data model
 
@@ -223,10 +249,12 @@ node --check web/semantic_timeline.js
 node --check web/semantic_controls.js
 node --check web/audio_editor.js
 node --check web/audio_editor_core.js
+node --check web/audio_edit_commands.js
 node --check web/audio_waveform.js
 node --check web/audio_timeline.js
 node --check web/audio_panels.js
 npm run test:semantic
+npm run test:audio
 ```
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the stable phase boundaries.
