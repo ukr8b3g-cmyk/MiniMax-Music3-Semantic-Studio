@@ -1,13 +1,14 @@
 import { app } from "../../scripts/app.js";
 import { createStudioWindow } from "./studio_shell.js";
 import { hideNodeWidgets, installNodeSummary, getNodeWidget } from "./node_compact.js";
-import { installCssSizeDrag, makeVerticalSplitter } from "./layout_splitter.js";
+import { installCssSizeDrag, makeVerticalSplitter, readLayoutNumber, writeLayoutNumber } from "./layout_splitter.js";
 import {
   SECTION_TYPES, METERS, clamp, uid, factoryProject, normalizeProject,
   parseList, totalDuration, summarizeProject, compilePreview, el, button, textInput, numberInput,
   selectInput, textarea, field,
 } from "./semantic_studio_core.js";
 import { editableCombo, chipEditor, textareaWithSuggestions, bpmControl } from "./semantic_controls.js";
+import { fitTimelineScale, renderSemanticTimeline } from "./semantic_timeline.js";
 import {
   GENRE_PRESETS, INFLUENCE_PRESETS, MOOD_PRESETS, VOCAL_LEAD_PRESETS, VOCAL_TIMBRE_PRESETS,
   VOCAL_DELIVERY_PRESETS, SECTION_VOCAL_PRESETS, INSTRUMENT_PRESETS, PRODUCTION_SUGGESTIONS,
@@ -18,7 +19,7 @@ const EXTENSION_NAME = "minimax.music3.semantic.studio";
 const NODE_ID = "MiniMaxMusic3SemanticStudio";
 const STYLE_ID = "m3ss-style-link";
 const NAV = [
-  ["overview", "Overview"], ["global", "Global"], ["lyrics", "Lyrics"], ["vocal", "Vocal"],
+  ["overview", "Overview"], ["timeline", "Timeline"], ["global", "Global"], ["lyrics", "Lyrics"], ["vocal", "Vocal"],
   ["arrangement", "Arrangement"], ["advanced", "Advanced"], ["preview", "Prompt Preview"],
 ];
 const STRUCTURE_COLUMNS = [
@@ -62,6 +63,7 @@ function openStudio(node, compactSummary) {
   if (!project.project_id) project.project_id = uid("project");
   let active = "overview";
   let selectedId = project.timeline.sections[0]?.id || null;
+  let timelinePxPerSecond = clamp(readLayoutNumber("semantic-timeline-scale", 7), 3, 20);
   let cleanup = () => {};
 
   const shell = createStudioWindow({
@@ -121,6 +123,7 @@ function openStudio(node, compactSummary) {
     durationStatus.textContent = `${totalDuration(project).toFixed(2)} s · ${project.timeline.sections.length} sections · changes stay local until Save to Node`;
   };
   const update = (fn) => { fn(); mark(); };
+  const refreshTimeline = () => { if (active === "timeline") renderTimelineView(); };
 
   function sectionRow(section, index) {
     const row = el("button", `m3ss-structure-row m3ss-structure-grid${section.id === selectedId ? " is-selected" : ""}`);
@@ -204,6 +207,57 @@ function openStudio(node, compactSummary) {
     center.appendChild(grid);
     center.appendChild(el("h3", "m3ss-section-heading", "Song Structure"));
     center.appendChild(buildStructureTable());
+  }
+
+  function renderTimelineView() {
+    center.replaceChildren();
+    const head = el("div", "m3ss-center-head m3ss-timeline-view-head");
+    const headText = el("div");
+    headText.append(
+      el("h3", "m3ss-view-title", "Song Timeline"),
+      el("p", "m3ss-view-note", "Section width represents duration. Drag a section's right edge to change time; Shift+drag shares time with the next section. Drag Energy points vertically."),
+    );
+    const controls = el("div", "m3ss-timeline-controls");
+    const fit = button("Fit", "m3ss-button secondary");
+    const zoom = document.createElement("input");
+    zoom.type = "range";
+    zoom.min = "3";
+    zoom.max = "20";
+    zoom.step = "0.5";
+    zoom.value = String(timelinePxPerSecond);
+    zoom.title = "Timeline horizontal scale";
+    controls.append(el("span", "m3ss-timeline-scale-label", "Scale"), zoom, fit);
+    head.append(headText, controls);
+    center.appendChild(head);
+
+    const host = el("div", "m3ss-timeline-host");
+    center.appendChild(host);
+    renderSemanticTimeline(host, project, selectedId, {
+      pxPerSecond: timelinePxPerSecond,
+      onSelect: (id, options = {}) => {
+        selectedId = id;
+        if (options.render === false) {
+          renderInspector();
+          return;
+        }
+        render();
+      },
+      onChange: () => {
+        mark();
+        render();
+      },
+    });
+
+    zoom.oninput = () => {
+      timelinePxPerSecond = clamp(zoom.value, 3, 20);
+      writeLayoutNumber("semantic-timeline-scale", timelinePxPerSecond);
+      renderTimelineView();
+    };
+    fit.onclick = () => {
+      timelinePxPerSecond = fitTimelineScale(center.clientWidth, totalDuration(project));
+      writeLayoutNumber("semantic-timeline-scale", timelinePxPerSecond);
+      renderTimelineView();
+    };
   }
 
   function renderGlobal() {
@@ -378,6 +432,7 @@ function openStudio(node, compactSummary) {
 
   function renderCenter() {
     if (active === "overview") renderOverview();
+    else if (active === "timeline") renderTimelineView();
     else if (active === "global") renderGlobal();
     else if (active === "lyrics") renderLyrics();
     else if (active === "vocal") renderVocal();
@@ -402,11 +457,11 @@ function openStudio(node, compactSummary) {
     const energyValue = el("span", "m3ss-energy-value", `${Math.round(section.energy * 100)}%`);
     const instruments = chipEditor({
       values: section.instruments || [], suggestions: INSTRUMENT_PRESETS, placeholder: "Add instrument / texture…",
-      onChange: (values) => update(() => { section.instruments = values; }),
+      onChange: (values) => { update(() => { section.instruments = values; }); refreshTimeline(); },
     });
     const vocal = editableCombo({
       value: section.vocal, options: SECTION_VOCAL_PRESETS, placeholder: "soft, power, instrumental… or custom",
-      onInput: (value) => update(() => { section.vocal = value; }),
+      onInput: (value) => { update(() => { section.vocal = value; }); refreshTimeline(); },
     });
     const lyrics = textarea(section.lyrics, "Section lyrics", 7);
     const directive = textarea(section.directives, "Arrangement directive", 7);
@@ -418,12 +473,12 @@ function openStudio(node, compactSummary) {
     const energyWrap = el("div", "m3ss-energy-control");
     energyWrap.append(energy, energyValue);
 
-    type.onchange = () => update(() => { section.type = type.value; if (!section.label) section.label = type.value; });
-    label.oninput = () => update(() => { section.label = label.value; });
-    duration.oninput = () => update(() => { section.duration = clamp(duration.value, 0.5, 360); });
-    energy.oninput = () => update(() => { section.energy = Number(energy.value) / 100; energyValue.textContent = `${energy.value}%`; });
-    lyrics.oninput = () => update(() => { section.lyrics = lyrics.value; });
-    directive.oninput = () => update(() => { section.directives = directive.value; });
+    type.onchange = () => { update(() => { section.type = type.value; if (!section.label) section.label = type.value; }); refreshTimeline(); };
+    label.oninput = () => { update(() => { section.label = label.value; }); refreshTimeline(); };
+    duration.oninput = () => { update(() => { section.duration = clamp(duration.value, 0.5, 360); }); refreshTimeline(); };
+    energy.oninput = () => { update(() => { section.energy = Number(energy.value) / 100; energyValue.textContent = `${energy.value}%`; }); refreshTimeline(); };
+    lyrics.oninput = () => { update(() => { section.lyrics = lyrics.value; }); refreshTimeline(); };
+    directive.oninput = () => { update(() => { section.directives = directive.value; }); refreshTimeline(); };
 
     const move = el("div", "m3ss-inspector-actions");
     const up = button("↑", "m3ss-icon-button");
