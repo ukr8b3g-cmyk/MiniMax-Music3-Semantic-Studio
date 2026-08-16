@@ -1,7 +1,7 @@
 [project]
 name = "minimax-music3-semantic-studio"
-version = "0.1.0"
-description = "Semantic timeline conditioning studio for MiniMax Music 3 in ComfyUI"
+version = "0.2.0"
+description = "Semantic generation and non-destructive audio editing studio for MiniMax Music 3 in ComfyUI"
 requires-python = ">=3.10"
 dependencies = []
 
