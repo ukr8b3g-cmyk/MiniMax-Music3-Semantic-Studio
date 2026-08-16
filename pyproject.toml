@@ -1,0 +1,10 @@
+[project]
+name = "minimax-music3-semantic-studio"
+version = "0.1.0"
+description = "Semantic timeline conditioning studio for MiniMax Music 3 in ComfyUI"
+requires-python = ">=3.10"
+dependencies = []
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
