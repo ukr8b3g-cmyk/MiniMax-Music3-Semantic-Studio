@@ -1,111 +1,133 @@
-# Phase B — Audio Editor Basics
+# Phase B.2 — Unified Waveform Audio Editor
 
-Status: implemented in frontend; ComfyUI visual/integration verification pending.
+Status: implemented in frontend/backend with pure-module tests; ComfyUI visual/audio integration verification pending.
 
-Phase B completes the conventional audio-editing surface of the existing V2.0 non-destructive Audio Editor. It does **not** add V2.1 DSP effects.
+Phase B.2 replaces the clip-lane-first interaction with an Audacity-style unified waveform surface while preserving immutable source AUDIO and authoritative Python rendering.
 
 ## Editing surface
 
-The rendered/source Waveform is the primary edit surface. Dragging it creates the time selection used by Cut / Copy / Delete / Silence, and the playhead drives Split and Paste-at-playhead commands.
+The visible standalone Main Comp lane is removed from the normal editor. The main waveform is the edit surface for:
 
-The edit-command bar is placed directly below the Waveform so these operations read as waveform edits rather than as controls belonging only to the lower clip plan.
+- seek and time selection
+- Cut / Copy / Paste
+- Split
+- Ripple Delete
+- Silence / Leave Gap
+- Track Gain Envelope
+- clip-boundary selection
 
-The existing Main Comp plan remains visible as a compact secondary **Clip Lane**. It is intentionally retained because overlapping clips, crossfades, clip moves, trims and fade handles cannot be represented clearly by a single flattened preview waveform. The Clip Lane is visually smaller so it no longer competes with the primary Waveform.
+Non-destructive `tracks[].clips[]` remain the persisted implementation. Thin clip blocks at the top of the waveform show boundaries, source take, selected state, and clip mute state without creating a second competing timeline.
 
-The transport time readout uses a fixed width and tabular numerals so changing time values do not move neighboring toolbar controls.
+The waveform height follows available editor space through `ResizeObserver`; `view.waveform_height` is normalized to 220–900 px.
+
+## Tool modes
+
+- `F1` — Select tool
+- `F2` — Envelope tool
+
+Select mode owns waveform selection/seek gestures. Envelope mode owns gain-automation point gestures, preventing ambiguous pointer behavior.
+
+## Main Track controls
+
+The left strip controls the Main Track rather than the selected clip:
+
+- Mute
+- Solo
+- Gain
+- Pan
+
+Advanced clip-specific source ranges, gain, pan, mute, reverse, and fades remain available in the Clip inspector.
+
+## Track Gain Envelope
+
+Schema 2 adds `tracks[].gain_envelope` as full-timeline gain automation.
+
+- click the waveform in Envelope mode to add a point
+- drag to change time and dB
+- right-click or double-click to delete
+- hover displays time and dB
+- no selected clip is required
+- the curve spans clip boundaries
+- before the first point and after the last point, the nearest user value is held
+- an empty envelope is neutral 0 dB
+
+Schema-1 clip envelopes remain supported for compatibility but are not the primary authoring surface.
+
+## Browser Draft Preview
+
+The editor decodes Take 1–4 temporary source previews, applies current declarative edits in JavaScript, creates a temporary PCM WAV Object URL, and loads it into the existing waveform/transport.
+
+Draft render order mirrors Python:
+
+1. source slice
+2. reverse
+3. clip gain
+4. legacy clip envelope
+5. fades
+6. clip pan
+7. place/sum into track
+8. track envelope
+9. track gain
+10. track pan
+11. track mute/solo
+12. track effects boundary
+13. mix tracks
+14. master effects boundary
+15. master channel mode
+16. master gain
+17. peak normalization
+
+Draft Preview updates after editing commands and while envelope gestures pause briefly. Mute, envelope, Cut, Paste, Split, and track controls can therefore be auditioned without Queue.
+
+The browser preview is not authoritative. PCM16 browser playback may differ at clipping/extreme gain boundaries. **Save Edits -> Queue** always rerenders from original connected AUDIO tensors in Python/PyTorch.
+
+## Selection
+
+The bottom Selection bar exposes fixed-width numeric fields:
+
+- Start
+- End
+- Length
+
+Selection values use seconds with millisecond steps. The transport and peak values use tabular numerals to avoid UI jitter.
 
 ## Editing commands
 
-The Audio Editor exposes the normal selection/clip operations expected from a waveform editor:
-
-- Cut
-- Copy
-- Paste at playhead
-- Split at playhead
-- Ripple Delete
-- Silence / Leave Gap
-- Cut & Leave Gap
+- Cut / Copy / Paste at playhead
+- Split
 - Duplicate
 - Reverse
-- Mute / Unmute selected clip
+- Delete / Ripple
+- Silence / Leave Gap
+- Cut & Leave Gap
+- Mute track / Mute selected clip
 - Crossfade Next
 
-Copy/Cut use an internal editor clipboard. Audio PCM is never written to the operating-system clipboard. Clipboard entries retain immutable source references plus the sliced source range, clip gain/pan/mute/reverse state, applicable edge fades, and gain-envelope points remapped to the copied clip-local time.
+The internal clipboard stores declarative clip slices, immutable source references, and copied track-envelope automation. It does not place PCM audio on the operating-system clipboard.
 
-### Delete semantics
+## Schema and migration
 
-Phase B intentionally separates two common operations:
+`edit_schema_version=2` adds:
 
-- **Delete / Ripple** removes the selected timeline range and shifts later material left by the removed duration.
-- **Silence / Leave Gap** removes material inside the selected range without shifting later material.
+```json
+{
+  "tracks": [{
+    "muted": false,
+    "solo": false,
+    "gain_db": 0.0,
+    "pan": 0.0,
+    "gain_envelope": [],
+    "effects": [],
+    "clips": []
+  }],
+  "master": {
+    "effects": []
+  }
+}
+```
 
-When no time selection exists, Cut/Copy/Delete operate on the selected clip rather than implicitly affecting overlapping clips.
-
-## Keyboard shortcuts
-
-Shortcuts are only captured when the user is not typing in an input/textarea/select control, except `Ctrl/Cmd+S`.
-
-- `Ctrl/Cmd+X` — Cut
-- `Ctrl/Cmd+C` — Copy
-- `Ctrl/Cmd+V` — Paste at playhead
-- `Ctrl/Cmd+I` — Split
-- `Ctrl/Cmd+D` — Duplicate
-- `Delete` / `Backspace` — Delete / Ripple
-- `Ctrl/Cmd+L` — Silence / Leave Gap
-- `Ctrl/Cmd+Alt+X` — Cut & Leave Gap
-- `M` — Mute / Unmute selected clip
-- `Ctrl/Cmd+Z` — Undo
-- `Ctrl/Cmd+Shift+Z` or `Ctrl/Cmd+Y` — Redo
-- `Ctrl/Cmd+S` — Save Edits
-- `Ctrl/Cmd+0` — Fit waveform
-- `Space` — Play / Pause
-
-## Context menu
-
-Right-clicking the Audio Editor main area opens a local context menu containing the same edit commands and shortcut hints. `Pitch & Speed…` is shown disabled as a V2.1 boundary marker; no pitch/time DSP is executed in Phase B.
-
-## Track strip
-
-A compact track strip is displayed to the left of the waveform. It operates on the currently selected clip using fields already supported by V2.0:
-
-- Mute
-- Gain
-- Pan
-- source layout badge (Stereo / Mono)
-
-No fake track-level solo state is introduced because the current authoritative edit model has one Main Comp track and explicit source takes rather than a full mixer track graph.
-
-## Preview peak meter
-
-A lightweight L/R (or mono) **Preview Peak** meter is shown next to the waveform. It samples the decoded browser preview around the current playhead position and reports approximate dBFS peaks. The numeric peak field also uses a fixed tabular layout to avoid UI jitter while the value changes.
-
-Important: this meter describes the currently playing Source/Rendered preview. Unsaved browser edits are not authoritative audio; queued backend rendering remains the source of truth.
-
-## Envelope / fades
-
-- Gain Envelope remains optional and defaults Off for new local UI state.
-- Envelope line and control points use amber/orange styling to remain visually distinct from the waveform.
-- Existing direct envelope-point editing and fade handles remain synchronized with `edit_json`.
-
-## Data / compatibility
-
-- public V2 node ID and `AUDIO -> AUDIO` contract are unchanged
-- `edit_schema_version` remains 1
-- source AUDIO remains immutable
-- no Python runtime dependency is added
-- no V2.1 effects fields are added
-- browser clipboard and peak-meter state are session/UI state only and are not serialized
-- all authoritative edits remain declarative clips inside `edit_json`
+Schema 1 is accepted and migrated automatically with neutral track controls. Existing clip fields and unknown data are preserved.
 
 ## V2.1 boundary
 
-The following are intentionally not implemented in Phase B:
-
-- Pitch shift / time stretch
-- EQ / high-pass / low-pass
-- Compressor / limiter
-- Delay / reverb
-- Stereo Width DSP
-- Spectrogram / LUFS analysis
-
-Those require the V2.1 effects/DSP phase and a separate schema/render-order review.
+Effects arrays are normalized and persisted, but enabled effects fail explicitly until the V2.1 DSP renderer is implemented. No EQ, compressor, limiter, delay, reverb, pitch shift, or time stretch is silently simulated.
