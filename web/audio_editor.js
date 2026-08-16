@@ -76,7 +76,7 @@ function openEditor(node, compactSummary) {
   let activeInspector = "clip";
   let showTakes = false;
   let viewInitialized = false;
-  let envelopeOverlay = readLayoutNumber("audio-envelope-overlay", 1) !== 0;
+  let envelopeOverlay = readLayoutNumber("audio-envelope-overlay", 0) !== 0;
   let waveformDisplayMode = readWaveDisplayMode();
   let sourceInfo = null;
   const history = [];
@@ -110,7 +110,7 @@ function openEditor(node, compactSummary) {
     { value: "overlay", label: "Stereo Overlay" },
     { value: "mono", label: "Mono Mix Preview" },
   ], waveformDisplayMode);
-  const envelopeToggle = button("Envelope: On");
+  const envelopeToggle = button("Envelope: Off");
   envelopeToggle.title = "Show/hide and edit the selected clip Gain Envelope over the rendered waveform";
   const time = el("span", "m3ssv2-time", "0:00.00");
   const takesToggle = button(`Takes (${meta.takes.length})`);
