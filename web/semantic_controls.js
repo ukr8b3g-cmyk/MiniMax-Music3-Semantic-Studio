@@ -46,7 +46,11 @@ function attachSuggestionPopup(root, input, options, onChoose) {
     }
     activeIndex = ((next % visible.length) + visible.length) % visible.length;
     const items = [...menu.querySelectorAll(".m3ss-combo-option")];
-    items.forEach((item, index) => item.classList.toggle("is-active", index === activeIndex));
+    items.forEach((item, index) => {
+      const isActive = index === activeIndex;
+      item.classList.toggle("is-active", isActive);
+      item.setAttribute("aria-selected", isActive ? "true" : "false");
+    });
     const active = items[activeIndex];
     if (active) {
       input.setAttribute("aria-activedescendant", active.id);
@@ -114,6 +118,8 @@ function attachSuggestionPopup(root, input, options, onChoose) {
     } else if (event.key === "Enter" && open && activeIndex >= 0) {
       event.preventDefault();
       choose(visible[activeIndex]);
+    } else if (event.key === "Enter" && open) {
+      setOpen(false);
     } else if (event.key === "Escape" && open) {
       event.preventDefault();
       setOpen(false);
