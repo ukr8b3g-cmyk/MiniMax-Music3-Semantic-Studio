@@ -34,14 +34,14 @@
 .m3ssv2-semantic-overlay{position:absolute;inset:0 0 auto;height:25px;pointer-events:none}
 .m3ssv2-semantic-section{position:absolute;top:0;height:23px;box-sizing:border-box;overflow:hidden;padding:4px 6px;border-right:1px solid rgba(255,255,255,.16);background:rgba(98,128,197,.22);color:#c9d7f0;font-size:10px;white-space:nowrap;text-overflow:ellipsis}
 .m3ssv2-wave-envelope{position:absolute;inset:0;width:100%;height:100%;display:none;pointer-events:none;overflow:visible}
-.m3ssv2-envelope-range{fill:rgba(100,155,255,.055);stroke:rgba(100,155,255,.22);stroke-width:.7;pointer-events:none}
+.m3ssv2-envelope-range{fill:rgba(255,176,32,.045);stroke:rgba(255,176,32,.24);stroke-width:.7;pointer-events:none}
 .m3ssv2-envelope-hit{fill:transparent;pointer-events:all;cursor:crosshair}
-.m3ssv2-envelope-line{fill:none;stroke:#63d2be;stroke-width:2.2;vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 2px rgba(99,210,190,.55));pointer-events:none}
-.m3ssv2-envelope-point{fill:#78a6ff;stroke:#dbe7ff;stroke-width:.8;vector-effect:non-scaling-stroke}
+.m3ssv2-envelope-line{fill:none;stroke:#ffb020;stroke-width:2.35;vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 2px rgba(255,176,32,.58));pointer-events:none}
+.m3ssv2-envelope-point{fill:#ffd166;stroke:#fff0c2;stroke-width:.9;vector-effect:non-scaling-stroke}
 .m3ssv2-envelope-point.is-user{pointer-events:all;cursor:grab}
-.m3ssv2-envelope-point.is-user:hover{fill:#f6c86f;stroke:#fff0c7}
+.m3ssv2-envelope-point.is-user:hover{fill:#fff0b0;stroke:#fff8dc}
 .m3ssv2-envelope-point.is-user:active{cursor:grabbing}
-.m3ssv2-envelope-point.is-boundary{pointer-events:none;opacity:.58}
+.m3ssv2-envelope-point.is-boundary{fill:#ffb020;stroke:#ffe4a0;pointer-events:none;opacity:.65}
 .m3ssv2-timeline-head{justify-content:space-between;padding:5px 12px 6px}
 .m3ssv2-timeline{margin:0 10px 8px;overflow:hidden;border:1px solid rgba(255,255,255,.09);border-radius:8px;background:#0c121d}
 .m3ssv2-timeline-layout{display:grid;grid-template-columns:104px minmax(0,1fr);min-width:0}
