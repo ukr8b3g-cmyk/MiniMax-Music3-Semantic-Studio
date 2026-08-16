@@ -140,7 +140,7 @@ Advanced clip fields remain in the Clip inspector.
 
 Draft Preview decodes source Take previews and renders current project state locally. It supports batch item 1 for interactive browser use.
 
-Draft Preview is regenerated after edit commits and debounced during envelope movement. Source/Rendered A/B audition remains available.
+Draft Preview is regenerated after edit commits and after envelope gestures commit. Source/Rendered A/B audition remains available.
 
 Draft Preview must never overwrite source AUDIO or be serialized as authoritative audio. Object URLs and decoded buffers are session state only.
 
