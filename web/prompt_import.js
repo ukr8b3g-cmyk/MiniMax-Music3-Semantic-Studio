@@ -48,24 +48,32 @@ export function openPromptImporter({
   onApply,
   title = "Import Music3 Prompt",
   subtitle = "Paste an external LLM Caption/Lyrics, analyze it, then apply after reviewing the detected structure.",
+  initialCaption = "",
+  initialLyrics = "",
+  defaultMode = "replace",
+  autoAnalyze = false,
 } = {}) {
   ensureStyles();
-  let analysis = null, mode = "merge";
+  let analysis = null;
+  let mode = defaultMode === "merge" ? "merge" : "replace";
   const shell = createStudioWindow({ title, subtitle, storageKey: "m3ss-prompt-import-window", defaultWidth: 1180, defaultHeight: 820, minWidth: 780, minHeight: 560 });
   shell.window.classList.add("m3import-dialog");
 
   const root = el("div", "m3import-root"), inputs = el("section", "m3import-inputs"), results = el("section", "m3import-results"), footer = el("footer", "m3import-footer");
   shell.content.appendChild(root); root.append(inputs, results, footer);
 
-  const captionField = el("label", "m3import-field"), caption = textarea("", "Paste ### Global Metadata / ### Vocal Details / ### Arrangement here.", 14);
+  const captionField = el("label", "m3import-field"), caption = textarea(initialCaption, "Paste ### Global Metadata / ### Vocal Details / ### Arrangement here.", 14);
   captionField.append(el("span", "m3import-label", "Caption / Structured Caption"), caption);
-  const lyricsField = el("label", "m3import-field"), lyrics = textarea("", "Paste [Intro] / [Verse] / [Chorus] tagged lyrics here. If a combined prompt contains ### Lyrics, you may paste everything in Caption.", 14);
+  const lyricsField = el("label", "m3import-field"), lyrics = textarea(initialLyrics, "Paste [Intro] / [Verse] / [Chorus] tagged lyrics here. If a combined prompt contains ### Lyrics, you may paste everything in Caption.", 14);
   lyricsField.append(el("span", "m3import-label", "Lyrics"), lyrics);
 
-  const importMode = selectInput([{ value: "merge", label: "Merge detected fields" }, { value: "replace", label: "Replace section structure" }], mode);
+  const importMode = selectInput([
+    { value: "replace", label: "Replace section structure" },
+    { value: "merge", label: "Merge detected fields" },
+  ], mode);
   importMode.onchange = () => { mode = importMode.value; updateApplyHint(); };
   const modeRow = el("div", "m3import-mode-row");
-  modeRow.append(el("span", "m3import-label", "Import mode"), importMode, el("span", "m3import-mode-help", "Merge updates matching section-type occurrences and appends missing sections. Replace rebuilds section order from the analyzed prompt. Reserved V2/V3 fields are always preserved."));
+  modeRow.append(el("span", "m3import-label", "Import mode"), importMode, el("span", "m3import-mode-help", "Replace rebuilds section order from the analyzed prompt. Merge updates matching section-type occurrences and appends missing sections. Reserved V2/V3 fields are always preserved."));
 
   const analyze = button("Analyze", "m3import-button primary"), clear = button("Clear", "m3import-button secondary"), inputActions = el("div", "m3import-actions");
   inputActions.append(analyze, clear); inputs.append(captionField, lyricsField, modeRow, inputActions);
@@ -106,7 +114,11 @@ export function openPromptImporter({
     updateApplyHint();
   }
 
-  analyze.onclick = () => { analysis = analyzePromptImport({ caption: caption.value, lyrics: lyrics.value }); renderAnalysis(); };
+  const runAnalysis = () => {
+    analysis = analyzePromptImport({ caption: caption.value, lyrics: lyrics.value });
+    renderAnalysis();
+  };
+  analyze.onclick = runAnalysis;
   clear.onclick = () => { caption.value = ""; lyrics.value = ""; analysis = null; renderAnalysis(); };
   cancel.onclick = () => shell.close();
   apply.onclick = () => {
@@ -116,6 +128,8 @@ export function openPromptImporter({
     shell.close();
   };
 
-  shell.mount(); renderAnalysis();
+  shell.mount();
+  if (autoAnalyze && (String(initialCaption).trim() || String(initialLyrics).trim())) runAnalysis();
+  else renderAnalysis();
   return shell;
 }
