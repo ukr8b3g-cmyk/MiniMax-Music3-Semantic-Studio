@@ -1,14 +1,30 @@
-import { clamp, el, formatTime } from "./semantic_studio_core.js";
+import { clamp, el, formatTime, snapSemanticDuration } from "./semantic_studio_core.js";
 
 const MIN_DURATION = 0.5;
 const SCALE_MIN = 3;
 const SCALE_MAX = 20;
 const MAX_ZOOM_FACTOR = 4;
 
+const SECTION_COLORS = {
+  Intro: { fill: "#253c6f", border: "#5378c6", accent: "#7fa6ff" },
+  Verse: { fill: "#5a3516", border: "#a86622", accent: "#e5a040" },
+  "Pre-Chorus": { fill: "#49305f", border: "#8052a8", accent: "#b989df" },
+  Chorus: { fill: "#632b2f", border: "#ad4b54", accent: "#ef7179" },
+  "Post-Chorus": { fill: "#5d2f52", border: "#a04f8c", accent: "#db78c0" },
+  Bridge: { fill: "#403263", border: "#745ca6", accent: "#a58be2" },
+  Instrumental: { fill: "#1c4c4d", border: "#3b8183", accent: "#64b8b7" },
+  Solo: { fill: "#5b2d5d", border: "#9b529e", accent: "#d27ed5" },
+  Outro: { fill: "#334050", border: "#60748c", accent: "#8ba1b8" },
+};
+
+export function sectionPalette(type) {
+  return SECTION_COLORS[type] || { fill: "#273644", border: "#51697d", accent: "#82a2bd" };
+}
+
 export function sectionTimelineGeometry(sections = []) {
   let cursor = 0;
   return sections.map((section, index) => {
-    const duration = Math.max(MIN_DURATION, Number(section?.duration) || MIN_DURATION);
+    const duration = snapSemanticDuration(section?.duration ?? MIN_DURATION);
     const start = cursor;
     const end = start + duration;
     cursor = end;
@@ -22,29 +38,63 @@ export function timelineScaleFactor(value) {
 }
 
 export function fitTimelineScale(_width, _duration) {
-  // The slider is now a relative DAW-style zoom control: minimum == Fit.
   return SCALE_MIN;
 }
 
 export function resizeSectionDurations(sections, index, requestedDuration, preserveTotal = false) {
   const current = sections?.[index];
   if (!current) return null;
-  const original = Math.max(MIN_DURATION, Number(current.duration) || MIN_DURATION);
-  let nextDuration = clamp(requestedDuration, MIN_DURATION, 360);
+  const original = snapSemanticDuration(current.duration ?? MIN_DURATION);
+  let nextDuration = snapSemanticDuration(requestedDuration);
   const next = sections[index + 1] || null;
-  let adjustedNext = next ? Math.max(MIN_DURATION, Number(next.duration) || MIN_DURATION) : null;
+  let adjustedNext = next ? snapSemanticDuration(next.duration ?? MIN_DURATION) : null;
 
   if (preserveTotal && next) {
     const originalNext = adjustedNext;
     const requestedDelta = nextDuration - original;
-    adjustedNext = clamp(originalNext - requestedDelta, MIN_DURATION, 360);
+    adjustedNext = snapSemanticDuration(originalNext - requestedDelta);
     const actualDelta = originalNext - adjustedNext;
-    nextDuration = clamp(original + actualDelta, MIN_DURATION, 360);
+    nextDuration = snapSemanticDuration(original + actualDelta);
   }
 
   current.duration = nextDuration;
   if (preserveTotal && next) next.duration = adjustedNext;
   return { current: nextDuration, next: adjustedNext };
+}
+
+export function collectInstrumentRows(sections = []) {
+  const result = [];
+  const seen = new Set();
+  for (const section of sections) {
+    for (const raw of section?.instruments || []) {
+      const name = String(raw || "").trim();
+      const key = name.toLowerCase();
+      if (!name || seen.has(key)) continue;
+      seen.add(key);
+      result.push(name);
+    }
+  }
+  return result;
+}
+
+export function sectionHasInstrument(section, instrument) {
+  const needle = String(instrument || "").trim().toLowerCase();
+  return (section?.instruments || []).some((item) => String(item || "").trim().toLowerCase() === needle);
+}
+
+export function toggleSectionInstrument(section, instrument) {
+  if (!section || !instrument) return false;
+  const values = Array.isArray(section.instruments) ? [...section.instruments] : [];
+  const needle = String(instrument).trim().toLowerCase();
+  const index = values.findIndex((item) => String(item || "").trim().toLowerCase() === needle);
+  if (index >= 0) {
+    values.splice(index, 1);
+    section.instruments = values;
+    return false;
+  }
+  values.push(String(instrument).trim());
+  section.instruments = values;
+  return true;
 }
 
 function summary(text, max = 78) {
@@ -54,7 +104,9 @@ function summary(text, max = 78) {
 }
 
 function addLabel(column, text, className = "") {
-  column.appendChild(el("div", `m3ss-tl-fixed-label ${className}`.trim(), text));
+  const label = el("div", `m3ss-tl-fixed-label ${className}`.trim(), text);
+  column.appendChild(label);
+  return label;
 }
 
 function makeRow(stage, className = "") {
@@ -63,18 +115,35 @@ function makeRow(stage, className = "") {
   return row;
 }
 
+function applySectionPalette(node, section) {
+  const palette = sectionPalette(section?.type);
+  node.style.setProperty("--m3ss-section-fill", palette.fill);
+  node.style.setProperty("--m3ss-section-border", palette.border);
+  node.style.setProperty("--m3ss-section-accent", palette.accent);
+}
+
 function placeBlock(row, geometry, total, className, text, selected) {
   const block = el("button", `${className}${selected ? " is-selected" : ""}`, text);
   block.type = "button";
   block.style.left = `${geometry.start / total * 100}%`;
   block.style.width = `${Math.max(0.25, geometry.duration / total * 100)}%`;
   block.dataset.sectionIndex = String(geometry.index);
+  applySectionPalette(block, geometry.section);
   row.appendChild(block);
   return block;
 }
 
+function vocalLabel(value) {
+  const clean = String(value || "").trim();
+  if (!clean) return "—";
+  const aliases = { power: "Powerful", soft: "Soft", fade: "Fade", instrumental: "Instrumental" };
+  return aliases[clean.toLowerCase()] || clean.replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
 export function renderSemanticTimeline(container, project, selectedId, {
   pxPerSecond = 7,
+  showInstruments = true,
+  onToggleInstruments = null,
   onSelect = null,
   onChange = null,
 } = {}) {
@@ -82,11 +151,12 @@ export function renderSemanticTimeline(container, project, selectedId, {
   const sections = project?.timeline?.sections || [];
   if (!sections.length) {
     container.appendChild(el("div", "m3ss-empty", "Add a section to use Timeline view."));
-    return { width: 0, total: 0 };
+    return { width: 0, total: 0, zoomFactor: 1 };
   }
 
   const geometry = sectionTimelineGeometry(sections);
   const total = Math.max(MIN_DURATION, geometry.at(-1)?.end || MIN_DURATION);
+  const instruments = collectInstrumentRows(sections);
 
   const shell = el("div", "m3ss-semantic-timeline");
   const labels = el("div", "m3ss-tl-labels");
@@ -102,12 +172,32 @@ export function renderSemanticTimeline(container, project, selectedId, {
   const secondsPerPixel = total / stageWidth;
   stage.style.width = `${stageWidth}px`;
 
+  const selectedGeometry = geometry.find((item) => item.section.id === selectedId);
+  if (selectedGeometry) {
+    const highlight = el("div", "m3ss-tl-selected-column");
+    highlight.style.left = `${selectedGeometry.start / total * 100}%`;
+    highlight.style.width = `${Math.max(0.25, selectedGeometry.duration / total * 100)}%`;
+    applySectionPalette(highlight, selectedGeometry.section);
+    stage.appendChild(highlight);
+  }
+
   addLabel(labels, "Time", "is-ruler");
   addLabel(labels, "Structure", "is-structure");
   addLabel(labels, "Energy", "is-energy");
   addLabel(labels, "Lyrics", "is-detail");
-  addLabel(labels, "Arrangement", "is-detail");
-  addLabel(labels, "Vocal", "is-vocal");
+
+  const instrumentLabel = addLabel(labels, `Instruments (${instruments.length})`, "is-instruments");
+  instrumentLabel.classList.toggle("is-collapsed", !showInstruments);
+  instrumentLabel.title = "Click to show/hide instrument lanes";
+  instrumentLabel.tabIndex = 0;
+  instrumentLabel.addEventListener("click", () => onToggleInstruments?.(!showInstruments));
+  instrumentLabel.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onToggleInstruments?.(!showInstruments);
+    }
+  });
+  addLabel(labels, "Vocal Style", "is-vocal");
 
   const ruler = makeRow(stage, "m3ss-tl-ruler");
   const tickStep = total > 240 ? 60 : total > 120 ? 30 : total > 60 ? 15 : 10;
@@ -119,17 +209,7 @@ export function renderSemanticTimeline(container, project, selectedId, {
 
   const structure = makeRow(stage, "m3ss-tl-structure-row");
   const lyrics = makeRow(stage, "m3ss-tl-detail-row m3ss-tl-lyrics-row");
-  const arrangement = makeRow(stage, "m3ss-tl-detail-row m3ss-tl-arrangement-row");
-  const vocal = makeRow(stage, "m3ss-tl-vocal-row");
-
   const structureBlocks = [];
-  const detailRows = [lyrics, arrangement, vocal];
-  const detailGetters = [
-    (section) => summary(section.lyrics, 62),
-    (section) => summary(section.instruments?.join(", ") || section.directives, 62),
-    (section) => summary(section.vocal, 42),
-  ];
-  const detailClasses = ["m3ss-tl-detail-block", "m3ss-tl-detail-block", "m3ss-tl-vocal-block"];
 
   geometry.forEach((item) => {
     const block = placeBlock(
@@ -147,18 +227,16 @@ export function renderSemanticTimeline(container, project, selectedId, {
     block.onclick = () => onSelect?.(item.section.id);
     structureBlocks.push({ block, badge, resize, item });
 
-    detailRows.forEach((row, rowIndex) => {
-      const detail = placeBlock(
-        row,
-        item,
-        total,
-        detailClasses[rowIndex],
-        detailGetters[rowIndex](item.section),
-        item.section.id === selectedId,
-      );
-      detail.onclick = () => onSelect?.(item.section.id);
-      detail.title = `${item.section.label || item.section.type} · ${detail.textContent}`;
-    });
+    const lyric = placeBlock(
+      lyrics,
+      item,
+      total,
+      "m3ss-tl-detail-block",
+      summary(item.section.lyrics, 62),
+      item.section.id === selectedId,
+    );
+    lyric.onclick = () => onSelect?.(item.section.id);
+    lyric.title = `${item.section.label || item.section.type} · ${lyric.textContent}`;
   });
 
   for (let index = 0; index < structureBlocks.length; index++) {
@@ -167,9 +245,9 @@ export function renderSemanticTimeline(container, project, selectedId, {
       event.preventDefault();
       event.stopPropagation();
       const startX = event.clientX;
-      const original = Number(item.section.duration) || MIN_DURATION;
+      const original = snapSemanticDuration(item.section.duration ?? MIN_DURATION);
       const nextSection = sections[index + 1] || null;
-      const originalNext = nextSection ? Number(nextSection.duration) || MIN_DURATION : null;
+      const originalNext = nextSection ? snapSemanticDuration(nextSection.duration ?? MIN_DURATION) : null;
       let moved = false;
       resize.setPointerCapture?.(event.pointerId);
 
@@ -177,7 +255,7 @@ export function renderSemanticTimeline(container, project, selectedId, {
         const dx = moveEvent.clientX - startX;
         if (!moved && Math.abs(dx) < 2) return;
         moved = true;
-        const requested = original + dx * secondsPerPixel;
+        const requested = snapSemanticDuration(original + dx * secondsPerPixel);
         const preserve = !!moveEvent.shiftKey && !!nextSection;
         if (nextSection) nextSection.duration = originalNext;
         item.section.duration = original;
@@ -244,12 +322,14 @@ export function renderSemanticTimeline(container, project, selectedId, {
     guide.setAttribute("y2", "78");
     svg.appendChild(guide);
 
+    const palette = sectionPalette(item.section.type);
     const point = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     point.setAttribute("class", `m3ss-tl-energy-point${item.section.id === selectedId ? " is-selected" : ""}`);
     point.setAttribute("cx", String(xFor(item)));
     point.setAttribute("cy", String(yFor(item.section.energy)));
     point.setAttribute("r", "6");
     point.setAttribute("tabindex", "0");
+    point.style.setProperty("--m3ss-section-accent", palette.accent);
     const value = document.createElementNS("http://www.w3.org/2000/svg", "text");
     value.setAttribute("class", "m3ss-tl-energy-text");
     value.setAttribute("x", String(xFor(item) + 8));
@@ -288,5 +368,68 @@ export function renderSemanticTimeline(container, project, selectedId, {
     point.addEventListener("click", () => onSelect?.(item.section.id));
   });
 
-  return { width: stageWidth, total, zoomFactor };
+  const instrumentGroup = el("div", `m3ss-tl-instrument-group${showInstruments ? "" : " is-collapsed"}`);
+  const instrumentHeader = makeRow(stage, "m3ss-tl-instrument-header");
+  const instrumentToggle = el("button", "m3ss-tl-instrument-toggle", `${showInstruments ? "▾" : "▸"} Instruments · click cells to toggle`);
+  instrumentToggle.type = "button";
+  instrumentToggle.onclick = () => onToggleInstruments?.(!showInstruments);
+  instrumentHeader.appendChild(instrumentToggle);
+
+  if (showInstruments) {
+    const labelNames = el("div", "m3ss-tl-instrument-labels");
+    instrumentLabel.replaceChildren(labelNames);
+    for (const instrument of instruments) labelNames.appendChild(el("div", "m3ss-tl-instrument-name", instrument));
+
+    if (!instruments.length) {
+      const emptyRow = makeRow(stage, "m3ss-tl-instrument-row is-empty");
+      emptyRow.appendChild(el("div", "m3ss-tl-instrument-empty", "Add instruments from the Section Inspector to create lanes."));
+    } else {
+      for (const instrument of instruments) {
+        const row = makeRow(stage, "m3ss-tl-instrument-row");
+        geometry.forEach((item) => {
+          const active = sectionHasInstrument(item.section, instrument);
+          const cell = placeBlock(
+            row,
+            item,
+            total,
+            `m3ss-tl-instrument-cell${active ? " is-active" : ""}`,
+            active ? instrument : "",
+            item.section.id === selectedId,
+          );
+          cell.title = `${item.section.label || item.section.type} · ${instrument}: ${active ? "On" : "Off"}`;
+          cell.setAttribute("aria-pressed", active ? "true" : "false");
+          cell.onclick = () => {
+            onSelect?.(item.section.id, { render: false });
+            toggleSectionInstrument(item.section, instrument);
+            onChange?.({ kind: "instrument", section: item.section, instrument });
+          };
+        });
+      }
+    }
+  } else {
+    const summaryRow = makeRow(stage, "m3ss-tl-instrument-summary-row");
+    geometry.forEach((item) => {
+      const text = item.section.instruments?.length ? `${item.section.instruments.length} inst.` : "—";
+      const cell = placeBlock(summaryRow, item, total, "m3ss-tl-instrument-summary", text, item.section.id === selectedId);
+      cell.onclick = () => onSelect?.(item.section.id);
+      cell.title = item.section.instruments?.join(", ") || "No instruments";
+    });
+  }
+  instrumentGroup.appendChild(instrumentHeader);
+
+  const vocal = makeRow(stage, "m3ss-tl-vocal-row");
+  geometry.forEach((item) => {
+    const cell = placeBlock(
+      vocal,
+      item,
+      total,
+      "m3ss-tl-vocal-block",
+      vocalLabel(item.section.vocal),
+      item.section.id === selectedId,
+    );
+    cell.onclick = () => onSelect?.(item.section.id);
+    cell.title = `${item.section.label || item.section.type} · ${item.section.vocal || "No section vocal style"}`;
+  });
+
+  return { width: stageWidth, total, zoomFactor, instrumentCount: instruments.length };
 }
