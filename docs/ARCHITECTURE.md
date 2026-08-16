@@ -69,11 +69,25 @@ Top-level V1 fields:
 
 Unknown fields are preserved on load. This is intentional so later phases can extend the document without forcing V1-era projects through destructive conversion.
 
-## V2: non-destructive audio editing (planned)
+## V2: non-destructive audio editing
 
-V2 will consume generated `AUDIO` after decode and add waveform editing, gain/fade envelopes, effects, take management, and comping. Editing operations should be stored as project operations rather than destructively replacing the source waveform during authoring.
+V2 is frozen as a **separate companion node after `VAE Decode Audio`**. It does not add an AUDIO input/output to the V1 conditioning node and does not change the V1 node ID or output contract.
 
-The V1 node ID and conditioning outputs should remain stable.
+```text
+VAE Decode Audio
+   |
+   v
+Music3 Semantic Studio Audio Editor
+   | AUDIO
+   v
+Preview / Save Audio
+```
+
+V2 uses immutable connected AUDIO inputs plus a declarative `edit_json` snapshot. The Python renderer is authoritative; browser Web Audio preview is an authoring aid. Source take previews and rendered previews are kept separate so reopening the editor cannot double-apply saved edits.
+
+The core V2.0 renderer covers clip split/trim/delete/move, gaps/crossfades, gain envelopes, fades, pan/channel operations, normalization, and explicit Take 1–4 comping. More complex DSP such as pitch/time stretch/EQ/compression/reverb is deferred to V2.1 after the core renderer is stable.
+
+See [`V2_SPEC.md`](V2_SPEC.md) for the frozen node contract, data model, rendering order, UI boundary, feature scope, and acceptance tests.
 
 ## V3: semantic/conditioning automation (experimental, planned)
 
