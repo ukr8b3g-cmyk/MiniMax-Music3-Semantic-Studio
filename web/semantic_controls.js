@@ -4,7 +4,17 @@ const STYLE_ID = "m3ss-semantic-controls-style";
 const MAX_MENU_ITEMS = 80;
 let controlSerial = 0;
 const nextId = (prefix) => `${prefix}-${Date.now()}-${++controlSerial}`;
-const unique = (values) => [...new Map((values || []).filter(Boolean).map((value) => [String(value).trim().toLowerCase(), String(value).trim()])).values()];
+const unique = (values) => {
+  const result = [], seen = new Set();
+  for (const raw of values || []) {
+    const value = String(raw ?? "").trim();
+    const key = value.toLowerCase();
+    if (!value || seen.has(key)) continue;
+    seen.add(key);
+    result.push(value);
+  }
+  return result;
+};
 
 function ensureStyles() {
   if (document.getElementById(STYLE_ID)) return;
