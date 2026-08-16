@@ -329,7 +329,12 @@ function openStudio(node) {
   footer.appendChild(footerActions);
   dialog.appendChild(footer);
 
+  function escapeHandler(event) {
+    if (event.key === "Escape" && overlay.isConnected) close();
+  }
+
   function close() {
+    document.removeEventListener("keydown", escapeHandler);
     overlay.remove();
   }
 
@@ -562,12 +567,7 @@ function openStudio(node) {
   overlay.addEventListener("mousedown", (event) => {
     if (event.target === overlay) close();
   });
-  document.addEventListener("keydown", function escapeHandler(event) {
-    if (event.key === "Escape" && overlay.isConnected) {
-      document.removeEventListener("keydown", escapeHandler);
-      close();
-    }
-  });
+  document.addEventListener("keydown", escapeHandler);
 
   resetButton.addEventListener("click", () => {
     if (!confirm("Reset this editor session to the V1 defaults? The node is not changed until Save to Node is pressed.")) return;
