@@ -96,11 +96,12 @@ function openStudio(node, compactSummary) {
   let timelinePxPerSecond = clamp(readLayoutNumber("semantic-timeline-scale", 3), 3, 20);
   let timelineInstrumentsOpen = readLayoutNumber("semantic-instruments-open", 0) !== 0;
   let moreSettingsOpen = readLayoutNumber("semantic-more-settings-open", 0) !== 0;
-  let mainVocalOpen = readLayoutNumber("semantic-main-vocal-open", 0) !== 0;
+  let mainVocalOpen = readLayoutNumber("semantic-main-vocal-open", 1) !== 0;
   let captionEditMode = false;
   let captionDraft = "";
   let fullLyricsDraft = compilePreview(project).lyrics;
   let fullLyricsDirty = false;
+  let cleanupLyricsSplitters = () => {};
   let cleanup = () => {};
 
   const shell = createStudioWindow({
@@ -135,7 +136,10 @@ function openStudio(node, compactSummary) {
     maxSize: 720,
     invert: true,
   });
-  cleanup = cleanupPaneSplitter;
+  cleanup = () => {
+    cleanupLyricsSplitters();
+    cleanupPaneSplitter();
+  };
 
   const navButtons = new Map();
   for (const [id, label] of NAV) {
@@ -212,7 +216,7 @@ function openStudio(node, compactSummary) {
     const summaryParts = (vocal.mode || "vocal") === "instrumental"
       ? ["Instrumental · no lead vocal"]
       : [vocal.gender || "Lead vocal", vocal.timbre, vocal.delivery].filter(Boolean);
-    const toggle = button("", "m3ss-main-vocal-toggle");
+    const toggle = button("", `m3ss-main-vocal-toggle${mainVocalOpen ? " is-open" : ""}`);
     toggle.append(
       el("span", "m3ss-main-vocal-arrow", mainVocalOpen ? "▾" : "▸"),
       el("strong", "", "Main Vocal"),
@@ -309,6 +313,8 @@ function openStudio(node, compactSummary) {
   }
 
   function renderTimelineView() {
+    cleanupLyricsSplitters();
+    cleanupLyricsSplitters = () => {};
     center.replaceChildren();
     center.appendChild(renderSongSettings());
 
@@ -507,6 +513,8 @@ function openStudio(node, compactSummary) {
   }
 
   function renderLyrics() {
+    cleanupLyricsSplitters();
+    cleanupLyricsSplitters = () => {};
     center.replaceChildren();
     const compiled = compilePreview(project);
     if (!fullLyricsDirty) fullLyricsDraft = compiled.lyrics;
@@ -514,16 +522,43 @@ function openStudio(node, compactSummary) {
     const intro = el("div", "m3ss-lyrics-view-head");
     intro.append(
       el("h3", "m3ss-view-title", "Lyrics & Caption"),
-      el("p", "m3ss-view-note", "Caption → Full Lyrics → Section Lyrics. The compiler preview remains authoritative; Draft edits return through Analyze / Import Preview."),
+      el("p", "m3ss-view-note", "Caption → Full Lyrics → Section Lyrics. Drag the dividers to resize panes; double-click a divider to reset."),
     );
     center.appendChild(intro);
 
     const grid = el("div", "m3ss-lyrics-workspace");
     const captionPanel = renderCaptionPanel(compiled);
+    const captionSplitter = makeVerticalSplitter("m3ss-lyrics-splitter");
     const full = renderFullLyricsPanel(compiled);
+    const fullSplitter = makeVerticalSplitter("m3ss-lyrics-splitter");
     const sectionPanel = renderSectionLyricsPanel(full.area);
-    grid.append(captionPanel, full.panel, sectionPanel);
+    grid.append(captionPanel, captionSplitter, full.panel, fullSplitter, sectionPanel);
     center.appendChild(grid);
+
+    const cleanupCaptionWidth = installCssSizeDrag({
+      handle: captionSplitter,
+      target: grid,
+      cssVariable: "--m3ss-caption-pane-width",
+      storageKey: "semantic-caption-pane-width",
+      defaultSize: 360,
+      minSize: 250,
+      maxSize: 620,
+      step: 20,
+    });
+    const cleanupFullLyricsWidth = installCssSizeDrag({
+      handle: fullSplitter,
+      target: grid,
+      cssVariable: "--m3ss-full-lyrics-pane-width",
+      storageKey: "semantic-full-lyrics-pane-width",
+      defaultSize: 380,
+      minSize: 260,
+      maxSize: 660,
+      step: 20,
+    });
+    cleanupLyricsSplitters = () => {
+      cleanupCaptionWidth();
+      cleanupFullLyricsWidth();
+    };
   }
 
   function renderCenter() {
