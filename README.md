@@ -4,7 +4,7 @@
 
 Current status:
 
-- **V1 / Phase A — Semantic Studio Timeline UI implemented**
+- **V1 / Semantic Studio — two-view Timeline / Lyrics UI implemented**
 - **V2.0 / Phase B — Audio Editor Basics implemented; ComfyUI interaction verification pending**
 - **V2.1 — Effects planned; not implemented yet**
 
@@ -42,16 +42,14 @@ Click **Open Semantic Studio** to open the Timeline-first authoring UI.
 
 V1 is semantic: BPM, key, exact section timing, energy, vocal treatment, and instrumentation are generation targets rather than strict symbolic guarantees.
 
-### Phase A — Timeline-first Semantic Studio
+### Semantic Studio — Timeline / Lyrics
 
 ![Phase A Semantic Studio](docs/images/semantic-studio-phase-a.webp)
 
-The normal navigation is intentionally reduced to:
+The normal navigation is intentionally reduced to two horizontal tabs:
 
-- **Timeline** — primary workspace
-- **Lyrics** — section-by-section lyric editing
-- **Vocal** — Main Vocal and per-section vocal style
-- **Prompt** — authoritative Caption/Lyrics preview and Prompt Import entry point
+- **Timeline** — primary song-design workspace
+- **Lyrics** — Caption, complete tagged Lyrics, and per-section Lyrics editing
 
 The Timeline header exposes the high-frequency song settings directly:
 
@@ -62,7 +60,7 @@ The Timeline header exposes the high-frequency song settings directly:
 - Meter
 - Vocal / Instrumental mode
 
-`More Settings` expands title, subgenres/influences, mood/direction, and production profile.
+`Main Vocal` is a compact expandable row for song-wide lead/voice type, timbre, delivery, harmony and vocal-effects wording. `More Settings` expands title, subgenres/influences, mood/direction, and production profile.
 
 #### Editable preset controls
 
@@ -80,33 +78,37 @@ The Timeline is organized as:
 1. Structure
 2. Energy
 3. Lyrics summary
-4. Instruments
-5. Vocal Style
+4. Vocal Style
+5. Instruments
 
 Section type determines UI color only; color is not stored in `project_json`.
 
 Section duration uses 0.1-second semantic snapping. Section edges can be dragged to change duration; Shift+drag shares time with the following section. Energy points are vertically draggable.
 
+Section Vocal Style uses compact display labels such as `Soft / Half-spoken`, `Soft + Doubles`, `Hushed`, or `Inst.` while preserving the full custom semantic wording in project data. Detailed edits remain available from the Section Inspector.
+
 #### Instrument lanes
 
 Instrument lanes are derived from existing `section.instruments[]` values. They are **semantic arrangement lanes, not audio stems**.
 
+- Instruments is the bottom Timeline group and defaults to a compact collapsed row for new UI state.
+- The explicit **▸ / ▾** affordance opens/closes the group.
 - Expand **Instruments** to show lanes such as Piano, Rhodes piano, Bass, Drums, Guitar, Strings, etc., depending on the project.
 - Click a section/instrument cell to toggle that instrument for the section.
 - Collapse the group to show compact per-section instrument counts.
 - Custom instruments added in the Section Inspector automatically appear as lanes.
 
-#### Lyrics accordion
+#### Lyrics workspace
 
-Lyrics uses a compact accordion. Empty or instrumental sections stay short and show `No lyrics`; textareas start small and grow with content up to a bounded internal scroll height.
+The Lyrics tab uses three columns on wide windows:
 
-#### Main Vocal vs Section Vocal Style
+1. **Caption** — authoritative compiler Caption in read-only mode. `Edit` switches the same field into a temporary Draft; `Analyze & Import` sends the Draft through the existing Analyze -> Import Preview -> Apply workflow before it can change project state.
+2. **Full Lyrics** — editable complete tagged Lyrics (`[Intro]`, `[Verse]`, `[Chorus]`, etc.). `Apply to Sections` parses the tags and updates matching section Lyrics while preserving their timing, energy, instruments and vocal style.
+3. **Section Lyrics** — compact accordion for precise per-section editing. Every row has a visible `▸ / ▾` indicator; empty/instrumental sections stay short and show `No lyrics`.
 
-Main Vocal is song-wide voice character: voice type, timbre, delivery, harmony, and effects description.
+On narrower windows the three panes reflow responsively instead of forcing a wide horizontal scroll.
 
-Section Vocal Style is the per-section performance direction, for example `Soft`, `Breathy`, `Whispered`, `Powerful`, `Belting`, `Soulful`, `Husky / Rough`, `Ethereal`, or custom text. These are authoring suggestions, not model-side enums.
-
-See [`docs/PHASE_A_SEMANTIC_UI.md`](docs/PHASE_A_SEMANTIC_UI.md) for the Phase A UI contract.
+See [`docs/PHASE_A_SEMANTIC_UI.md`](docs/PHASE_A_SEMANTIC_UI.md) for the V1 UI contract.
 
 ## Prompt Import
 
@@ -116,11 +118,13 @@ External LLM output can be pasted into **Import Prompt** and processed locally:
 Import Prompt
    -> Analyze
    -> Import Preview
-   -> Merge / Replace
+   -> Replace / Merge
    -> Semantic Studio fields
 ```
 
-Prompt Import is deterministic and does not require an LLM connection at runtime. **Prompt Preview** remains the authoritative read-only view of the Caption/Lyrics sent to MiniMax Music3.
+The normal external-import default is **Replace section structure**, which suits a new full-song LLM draft. **Merge detected fields** remains available for updating an existing project. Caption Draft editing inside the Lyrics tab uses Merge by default because it starts from the current compiled project.
+
+Prompt Import is deterministic and does not require an LLM connection at runtime. The normal Caption view remains the authoritative read-only compiler output sent to MiniMax Music3.
 
 ## V2 — non-destructive audio editor
 
@@ -247,6 +251,7 @@ python -m compileall -q .
 node --check web/semantic_studio.js
 node --check web/semantic_timeline.js
 node --check web/semantic_controls.js
+node --check web/prompt_import.js
 node --check web/audio_editor.js
 node --check web/audio_editor_core.js
 node --check web/audio_edit_commands.js
