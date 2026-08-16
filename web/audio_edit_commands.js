@@ -24,11 +24,82 @@ function trimEnvelope(points, trimLeft, newDuration) {
     .sort((a, b) => a.time - b.time);
 }
 
+function sortedTrackEnvelope(track) {
+  return (Array.isArray(track?.gain_envelope) ? track.gain_envelope : [])
+    .map((point) => ({ time: Math.max(0, Number(point?.time) || 0), gain_db: Number(point?.gain_db) || 0 }))
+    .sort((a, b) => a.time - b.time);
+}
+
+export function trackEnvelopeValueAt(track, time) {
+  const points = sortedTrackEnvelope(track);
+  if (!points.length) return 0;
+  const target = Math.max(0, Number(time) || 0);
+  if (target <= points[0].time) return points[0].gain_db;
+  if (target >= points.at(-1).time) return points.at(-1).gain_db;
+  const exact = points.find((point) => Math.abs(point.time - target) <= 1e-9);
+  if (exact) return exact.gain_db;
+  for (let index = 0; index < points.length - 1; index++) {
+    const left = points[index];
+    const right = points[index + 1];
+    if (target < left.time - EPS || target > right.time + EPS) continue;
+    const span = right.time - left.time;
+    if (span <= EPS) return right.gain_db;
+    const ratio = (target - left.time) / span;
+    return left.gain_db + (right.gain_db - left.gain_db) * ratio;
+  }
+  return 0;
+}
+
+function extractTrackEnvelope(track, start, end) {
+  const points = sortedTrackEnvelope(track);
+  if (!points.length || !(end > start)) return [];
+  const result = [
+    { time: 0, gain_db: trackEnvelopeValueAt(track, start) },
+    ...points
+      .filter((point) => point.time > start + EPS && point.time < end - EPS)
+      .map((point) => ({ time: point.time - start, gain_db: point.gain_db })),
+    { time: end - start, gain_db: trackEnvelopeValueAt(track, end) },
+  ];
+  const deduped = new Map();
+  for (const point of result) deduped.set(Number(point.time).toFixed(6), point);
+  return [...deduped.values()].sort((a, b) => a.time - b.time);
+}
+
+function rippleTrackEnvelope(track, start, end) {
+  if (!track || !(end > start)) return;
+  const points = sortedTrackEnvelope(track);
+  if (!points.length) return;
+  const delta = end - start;
+  const beforeValue = trackEnvelopeValueAt(track, start);
+  const afterValue = trackEnvelopeValueAt(track, end);
+  const output = [];
+  for (const point of points) {
+    if (point.time < start - EPS) output.push(point);
+    else if (point.time > end + EPS) output.push({ ...point, time: Math.max(0, point.time - delta) });
+  }
+  // A tiny pair preserves a deliberate level discontinuity at the edit boundary.
+  if (start > EPS && Math.abs(beforeValue - afterValue) > 1e-4) {
+    output.push({ time: Math.max(0, start - .000001), gain_db: beforeValue });
+  }
+  output.push({ time: Math.max(0, start), gain_db: afterValue });
+  const deduped = new Map();
+  for (const point of output) deduped.set(Number(point.time).toFixed(6), point);
+  track.gain_envelope = [...deduped.values()].sort((a, b) => a.time - b.time);
+}
+
+function pasteTrackEnvelope(track, envelope, at) {
+  if (!track || !Array.isArray(envelope) || !envelope.length) return;
+  const output = sortedTrackEnvelope(track);
+  for (const point of envelope) output.push({ time: Math.max(0, at + Number(point.time || 0)), gain_db: Number(point.gain_db) || 0 });
+  const deduped = new Map();
+  for (const point of output) deduped.set(Number(point.time).toFixed(6), point);
+  track.gain_envelope = [...deduped.values()].sort((a, b) => a.time - b.time);
+}
+
 /**
  * Return the portion of one immutable-source clip that occupies [start, end) on
  * the edit timeline. Gain/pan/mute/reverse are retained. Fades are retained
- * only at an original clip edge and gain-envelope points are remapped to the
- * sliced clip's local time.
+ * only at an original clip edge and legacy clip-envelope points are remapped.
  */
 export function sliceClipToRange(clip, start, end) {
   if (!clip || !(end > start)) return null;
@@ -67,7 +138,7 @@ export function sliceClipToRange(clip, start, end) {
 
 /** Create an internal clipboard payload from a selected range or an exact clip span. */
 export function extractTimelineRange(track, start, end) {
-  if (!track || !(end > start)) return { duration: 0, clips: [] };
+  if (!track || !(end > start)) return { duration: 0, clips: [], track_envelope: [] };
   const exact = exactClipForRange(track, start, end);
   const sourceClips = exact ? [exact] : (track.clips || []);
   const clips = [];
@@ -78,14 +149,12 @@ export function extractTimelineRange(track, start, end) {
     clips.push(sliced);
   }
   clips.sort((a, b) => Number(a.timeline_start) - Number(b.timeline_start));
-  return { duration: end - start, clips };
+  return { duration: end - start, clips, track_envelope: extractTrackEnvelope(track, start, end) };
 }
 
 /**
- * Remove [start,end) from a track. If the range exactly matches one clip, only
- * that clip is removed; this prevents clip Cut/Delete from damaging overlapping
- * crossfade material. Otherwise ripple=false leaves a gap and ripple=true closes
- * the selected time range.
+ * Remove [start,end) from a track. Exact clip-span deletion protects overlapping
+ * crossfade material. Ripple deletion also shifts full-track envelope points.
  */
 export function removeTimelineRange(track, start, end, { ripple = false, makeId = null } = {}) {
   if (!track || !(end > start)) return [];
@@ -95,12 +164,11 @@ export function removeTimelineRange(track, start, end, { ripple = false, makeId 
     const out = [];
     for (const clip of track.clips || []) {
       if (clip === exact) continue;
-      if (ripple && Number(clip.timeline_start) >= end - EPS) {
-        clip.timeline_start = Math.max(0, Number(clip.timeline_start) - delta);
-      }
+      if (ripple && Number(clip.timeline_start) >= end - EPS) clip.timeline_start = Math.max(0, Number(clip.timeline_start) - delta);
       out.push(clip);
     }
     track.clips = out.sort((a, b) => Number(a.timeline_start) - Number(b.timeline_start));
+    if (ripple) rippleTrackEnvelope(track, start, end);
     return track.clips;
   }
 
@@ -135,10 +203,11 @@ export function removeTimelineRange(track, start, end, { ripple = false, makeId 
   }
 
   track.clips = out.sort((a, b) => Number(a.timeline_start) - Number(b.timeline_start));
+  if (ripple) rippleTrackEnvelope(track, start, end);
   return track.clips;
 }
 
-/** Paste internal-clipboard clips at a playhead/timeline position. */
+/** Paste internal-clipboard clips and copied track automation at a timeline position. */
 export function pasteTimelineClipboard(track, clipboard, at, { makeId = null } = {}) {
   if (!track || !clipboard || !Array.isArray(clipboard.clips) || !clipboard.clips.length) return [];
   const idFactory = typeof makeId === "function" ? makeId : (() => null);
@@ -150,5 +219,6 @@ export function pasteTimelineClipboard(track, clipboard, at, { makeId = null } =
     return clip;
   });
   track.clips = [...(track.clips || []), ...pasted].sort((a, b) => Number(a.timeline_start) - Number(b.timeline_start));
+  pasteTrackEnvelope(track, clipboard.track_envelope, anchor);
   return pasted;
 }
