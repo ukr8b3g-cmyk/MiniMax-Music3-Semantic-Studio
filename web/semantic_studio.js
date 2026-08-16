@@ -1,626 +1,128 @@
 import { app } from "../../scripts/app.js";
+import { createStudioWindow } from "./studio_shell.js";
+import { hideNodeWidgets, installNodeSummary, getNodeWidget } from "./node_compact.js";
+import {
+  SECTION_TYPES, METERS, KEYS, SCALES, clamp, uid, factoryProject, normalizeProject,
+  parseList, totalDuration, summarizeProject, compilePreview, el, button, textInput, numberInput,
+  selectInput, textarea, field,
+} from "./semantic_studio_core.js";
 
 const EXTENSION_NAME = "minimax.music3.semantic.studio";
 const NODE_ID = "MiniMaxMusic3SemanticStudio";
 const STYLE_ID = "m3ss-style-link";
-const SECTION_TYPES = [
-  "Intro",
-  "Verse",
-  "Pre-Chorus",
-  "Chorus",
-  "Post-Chorus",
-  "Bridge",
-  "Instrumental",
-  "Solo",
-  "Outro",
+const NAV = [
+  ["overview","Overview"],["global","Global"],["lyrics","Lyrics"],["vocal","Vocal"],
+  ["arrangement","Arrangement"],["advanced","Advanced"],["preview","Prompt Preview"],
 ];
 
-function ensureStyles() {
-  if (document.getElementById(STYLE_ID)) return;
-  const link = document.createElement("link");
-  link.id = STYLE_ID;
-  link.rel = "stylesheet";
-  link.href = new URL("./semantic_studio.css", import.meta.url).href;
-  document.head.appendChild(link);
-}
+function ensureStyles(){if(document.getElementById(STYLE_ID))return;const link=document.createElement("link");link.id=STYLE_ID;link.rel="stylesheet";link.href=new URL("./semantic_studio.css",import.meta.url).href;document.head.appendChild(link);}
+function nodeClass(node){return node?.comfyClass||node?.constructor?.comfyClass||node?.type||"";}
 
-function deepClone(value) {
-  return JSON.parse(JSON.stringify(value));
-}
-
-function factoryProject() {
-  return {
-    schema_version: 1,
-    project_id: "",
-    global: {
-      title: "",
-      genre: "Pop",
-      subgenres: [],
-      bpm: 120,
-      key: "",
-      scale: "",
-      meter: "4/4",
-      mood: "",
-      production: "",
-      vocal: {
-        mode: "vocal",
-        gender: "",
-        timbre: "",
-        delivery: "",
-        harmony: "",
-        effects: "",
-      },
-    },
-    timeline: {
-      sections: [
-        makeSection("Intro", "Intro", 8, 20, ["piano", "pad"], "instrumental", "Sparse opening; establish the main tone without a full groove."),
-        makeSection("Verse", "Verse 1", 24, 38, ["piano", "bass", "light drums"], "soft", "Keep the arrangement restrained and leave space for the lead vocal."),
-        makeSection("Chorus", "Chorus 1", 24, 82, ["full drums", "bass", "guitar", "piano", "pad"], "power", "Open into a wider, fuller arrangement with a clear melodic lift."),
-        makeSection("Verse", "Verse 2", 24, 48, ["piano", "bass", "drums", "guitar"], "soft", "Retain momentum from the chorus while returning to a lighter texture."),
-        makeSection("Chorus", "Chorus 2", 24, 88, ["full drums", "bass", "guitar", "piano", "pad"], "power", "Repeat the chorus identity with slightly more density and backing support."),
-        makeSection("Bridge", "Bridge", 16, 45, ["piano", "strings", "pad"], "intimate", "Pull back the groove and create contrast before the final lift."),
-        makeSection("Chorus", "Final Chorus", 28, 100, ["full drums", "bass", "guitar", "piano", "strings", "pad"], "power", "Peak arrangement density and emotional intensity; broaden the stereo image."),
-        makeSection("Outro", "Outro", 12, 30, ["piano", "pad"], "fade", "Release the energy and finish with a clean, natural decay."),
-      ],
-    },
-    audio_edits: [],
-    takes: [],
-    conditioning_tracks: [],
-  };
-}
-
-function makeSection(type = "Verse", label = "Verse", duration = 16, energyPercent = 50, instruments = [], vocal = "", directives = "") {
-  return {
-    id: createId(type.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "section"),
-    type,
-    label,
-    duration,
-    energy: energyPercent / 100,
-    lyrics: "",
-    instruments,
-    vocal,
-    directives,
-  };
-}
-
-function createId(prefix = "section") {
-  const token = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  return `${prefix}-${token}`;
-}
-
-function normalizeProject(raw) {
-  const fallback = factoryProject();
-  const p = raw && typeof raw === "object" ? deepClone(raw) : fallback;
-  p.schema_version = 1;
-  p.project_id = typeof p.project_id === "string" ? p.project_id : "";
-  p.global = p.global && typeof p.global === "object" ? p.global : deepClone(fallback.global);
-  p.global.vocal = p.global.vocal && typeof p.global.vocal === "object" ? p.global.vocal : deepClone(fallback.global.vocal);
-  p.global.subgenres = Array.isArray(p.global.subgenres) ? p.global.subgenres : [];
-  p.timeline = p.timeline && typeof p.timeline === "object" ? p.timeline : { sections: [] };
-  p.timeline.sections = Array.isArray(p.timeline.sections) && p.timeline.sections.length
-    ? p.timeline.sections
-    : deepClone(fallback.timeline.sections);
-  p.audio_edits = Array.isArray(p.audio_edits) ? p.audio_edits : [];
-  p.takes = Array.isArray(p.takes) ? p.takes : [];
-  p.conditioning_tracks = Array.isArray(p.conditioning_tracks) ? p.conditioning_tracks : [];
-  return p;
-}
-
-function nodeClass(node) {
-  return node?.comfyClass || node?.constructor?.comfyClass || node?.type || "";
-}
-
-function getWidget(node, name) {
-  return node?.widgets?.find((widget) => widget.name === name);
-}
-
-function element(tag, className, text) {
-  const el = document.createElement(tag);
-  if (className) el.className = className;
-  if (text !== undefined) el.textContent = text;
-  return el;
-}
-
-function field(labelText, control, helper = "") {
-  const wrapper = element("label", "m3ss-field");
-  wrapper.appendChild(element("span", "m3ss-label", labelText));
-  wrapper.appendChild(control);
-  if (helper) wrapper.appendChild(element("span", "m3ss-helper", helper));
-  return wrapper;
-}
-
-function textInput(value = "", placeholder = "") {
-  const input = document.createElement("input");
-  input.type = "text";
-  input.value = value ?? "";
-  input.placeholder = placeholder;
-  return input;
-}
-
-function numberInput(value, min, max, step = 1) {
-  const input = document.createElement("input");
-  input.type = "number";
-  input.value = Number.isFinite(Number(value)) ? String(value) : "0";
-  input.min = String(min);
-  input.max = String(max);
-  input.step = String(step);
-  return input;
-}
-
-function selectInput(options, value) {
-  const select = document.createElement("select");
-  for (const optionValue of options) {
-    const option = document.createElement("option");
-    option.value = optionValue;
-    option.textContent = optionValue;
-    if (optionValue === value) option.selected = true;
-    select.appendChild(option);
-  }
-  return select;
-}
-
-function textarea(value = "", placeholder = "") {
-  const area = document.createElement("textarea");
-  area.value = value ?? "";
-  area.placeholder = placeholder;
-  rows(area, 3);
-  return area;
-}
-
-function rows(area, count) {
-  area.rows = count;
-  return area;
-}
-
-function parseList(value) {
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .filter((item, index, arr) => arr.findIndex((candidate) => candidate.toLowerCase() === item.toLowerCase()) === index);
-}
-
-function totalDuration(project) {
-  return Math.round(project.timeline.sections.reduce((sum, section) => sum + (Number(section.duration) || 0), 0) * 100) / 100;
-}
-
-function formatTime(seconds) {
-  const whole = Math.max(0, Math.round(seconds));
-  const minutes = Math.floor(whole / 60);
-  const secs = whole % 60;
-  return `${minutes}:${String(secs).padStart(2, "0")}`;
-}
-
-function energyPhrase(value) {
-  const e = Math.max(0, Math.min(1, Number(value) || 0));
-  if (e < 0.18) return "very sparse and restrained";
-  if (e < 0.38) return "low-density and restrained";
-  if (e < 0.62) return "moderate and controlled";
-  if (e < 0.82) return "full and energetic";
-  if (e < 0.96) return "high-intensity and expansive";
-  return "peak intensity and maximum arrangement density";
-}
-
-function compilePreview(project) {
-  const g = project.global;
-  const v = g.vocal || {};
-  const sections = project.timeline.sections;
-  const metadata = [];
-  if (g.genre) {
-    const influences = Array.isArray(g.subgenres) && g.subgenres.length ? ` with ${g.subgenres.join(", ")} influences` : "";
-    metadata.push(`Genre: ${g.genre}${influences}.`);
-  }
-  metadata.push(`Tempo target: approximately ${g.bpm || 120} BPM in ${g.meter || "4/4"} meter.`);
-  if (g.key) metadata.push(`Key/scale target: ${g.key}${g.scale ? ` ${g.scale}` : ""}.`);
-  if (g.mood) metadata.push(`Mood and emotional direction: ${g.mood}.`);
-  metadata.push(`Energy progression: ${sections.map((s) => `${s.label || s.type} ${energyPhrase(s.energy)}`).join("; then ")}.`);
-  if (g.production) metadata.push(`Production profile: ${g.production}.`);
-
-  let vocalDetails;
-  if ((v.mode || "vocal").toLowerCase() === "instrumental") {
-    vocalDetails = "Instrumental piece with no lead or backing vocals. Let the instrumental arrangement carry the melodic focus.";
-  } else {
-    const parts = [v.gender ? `Lead vocal: ${v.gender}` : "Lead vocal: present"];
-    if (v.timbre) parts.push(`timbre ${v.timbre}`);
-    if (v.delivery) parts.push(`delivery ${v.delivery}`);
-    vocalDetails = `${parts.join("; ")}.`;
-    if (v.harmony) vocalDetails += ` Harmony/backing vocals: ${v.harmony}.`;
-    if (v.effects) vocalDetails += ` Vocal effects: ${v.effects}.`;
-  }
-
-  let cursor = 0;
-  const arrangement = sections.map((s) => {
-    const end = cursor + (Number(s.duration) || 0);
-    const instruments = Array.isArray(s.instruments) && s.instruments.length ? s.instruments.join(", ") : "arrangement appropriate to the established palette";
-    let line = `${s.label || s.type} (${formatTime(cursor)}–${formatTime(end)} target, ${energyPhrase(s.energy)}): Use ${instruments}.`;
-    if (s.vocal) line += ` Vocal treatment: ${s.vocal}.`;
-    if (s.directives) line += ` ${String(s.directives).replace(/[.\s]+$/, "")}.`;
-    cursor = end;
-    return line;
-  });
-
-  const caption = [
-    `### Global Metadata\n${metadata.join(" ")}`,
-    `### Vocal Details\n${vocalDetails}`,
-    `### Arrangement\n${arrangement.join("\n")}`,
-  ].join("\n\n");
-
-  const instrumental = (v.mode || "vocal").toLowerCase() === "instrumental";
-  const lyrics = sections.flatMap((s) => {
-    const block = [`[${s.type}]`];
-    const text = String(s.lyrics || "").replace(/^\s*\[[^\]]+\]\s*/gm, "").trim();
-    if (text && !instrumental) block.push(text);
-    return block;
-  }).join("\n");
-
-  return { caption, lyrics };
-}
-
-function openStudio(node) {
+function openStudio(node, compactSummary){
   ensureStyles();
-  const projectWidget = getWidget(node, "project_json");
-  if (!projectWidget) {
-    alert("Music3 Semantic Studio: project_json widget was not found. Restart ComfyUI and reload the workflow.");
-    return;
+  const projectWidget=getNodeWidget(node,"project_json");
+  if(!projectWidget){alert("Music3 Semantic Studio: project_json widget was not found. Restart ComfyUI and reload the workflow.");return;}
+  let raw;try{raw=JSON.parse(projectWidget.value||"{}");}catch(error){if(!confirm(`Studio Project JSON is invalid. Reset to V1 defaults?\n\n${error}`))return;raw=factoryProject();}
+  let project=normalizeProject(raw);if(!project.project_id)project.project_id=uid("project");
+  let active="overview", selectedId=project.timeline.sections[0]?.id||null;
+
+  const shell=createStudioWindow({title:"Music3 Semantic Studio",subtitle:`Phase 1 / Semantic authoring · ${summarizeProject(project)}`,storageKey:"m3ss-semantic-window",defaultWidth:1360,defaultHeight:860,minWidth:820,minHeight:560});
+  shell.window.classList.add("m3ss-dialog");
+  const workspace=el("div","m3ss-workspace"),nav=el("aside","m3ss-nav"),center=el("main","m3ss-center"),inspector=el("aside","m3ss-inspector"),footer=el("footer","m3ss-footer");
+  shell.content.append(workspace,footer);workspace.append(nav,center,inspector);
+
+  const navButtons=new Map();
+  for(const [id,label] of NAV){const b=button(label,"m3ss-nav-button");b.dataset.view=id;b.onclick=()=>{active=id;render();};navButtons.set(id,b);nav.appendChild(b);}
+  nav.appendChild(el("div","m3ss-nav-note","Simple by default. Detailed controls stay in the inspector and Advanced view."));
+
+  const durationStatus=el("div","m3ss-duration-status"),actions=el("div","m3ss-footer-actions"),reset=button("Reset","m3ss-button secondary"),cancel=button("Cancel","m3ss-button secondary"),save=button("Save to Node","m3ss-button primary");actions.append(reset,cancel,save);footer.append(durationStatus,actions);
+  const selected=()=>project.timeline.sections.find(s=>s.id===selectedId)||project.timeline.sections[0]||null;
+  const mark=()=>{shell.setSubtitle(`Phase 1 / Semantic authoring · ${summarizeProject(project)}`);durationStatus.textContent=`${totalDuration(project).toFixed(2)} s · ${project.timeline.sections.length} sections · changes stay local until Save to Node`;};
+  const update=(fn)=>{fn();mark();renderInspector();};
+
+  function sectionRow(section,index){
+    const row=el("button",`m3ss-structure-row${section.id===selectedId?" is-selected":""}`);row.type="button";row.onclick=()=>{selectedId=section.id;render();};
+    row.append(el("span","m3ss-row-index",String(index+1)),el("span","m3ss-row-name",section.label||section.type),el("span","m3ss-row-type",section.type),el("span","m3ss-row-duration",`${Number(section.duration).toFixed(1)} s`),el("span","m3ss-row-energy",`${Math.round(Number(section.energy)*100)}%`),el("span","m3ss-row-inst",section.instruments?.slice(0,3).join(", ")||"—"));
+    return row;
   }
 
-  let parsed;
-  try {
-    parsed = JSON.parse(projectWidget.value || "{}");
-  } catch (error) {
-    const useDefault = confirm(`Studio Project JSON is invalid. Reset to V1 defaults?\n\n${error}`);
-    if (!useDefault) return;
-    parsed = factoryProject();
+  function renderOverview(){
+    center.replaceChildren();const g=project.global;
+    const head=el("div","m3ss-center-head"),headText=el("div");headText.append(el("h3","m3ss-view-title","Global Overview"),el("p","m3ss-view-note","Set the broad musical identity here, then shape sections below."));const add=button("+ Section","m3ss-button secondary");head.append(headText,add);add.onclick=()=>{if(project.timeline.sections.length>=32)return alert("V1 supports up to 32 sections.");const s={id:uid("verse"),type:"Verse",label:`Verse ${project.timeline.sections.filter(x=>x.type==="Verse").length+1}`,duration:16,energy:.5,lyrics:"",instruments:[],vocal:"",directives:""};project.timeline.sections.push(s);selectedId=s.id;mark();render();};center.appendChild(head);
+    const grid=el("div","m3ss-overview-grid");
+    const genre=textInput(g.genre,"Lo-fi hip-hop, J-Pop, cinematic...");genre.oninput=()=>{g.genre=genre.value;mark();};
+    const mood=textInput(g.mood,"dreamy, late-night, warm...");mood.oninput=()=>{g.mood=mood.value;mark();};
+    const bpm=numberInput(g.bpm||120,20,400,1);bpm.oninput=()=>{g.bpm=clamp(bpm.value,20,400);mark();};
+    const meter=selectInput(METERS.includes(g.meter)?METERS:[...METERS,g.meter],g.meter||"4/4");meter.onchange=()=>{g.meter=meter.value;mark();};
+    const mode=selectInput([{value:"vocal",label:"Vocal"},{value:"instrumental",label:"Instrumental"}],g.vocal?.mode||"vocal");mode.onchange=()=>{g.vocal.mode=mode.value;mark();};
+    const production=textInput(g.production,"vinyl, tape hiss, warm, wide...");production.oninput=()=>{g.production=production.value;mark();};
+    grid.append(field("Genre / Style",genre),field("Mood",mood),field("BPM",bpm),field("Meter",meter),field("Vocal mode",mode),field("Production",production));center.appendChild(grid);
+    center.appendChild(el("h3","m3ss-section-heading","Song Structure"));
+    const table=el("div","m3ss-structure");table.appendChild(el("div","m3ss-structure-header","#   Section · Type · Duration · Energy · Instruments"));project.timeline.sections.forEach((s,i)=>table.appendChild(sectionRow(s,i)));center.appendChild(table);
   }
 
-  let project = normalizeProject(parsed);
-  if (!project.project_id) project.project_id = createId("project");
-  let activeTab = "global";
-
-  const overlay = element("div", "m3ss-overlay");
-  overlay.setAttribute("role", "dialog");
-  overlay.setAttribute("aria-modal", "true");
-  overlay.setAttribute("aria-label", "Music3 Semantic Studio V1 editor");
-
-  const dialog = element("section", "m3ss-dialog");
-  overlay.appendChild(dialog);
-
-  const header = element("header", "m3ss-header");
-  const headingWrap = element("div");
-  headingWrap.appendChild(element("h2", "m3ss-title", "Music3 Semantic Studio"));
-  headingWrap.appendChild(element("p", "m3ss-subtitle", "Phase 1 / V1 · Semantic generation timeline · ComfyUI core remains untouched"));
-  header.appendChild(headingWrap);
-  const closeButton = element("button", "m3ss-icon-button", "×");
-  closeButton.type = "button";
-  closeButton.setAttribute("aria-label", "Close editor");
-  header.appendChild(closeButton);
-  dialog.appendChild(header);
-
-  const tabBar = element("nav", "m3ss-tabs");
-  const tabs = [
-    ["global", "Global"],
-    ["timeline", "Timeline"],
-    ["preview", "Compiled Preview"],
-  ];
-  const tabButtons = new Map();
-  for (const [id, label] of tabs) {
-    const button = element("button", "m3ss-tab", label);
-    button.type = "button";
-    button.dataset.tab = id;
-    tabButtons.set(id, button);
-    tabBar.appendChild(button);
-  }
-  dialog.appendChild(tabBar);
-
-  const body = element("div", "m3ss-body");
-  dialog.appendChild(body);
-
-  const footer = element("footer", "m3ss-footer");
-  const durationStatus = element("div", "m3ss-duration-status");
-  footer.appendChild(durationStatus);
-  const footerActions = element("div", "m3ss-footer-actions");
-  const resetButton = element("button", "m3ss-button m3ss-button-secondary", "Reset V1 Defaults");
-  resetButton.type = "button";
-  const cancelButton = element("button", "m3ss-button m3ss-button-secondary", "Cancel");
-  cancelButton.type = "button";
-  const saveButton = element("button", "m3ss-button m3ss-button-primary", "Save to Node");
-  saveButton.type = "button";
-  footerActions.append(resetButton, cancelButton, saveButton);
-  footer.appendChild(footerActions);
-  dialog.appendChild(footer);
-
-  function escapeHandler(event) {
-    if (event.key === "Escape" && overlay.isConnected) close();
+  function renderGlobal(){
+    center.replaceChildren();center.append(el("h3","m3ss-view-title","Global"),el("p","m3ss-view-note","Finite musical choices use selectors; expressive style fields remain free-form."));const g=project.global,grid=el("div","m3ss-form-grid");
+    const specs=[
+      ["Working title",textInput(g.title,"Optional project title"),v=>g.title=v,"Project-only; not injected into the caption."],
+      ["Genre",textInput(g.genre,"Pop, rock, ambient..."),v=>g.genre=v],
+      ["Subgenres / influences",textInput((g.subgenres||[]).join(", "),"city pop, jazz, orchestral"),v=>g.subgenres=parseList(v)],
+      ["BPM",numberInput(g.bpm||120,20,400,1),v=>g.bpm=clamp(v,20,400),"Semantic target, not a strict timing guarantee."],
+      ["Meter",selectInput(METERS.includes(g.meter)?METERS:[...METERS,g.meter],g.meter||"4/4"),v=>g.meter=v],
+      ["Key",selectInput(KEYS.includes(g.key)?KEYS:[...KEYS,g.key],g.key||""),v=>g.key=v],
+      ["Scale",selectInput(SCALES.includes(g.scale)?SCALES:[...SCALES,g.scale],g.scale||""),v=>g.scale=v],
+      ["Mood / direction",textInput(g.mood,"intimate, energetic, dark..."),v=>g.mood=v],
+      ["Production profile",textarea(g.production,"dry, live-room, tape-saturated...",5),v=>g.production=v],
+    ];
+    for(const [label,control,set,helper=""] of specs){const event=control.tagName==="SELECT"?"change":"input";control.addEventListener(event,()=>{set(control.value);mark();});grid.appendChild(field(label,control,helper));}center.appendChild(grid);
   }
 
-  function close() {
-    document.removeEventListener("keydown", escapeHandler);
-    overlay.remove();
+  function renderLyrics(){
+    center.replaceChildren();center.append(el("h3","m3ss-view-title","Lyrics"),el("p","m3ss-view-note","Choose a section below. Section tags are generated automatically."));const list=el("div","m3ss-lyrics-list");for(const s of project.timeline.sections){const card=el("article",`m3ss-lyrics-card${s.id===selectedId?" is-selected":""}`);const title=button(`${s.label||s.type} · ${Number(s.duration).toFixed(1)} s`,`m3ss-lyrics-title`);title.onclick=()=>{selectedId=s.id;render();};const area=textarea(s.lyrics,"Lyrics for this section. Do not include [Verse]/[Chorus] tags.",6);area.oninput=()=>{s.lyrics=area.value;mark();};card.append(title,area);list.appendChild(card);}center.appendChild(list);
   }
 
-  function updateDurationStatus() {
-    durationStatus.textContent = `Timeline target: ${totalDuration(project).toFixed(2)} s · ${project.timeline.sections.length} sections`;
+  function renderVocal(){
+    center.replaceChildren();center.append(el("h3","m3ss-view-title","Vocal"),el("p","m3ss-view-note","Song-level vocal character. Per-section delivery remains available in the Section Inspector."));const v=project.global.vocal,grid=el("div","m3ss-form-grid");const items=[
+      ["Mode",selectInput([{value:"vocal",label:"Vocal"},{value:"instrumental",label:"Instrumental"}],v.mode||"vocal"),x=>v.mode=x],
+      ["Lead / gender",textInput(v.gender,"female, male, duet, androgynous..."),x=>v.gender=x],
+      ["Timbre",textInput(v.timbre,"warm, breathy, clear..."),x=>v.timbre=x],
+      ["Delivery",textInput(v.delivery,"intimate, rhythmic, powerful..."),x=>v.delivery=x],
+      ["Harmony / backing",textarea(v.harmony,"soft harmony in choruses...",4),x=>v.harmony=x],
+      ["Vocal effects",textarea(v.effects,"room reverb, tape delay...",4),x=>v.effects=x],
+    ];for(const [label,c,set] of items){c.addEventListener(c.tagName==="SELECT"?"change":"input",()=>{set(c.value);mark();});grid.appendChild(field(label,c));}center.appendChild(grid);
   }
 
-  function renderGlobal() {
-    body.replaceChildren();
-    const grid = element("div", "m3ss-grid m3ss-grid-3");
-    const g = project.global;
-    const v = g.vocal;
-
-    const title = textInput(g.title, "Optional working title");
-    title.addEventListener("input", () => { g.title = title.value; });
-    grid.appendChild(field("Working title", title, "Project-only metadata; not injected into the caption in V1."));
-
-    const genre = textInput(g.genre, "Pop, J-Pop, cinematic...");
-    genre.addEventListener("input", () => { g.genre = genre.value; });
-    grid.appendChild(field("Genre", genre));
-
-    const subgenres = textInput((g.subgenres || []).join(", "), "city pop, rock, orchestral");
-    subgenres.addEventListener("input", () => { g.subgenres = parseList(subgenres.value); });
-    grid.appendChild(field("Subgenres / influences", subgenres, "Comma-separated."));
-
-    const bpm = numberInput(g.bpm || 120, 20, 400, 1);
-    bpm.addEventListener("input", () => { g.bpm = Number(bpm.value) || 120; });
-    grid.appendChild(field("BPM target", bpm, "Semantic target, not a strict symbolic guarantee."));
-
-    const meter = textInput(g.meter || "4/4", "4/4");
-    meter.addEventListener("input", () => { g.meter = meter.value; });
-    grid.appendChild(field("Meter", meter));
-
-    const key = textInput(g.key, "C, F#, Eb...");
-    key.addEventListener("input", () => { g.key = key.value; });
-    grid.appendChild(field("Key target", key, "Leave blank when not explicitly needed."));
-
-    const scale = textInput(g.scale, "major, minor...");
-    scale.addEventListener("input", () => { g.scale = scale.value; });
-    grid.appendChild(field("Scale", scale));
-
-    const mood = textInput(g.mood, "uplifting, intimate, dark...");
-    mood.addEventListener("input", () => { g.mood = mood.value; });
-    grid.appendChild(field("Mood / emotional direction", mood));
-
-    const production = textInput(g.production, "polished, dry, wide, live-room...");
-    production.addEventListener("input", () => { g.production = production.value; });
-    grid.appendChild(field("Production profile", production));
-
-    body.appendChild(grid);
-    body.appendChild(element("h3", "m3ss-section-heading", "Vocal Details"));
-
-    const vocalGrid = element("div", "m3ss-grid m3ss-grid-3");
-    const mode = selectInput(["vocal", "instrumental"], v.mode || "vocal");
-    mode.addEventListener("change", () => { v.mode = mode.value; });
-    vocalGrid.appendChild(field("Mode", mode));
-
-    for (const [keyName, label, placeholder] of [
-      ["gender", "Lead configuration / gender", "female, male, duet..."],
-      ["timbre", "Timbre", "clear, warm, breathy..."],
-      ["delivery", "Delivery", "intimate, powerful, rhythmic..."],
-      ["harmony", "Harmony / backing", "soft harmony in choruses..."],
-      ["effects", "Vocal effects", "light room reverb..."],
-    ]) {
-      const input = textInput(v[keyName] || "", placeholder);
-      input.addEventListener("input", () => { v[keyName] = input.value; });
-      vocalGrid.appendChild(field(label, input));
-    }
-    body.appendChild(vocalGrid);
+  function renderArrangement(){
+    center.replaceChildren();center.append(el("h3","m3ss-view-title","Arrangement"),el("p","m3ss-view-note","The lifecycle of instruments and section intensity is edited per section."));const list=el("div","m3ss-arrangement-list");for(const s of project.timeline.sections){const card=el("article",`m3ss-arrangement-card${s.id===selectedId?" is-selected":""}`);const title=button(s.label||s.type,"m3ss-arrangement-title");title.onclick=()=>{selectedId=s.id;render();};const inst=textInput((s.instruments||[]).join(", "),"piano, bass, drums");inst.oninput=()=>{s.instruments=parseList(inst.value);mark();};const directive=textarea(s.directives,"What enters, exits, intensifies, or changes?",4);directive.oninput=()=>{s.directives=directive.value;mark();};card.append(title,field("Instruments",inst),field("Directive",directive));list.appendChild(card);}center.appendChild(list);
   }
 
-  function renderTimeline() {
-    body.replaceChildren();
-    const toolbar = element("div", "m3ss-timeline-toolbar");
-    const note = element("p", "m3ss-note", "Section duration and energy are compiled into semantic arrangement instructions. Duration also syncs the node's max_duration when saved.");
-    const addButton = element("button", "m3ss-button m3ss-button-secondary", "+ Add Section");
-    addButton.type = "button";
-    addButton.addEventListener("click", () => {
-      if (project.timeline.sections.length >= 32) {
-        alert("V1 supports up to 32 sections.");
-        return;
-      }
-      project.timeline.sections.push(makeSection());
-      renderTimeline();
-      updateDurationStatus();
-    });
-    toolbar.append(note, addButton);
-    body.appendChild(toolbar);
-
-    const list = element("div", "m3ss-section-list");
-    project.timeline.sections.forEach((section, index) => {
-      const card = element("article", "m3ss-section-card");
-      const head = element("div", "m3ss-section-card-head");
-      const indexLabel = element("span", "m3ss-section-index", `${index + 1}`);
-      const name = element("strong", "m3ss-section-name", section.label || section.type || "Section");
-      const controls = element("div", "m3ss-section-controls");
-      const up = element("button", "m3ss-icon-button", "↑");
-      const down = element("button", "m3ss-icon-button", "↓");
-      const remove = element("button", "m3ss-icon-button m3ss-danger", "×");
-      [up, down, remove].forEach((button) => { button.type = "button"; });
-      up.disabled = index === 0;
-      down.disabled = index === project.timeline.sections.length - 1;
-      up.setAttribute("aria-label", `Move ${section.label || section.type} up`);
-      down.setAttribute("aria-label", `Move ${section.label || section.type} down`);
-      remove.setAttribute("aria-label", `Delete ${section.label || section.type}`);
-      up.addEventListener("click", () => {
-        if (index <= 0) return;
-        [project.timeline.sections[index - 1], project.timeline.sections[index]] = [project.timeline.sections[index], project.timeline.sections[index - 1]];
-        renderTimeline();
-      });
-      down.addEventListener("click", () => {
-        if (index >= project.timeline.sections.length - 1) return;
-        [project.timeline.sections[index + 1], project.timeline.sections[index]] = [project.timeline.sections[index], project.timeline.sections[index + 1]];
-        renderTimeline();
-      });
-      remove.addEventListener("click", () => {
-        if (project.timeline.sections.length === 1) {
-          alert("At least one section is required.");
-          return;
-        }
-        project.timeline.sections.splice(index, 1);
-        renderTimeline();
-        updateDurationStatus();
-      });
-      controls.append(up, down, remove);
-      head.append(indexLabel, name, controls);
-      card.appendChild(head);
-
-      const firstRow = element("div", "m3ss-grid m3ss-grid-4");
-      const typeSelect = selectInput(SECTION_TYPES, section.type || "Verse");
-      typeSelect.addEventListener("change", () => {
-        section.type = typeSelect.value;
-        if (!section.label) section.label = typeSelect.value;
-        renderTimeline();
-      });
-      firstRow.appendChild(field("Section type", typeSelect));
-
-      const label = textInput(section.label || section.type, "Verse 1");
-      label.addEventListener("input", () => {
-        section.label = label.value;
-        name.textContent = label.value || section.type;
-      });
-      firstRow.appendChild(field("Display label", label));
-
-      const duration = numberInput(section.duration ?? 16, 0.5, 360, 0.5);
-      duration.addEventListener("input", () => {
-        section.duration = Math.max(0.5, Math.min(360, Number(duration.value) || 0.5));
-        updateDurationStatus();
-      });
-      firstRow.appendChild(field("Target seconds", duration));
-
-      const energyWrap = element("div", "m3ss-energy-control");
-      const energy = document.createElement("input");
-      energy.type = "range";
-      energy.min = "0";
-      energy.max = "100";
-      energy.step = "1";
-      energy.value = String(Math.round((Number(section.energy) || 0) * 100));
-      const energyValue = element("span", "m3ss-energy-value", `${energy.value}%`);
-      energyWrap.append(energy, energyValue);
-      energy.addEventListener("input", () => {
-        section.energy = Number(energy.value) / 100;
-        energyValue.textContent = `${energy.value}%`;
-      });
-      firstRow.appendChild(field("Energy", energyWrap));
-      card.appendChild(firstRow);
-
-      const secondRow = element("div", "m3ss-grid m3ss-grid-2");
-      const instruments = textInput((section.instruments || []).join(", "), "piano, bass, drums");
-      instruments.addEventListener("input", () => { section.instruments = parseList(instruments.value); });
-      secondRow.appendChild(field("Instruments", instruments, "Comma-separated; describes entries/exits, not literal stem routing."));
-
-      const vocal = textInput(section.vocal || "", "soft, power, intimate, instrumental...");
-      vocal.addEventListener("input", () => { section.vocal = vocal.value; });
-      secondRow.appendChild(field("Section vocal treatment", vocal));
-      card.appendChild(secondRow);
-
-      const lyricArea = rows(textarea(section.lyrics || "", "Lyrics for this section. Do not include [Verse]/[Chorus] tags; the compiler adds them."), 4);
-      lyricArea.addEventListener("input", () => { section.lyrics = lyricArea.value; });
-      card.appendChild(field("Lyrics", lyricArea));
-
-      const directives = rows(textarea(section.directives || "", "What enters, exits, intensifies, or changes in this section?"), 2);
-      directives.addEventListener("input", () => { section.directives = directives.value; });
-      card.appendChild(field("Arrangement directive", directives));
-
-      list.appendChild(card);
-    });
-    body.appendChild(list);
+  function renderAdvanced(){
+    center.replaceChildren();center.append(el("h3","m3ss-view-title","Advanced"),el("p","m3ss-view-note","Generation parameters remain on the ComfyUI node. This view exposes project-level diagnostics without requiring raw JSON editing."));const panel=el("div","m3ss-diagnostic");panel.append(el("strong","",`Project ID: ${project.project_id||"(new project)"}`),el("span","",`Schema: ${project.schema_version}`),el("span","",`Reserved V2 audio edits: ${project.audio_edits?.length||0}`),el("span","",`Reserved takes: ${project.takes?.length||0}`),el("span","",`Reserved V3 conditioning tracks: ${project.conditioning_tracks?.length||0}`));center.appendChild(panel);
   }
 
-  function renderPreview() {
-    body.replaceChildren();
-    const compiled = compilePreview(project);
-    const warning = element("div", "m3ss-callout");
-    warning.textContent = "V1 compiles the timeline into text conditioning. BPM, key, section timing, energy, and instrumentation are generative targets rather than strict symbolic controls.";
-    body.appendChild(warning);
+  function renderPreview(){const compiled=compilePreview(project);center.replaceChildren();center.append(el("h3","m3ss-view-title","Prompt Preview"),el("div","m3ss-callout","This is the semantic text sent to MiniMax Music3. Timing, BPM, key and energy remain generative targets."));const grid=el("div","m3ss-preview-grid"),a=el("section","m3ss-preview-panel"),b=el("section","m3ss-preview-panel");a.append(el("h4","","Caption"),el("pre","m3ss-pre",compiled.caption));b.append(el("h4","","Lyrics"),el("pre","m3ss-pre",compiled.lyrics||"(section tags only)"));grid.append(a,b);center.appendChild(grid);}
 
-    const previewGrid = element("div", "m3ss-preview-grid");
-    const captionPanel = element("section", "m3ss-preview-panel");
-    captionPanel.appendChild(element("h3", "m3ss-section-heading", "Caption sent to MiniMax Music3"));
-    const captionPre = element("pre", "m3ss-pre", compiled.caption);
-    captionPanel.appendChild(captionPre);
-    previewGrid.appendChild(captionPanel);
+  function renderCenter(){if(active==="overview")renderOverview();else if(active==="global")renderGlobal();else if(active==="lyrics")renderLyrics();else if(active==="vocal")renderVocal();else if(active==="arrangement")renderArrangement();else if(active==="advanced")renderAdvanced();else renderPreview();}
 
-    const lyricsPanel = element("section", "m3ss-preview-panel");
-    lyricsPanel.appendChild(element("h3", "m3ss-section-heading", "Lyrics sent to MiniMax Music3"));
-    const lyricsPre = element("pre", "m3ss-pre", compiled.lyrics || "(section tags only / no lyric text)");
-    lyricsPanel.appendChild(lyricsPre);
-    previewGrid.appendChild(lyricsPanel);
-    body.appendChild(previewGrid);
+  function renderInspector(){
+    inspector.replaceChildren();const s=selected();inspector.appendChild(el("h3","m3ss-inspector-title","Section Inspector"));if(!s){inspector.appendChild(el("div","m3ss-empty","Add a section to edit it."));return;}
+    const type=selectInput(SECTION_TYPES,s.type),label=textInput(s.label,s.type),duration=numberInput(s.duration,.5,360,.5),energy=document.createElement("input"),energyValue=el("span","m3ss-energy-value",`${Math.round(s.energy*100)}%`),inst=textInput((s.instruments||[]).join(", "),"piano, bass, drums"),vocal=textInput(s.vocal,"soft, power, instrumental..."),lyrics=textarea(s.lyrics,"Section lyrics",5),directive=textarea(s.directives,"Arrangement directive",5);energy.type="range";energy.min="0";energy.max="100";energy.step="1";energy.value=String(Math.round(s.energy*100));const energyWrap=el("div","m3ss-energy-control");energyWrap.append(energy,energyValue);
+    type.onchange=()=>update(()=>{s.type=type.value;if(!s.label)s.label=type.value;});label.oninput=()=>update(()=>s.label=label.value);duration.oninput=()=>update(()=>s.duration=clamp(duration.value,.5,360));energy.oninput=()=>update(()=>{s.energy=Number(energy.value)/100;energyValue.textContent=`${energy.value}%`;});inst.oninput=()=>update(()=>s.instruments=parseList(inst.value));vocal.oninput=()=>update(()=>s.vocal=vocal.value);lyrics.oninput=()=>update(()=>s.lyrics=lyrics.value);directive.oninput=()=>update(()=>s.directives=directive.value);
+    const move=el("div","m3ss-inspector-actions"),up=button("↑","m3ss-icon-button"),down=button("↓","m3ss-icon-button"),remove=button("Delete","m3ss-button danger");const index=project.timeline.sections.indexOf(s);up.disabled=index<=0;down.disabled=index>=project.timeline.sections.length-1;up.onclick=()=>{if(index<=0)return;[project.timeline.sections[index-1],project.timeline.sections[index]]=[project.timeline.sections[index],project.timeline.sections[index-1]];mark();render();};down.onclick=()=>{if(index>=project.timeline.sections.length-1)return;[project.timeline.sections[index+1],project.timeline.sections[index]]=[project.timeline.sections[index],project.timeline.sections[index+1]];mark();render();};remove.onclick=()=>{if(project.timeline.sections.length<=1)return alert("At least one section is required.");project.timeline.sections.splice(index,1);selectedId=project.timeline.sections[Math.max(0,index-1)]?.id||null;mark();render();};move.append(up,down,remove);
+    inspector.append(field("Type",type),field("Title",label),field("Duration (s)",duration,"Mouse wheel changes by 0.5 s while focused."),field("Energy",energyWrap),field("Instruments",inst),field("Section vocal",vocal),field("Lyrics",lyrics),field("Arrangement",directive),move);
   }
 
-  function render() {
-    for (const [id, button] of tabButtons) button.classList.toggle("is-active", id === activeTab);
-    if (activeTab === "global") renderGlobal();
-    else if (activeTab === "timeline") renderTimeline();
-    else renderPreview();
-    updateDurationStatus();
-  }
-
-  for (const [id, button] of tabButtons) {
-    button.addEventListener("click", () => {
-      activeTab = id;
-      render();
-    });
-  }
-
-  closeButton.addEventListener("click", close);
-  cancelButton.addEventListener("click", close);
-  overlay.addEventListener("mousedown", (event) => {
-    if (event.target === overlay) close();
-  });
-  document.addEventListener("keydown", escapeHandler);
-
-  resetButton.addEventListener("click", () => {
-    if (!confirm("Reset this editor session to the V1 defaults? The node is not changed until Save to Node is pressed.")) return;
-    const currentProjectId = project.project_id;
-    project = factoryProject();
-    project.project_id = currentProjectId || createId("project");
-    render();
-  });
-
-  saveButton.addEventListener("click", () => {
-    const sections = project.timeline.sections;
-    if (!sections.length) {
-      alert("At least one section is required.");
-      return;
-    }
-    if (sections.length > 32) {
-      alert("V1 supports up to 32 sections.");
-      return;
-    }
-
-    const serialized = JSON.stringify(project);
-    projectWidget.value = serialized;
-    projectWidget.callback?.(serialized);
-
-    const durationWidget = getWidget(node, "max_duration");
-    if (durationWidget) {
-      const optionsMax = Number(durationWidget.options?.max);
-      const maxAllowed = Number.isFinite(optionsMax) ? optionsMax : 360;
-      const duration = Math.max(0.04, Math.min(maxAllowed, totalDuration(project)));
-      durationWidget.value = Math.round(duration * 100) / 100;
-      durationWidget.callback?.(durationWidget.value);
-    }
-
-    node.setDirtyCanvas?.(true, true);
-    app.graph?.setDirtyCanvas?.(true, true);
-    close();
-  });
-
-  document.body.appendChild(overlay);
-  render();
+  function render(){for(const [id,b] of navButtons)b.classList.toggle("is-active",id===active);renderCenter();renderInspector();mark();}
+  reset.onclick=()=>{if(!confirm("Reset this editor session to V1 defaults? The node is unchanged until Save to Node."))return;const keep=project.project_id;project=factoryProject();project.project_id=keep||uid("project");selectedId=project.timeline.sections[0]?.id||null;active="overview";render();};cancel.onclick=()=>shell.close();save.onclick=()=>{const serialized=JSON.stringify(project);projectWidget.value=serialized;projectWidget.callback?.(serialized);const durationWidget=getNodeWidget(node,"max_duration");if(durationWidget){const max=Number(durationWidget.options?.max),limit=Number.isFinite(max)?max:360;durationWidget.value=Math.round(clamp(totalDuration(project),.04,limit)*100)/100;durationWidget.callback?.(durationWidget.value);}compactSummary?.update(summarizeProject(project));node.setDirtyCanvas?.(true,true);app.graph?.setDirtyCanvas?.(true,true);shell.close();};
+  shell.mount();render();
 }
 
 app.registerExtension({
-  name: EXTENSION_NAME,
-  async nodeCreated(node) {
-    if (nodeClass(node) !== NODE_ID || node._m3ssButtonInstalled) return;
-    node._m3ssButtonInstalled = true;
-    ensureStyles();
-
-    const button = node.addWidget?.("button", "Open Semantic Studio", null, () => openStudio(node), {
-      serialize: false,
-    });
-    if (button) button.label = "Open Semantic Studio";
-    node.setSize?.([Math.max(node.size?.[0] || 320, 320), node.size?.[1] || 180]);
+  name:EXTENSION_NAME,
+  async nodeCreated(node){
+    if(nodeClass(node)!==NODE_ID||node._m3ssStudioInstalled)return;node._m3ssStudioInstalled=true;ensureStyles();
+    const projectWidget=getNodeWidget(node,"project_json");hideNodeWidgets(node,["project_json"]);let summary="Semantic project";try{summary=summarizeProject(normalizeProject(JSON.parse(projectWidget?.value||"{}")));}catch{}
+    const compact=installNodeSummary(node,{widgetName:"Studio Summary",text:summary,minWidth:360});const open=node.addWidget?.("button","Open Semantic Studio",null,()=>openStudio(node,compact),{serialize:false});if(open){open.label="Open Semantic Studio";open.serialize=false;}
+    node.setSize?.([Math.max(node.size?.[0]||360,360),Math.min(Math.max(node.computeSize?.()[1]||180,180),330)]);
   },
 });
