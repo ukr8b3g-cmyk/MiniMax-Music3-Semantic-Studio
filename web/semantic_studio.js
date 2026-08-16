@@ -3,10 +3,16 @@ import { createStudioWindow } from "./studio_shell.js";
 import { hideNodeWidgets, installNodeSummary, getNodeWidget } from "./node_compact.js";
 import { installCssSizeDrag, makeVerticalSplitter } from "./layout_splitter.js";
 import {
-  SECTION_TYPES, METERS, KEYS, SCALES, clamp, uid, factoryProject, normalizeProject,
+  SECTION_TYPES, METERS, clamp, uid, factoryProject, normalizeProject,
   parseList, totalDuration, summarizeProject, compilePreview, el, button, textInput, numberInput,
   selectInput, textarea, field,
 } from "./semantic_studio_core.js";
+import { editableCombo, chipEditor, textareaWithSuggestions, bpmControl } from "./semantic_controls.js";
+import {
+  GENRE_PRESETS, INFLUENCE_PRESETS, MOOD_PRESETS, VOCAL_LEAD_PRESETS, VOCAL_TIMBRE_PRESETS,
+  VOCAL_DELIVERY_PRESETS, SECTION_VOCAL_PRESETS, INSTRUMENT_PRESETS, PRODUCTION_SUGGESTIONS,
+  BPM_PRESETS, KEY_PRESETS, SCALE_PRESETS,
+} from "./semantic_presets.js";
 
 const EXTENSION_NAME = "minimax.music3.semantic.studio";
 const NODE_ID = "MiniMaxMusic3SemanticStudio";
@@ -99,7 +105,7 @@ function openStudio(node, compactSummary) {
     navButtons.set(id, item);
     nav.appendChild(item);
   }
-  nav.appendChild(el("div", "m3ss-nav-note", "Simple by default. Detailed controls stay in the inspector and Advanced view."));
+  nav.appendChild(el("div", "m3ss-nav-note", "Preset lists are authoring aids only. Imported or custom Music3 wording is preserved."));
 
   const durationStatus = el("div", "m3ss-duration-status");
   const actions = el("div", "m3ss-footer-actions");
@@ -163,7 +169,7 @@ function openStudio(node, compactSummary) {
     const headText = el("div");
     headText.append(
       el("h3", "m3ss-view-title", "Global Overview"),
-      el("p", "m3ss-view-note", "Set the broad musical identity here, then shape sections below. Structure columns and the Inspector divider are draggable."),
+      el("p", "m3ss-view-note", "Choose a MiniMax-guided preset or type any custom wording. Presets never limit imported values."),
     );
     const add = button("+ Section", "m3ss-button secondary");
     head.append(headText, add);
@@ -182,17 +188,14 @@ function openStudio(node, compactSummary) {
     center.appendChild(head);
 
     const grid = el("div", "m3ss-overview-grid");
-    const genre = textInput(global.genre, "Lo-fi hip-hop, J-Pop, cinematic...");
-    genre.oninput = () => { global.genre = genre.value; mark(); };
-    const mood = textInput(global.mood, "dreamy, late-night, warm...");
-    mood.oninput = () => { global.mood = mood.value; mark(); };
-    const bpm = numberInput(global.bpm || 120, 20, 400, 1);
-    bpm.oninput = () => { global.bpm = clamp(bpm.value, 20, 400); mark(); };
+    const genre = editableCombo({ value: global.genre, options: GENRE_PRESETS, placeholder: "Search preset or type custom genre…", onInput: (value) => { global.genre = value; mark(); } });
+    const mood = editableCombo({ value: global.mood, options: MOOD_PRESETS, placeholder: "Search mood or type custom direction…", onInput: (value) => { global.mood = value; mark(); } });
+    const bpm = bpmControl({ value: global.bpm || 120, presets: BPM_PRESETS, onChange: (value) => { global.bpm = value; mark(); } });
     const meter = selectInput(METERS.includes(global.meter) ? METERS : [...METERS, global.meter], global.meter || "4/4");
     meter.onchange = () => { global.meter = meter.value; mark(); };
     const mode = selectInput([{ value: "vocal", label: "Vocal" }, { value: "instrumental", label: "Instrumental" }], global.vocal?.mode || "vocal");
     mode.onchange = () => { global.vocal.mode = mode.value; mark(); };
-    const production = textInput(global.production, "vinyl, tape hiss, warm, wide...");
+    const production = textInput(global.production, "vinyl, tape hiss, warm, wide…");
     production.oninput = () => { global.production = production.value; mark(); };
     grid.append(
       field("Genre / Style", genre), field("Mood", mood), field("BPM", bpm), field("Meter", meter),
@@ -207,26 +210,61 @@ function openStudio(node, compactSummary) {
     center.replaceChildren();
     center.append(
       el("h3", "m3ss-view-title", "Global"),
-      el("p", "m3ss-view-note", "Finite musical choices use selectors; expressive style fields remain free-form."),
+      el("p", "m3ss-view-note", "Official-guide presets are searchable starting points. Every editable preset control accepts custom text, including values imported from an external LLM."),
     );
     const global = project.global;
     const grid = el("div", "m3ss-form-grid");
-    const specs = [
-      ["Working title", textInput(global.title, "Optional project title"), (value) => { global.title = value; }, "Project-only; not injected into the caption."],
-      ["Genre", textInput(global.genre, "Pop, rock, ambient..."), (value) => { global.genre = value; }],
-      ["Subgenres / influences", textInput((global.subgenres || []).join(", "), "city pop, jazz, orchestral"), (value) => { global.subgenres = parseList(value); }],
-      ["BPM", numberInput(global.bpm || 120, 20, 400, 1), (value) => { global.bpm = clamp(value, 20, 400); }, "Semantic target, not a strict timing guarantee."],
-      ["Meter", selectInput(METERS.includes(global.meter) ? METERS : [...METERS, global.meter], global.meter || "4/4"), (value) => { global.meter = value; }],
-      ["Key", selectInput(KEYS.includes(global.key) ? KEYS : [...KEYS, global.key], global.key || ""), (value) => { global.key = value; }],
-      ["Scale", selectInput(SCALES.includes(global.scale) ? SCALES : [...SCALES, global.scale], global.scale || ""), (value) => { global.scale = value; }],
-      ["Mood / direction", textInput(global.mood, "intimate, energetic, dark..."), (value) => { global.mood = value; }],
-      ["Production profile", textarea(global.production, "dry, live-room, tape-saturated...", 5), (value) => { global.production = value; }],
-    ];
-    for (const [label, control, set, helper = ""] of specs) {
-      const event = control.tagName === "SELECT" ? "change" : "input";
-      control.addEventListener(event, () => { set(control.value); mark(); });
-      grid.appendChild(field(label, control, helper));
-    }
+
+    const title = textInput(global.title, "Optional project title");
+    title.oninput = () => { global.title = title.value; mark(); };
+    grid.appendChild(field("Working title", title, "Project-only; not injected into the caption."));
+
+    const genre = editableCombo({
+      value: global.genre,
+      options: GENRE_PRESETS,
+      placeholder: "Pop, Lo-fi Hip-Hop, Jazz Fusion… or custom",
+      onInput: (value) => { global.genre = value; mark(); },
+    });
+    grid.appendChild(field("Genre", genre, "Search the MiniMax genre reference or type a custom genre/blend."));
+
+    const influences = chipEditor({
+      values: global.subgenres || [],
+      suggestions: INFLUENCE_PRESETS,
+      placeholder: "Add influence / subgenre…",
+      onChange: (values) => { global.subgenres = values; mark(); },
+    });
+    grid.appendChild(field("Subgenres / influences", influences, "Multiple values are allowed; custom influences are preserved."));
+
+    const bpm = bpmControl({ value: global.bpm || 120, presets: BPM_PRESETS, onChange: (value) => { global.bpm = value; mark(); } });
+    grid.appendChild(field("BPM", bpm, "Preset ranges follow the MiniMax prompt guide; the numeric value remains fully editable."));
+
+    const meter = selectInput(METERS.includes(global.meter) ? METERS : [...METERS, global.meter], global.meter || "4/4");
+    meter.onchange = () => { global.meter = meter.value; mark(); };
+    grid.appendChild(field("Meter", meter));
+
+    const key = editableCombo({ value: global.key, options: KEY_PRESETS, placeholder: "C, D flat, G sharp… or custom", onInput: (value) => { global.key = value; mark(); } });
+    grid.appendChild(field("Key", key, "Custom imported key wording is accepted."));
+
+    const scale = editableCombo({ value: global.scale, options: SCALE_PRESETS, placeholder: "major, minor, dorian… or custom", onInput: (value) => { global.scale = value; mark(); } });
+    grid.appendChild(field("Scale / mode", scale, "Custom scale or extension descriptions are accepted."));
+
+    const mood = chipEditor({
+      values: parseList(global.mood),
+      suggestions: MOOD_PRESETS,
+      placeholder: "Add mood / direction…",
+      onChange: (values) => { global.mood = values.join(", "); mark(); },
+    });
+    grid.appendChild(field("Mood / direction", mood, "Choose several descriptors or enter your own wording."));
+
+    const production = textareaWithSuggestions({
+      value: global.production,
+      placeholder: "Describe production, room, texture, mix character…",
+      rows: 5,
+      suggestions: PRODUCTION_SUGGESTIONS,
+      onInput: (value) => { global.production = value; mark(); },
+    });
+    grid.appendChild(field("Production profile", production, "Suggestion chips append phrases; free-form editing remains available."));
+
     center.appendChild(grid);
   }
 
@@ -253,22 +291,32 @@ function openStudio(node, compactSummary) {
     center.replaceChildren();
     center.append(
       el("h3", "m3ss-view-title", "Vocal"),
-      el("p", "m3ss-view-note", "Song-level vocal character. Per-section delivery remains available in the Section Inspector."),
+      el("p", "m3ss-view-note", "MiniMax recommends describing vocals as a character rather than a vague label. Presets are editable and never treated as model-side enums."),
     );
     const vocal = project.global.vocal;
     const grid = el("div", "m3ss-form-grid");
-    const items = [
-      ["Mode", selectInput([{ value: "vocal", label: "Vocal" }, { value: "instrumental", label: "Instrumental" }], vocal.mode || "vocal"), (value) => { vocal.mode = value; }],
-      ["Lead / gender", textInput(vocal.gender, "female, male, duet, androgynous..."), (value) => { vocal.gender = value; }],
-      ["Timbre", textInput(vocal.timbre, "warm, breathy, clear..."), (value) => { vocal.timbre = value; }],
-      ["Delivery", textInput(vocal.delivery, "intimate, rhythmic, powerful..."), (value) => { vocal.delivery = value; }],
-      ["Harmony / backing", textarea(vocal.harmony, "soft harmony in choruses...", 4), (value) => { vocal.harmony = value; }],
-      ["Vocal effects", textarea(vocal.effects, "room reverb, tape delay...", 4), (value) => { vocal.effects = value; }],
-    ];
-    for (const [label, control, set] of items) {
-      control.addEventListener(control.tagName === "SELECT" ? "change" : "input", () => { set(control.value); mark(); });
-      grid.appendChild(field(label, control));
-    }
+
+    const mode = selectInput([{ value: "vocal", label: "Vocal" }, { value: "instrumental", label: "Instrumental" }], vocal.mode || "vocal");
+    mode.onchange = () => { vocal.mode = mode.value; mark(); };
+    grid.appendChild(field("Mode", mode));
+
+    const lead = editableCombo({ value: vocal.gender, options: VOCAL_LEAD_PRESETS, placeholder: "female vocal, warm male baritone, duet…", onInput: (value) => { vocal.gender = value; mark(); } });
+    grid.appendChild(field("Lead / voice type", lead, "Preset or custom voice description."));
+
+    const timbre = editableCombo({ value: vocal.timbre, options: VOCAL_TIMBRE_PRESETS, placeholder: "breathy and intimate, powerful and soulful…", onInput: (value) => { vocal.timbre = value; mark(); } });
+    grid.appendChild(field("Timbre / character", timbre));
+
+    const delivery = editableCombo({ value: vocal.delivery, options: VOCAL_DELIVERY_PRESETS, placeholder: "intimate phrasing, rhythmic intensity…", onInput: (value) => { vocal.delivery = value; mark(); } });
+    grid.appendChild(field("Delivery", delivery));
+
+    const harmony = textarea(vocal.harmony, "soft harmony in choruses, duet responses…", 4);
+    harmony.oninput = () => { vocal.harmony = harmony.value; mark(); };
+    grid.appendChild(field("Harmony / backing", harmony));
+
+    const effects = textarea(vocal.effects, "room reverb, tape delay, lush reverb…", 4);
+    effects.oninput = () => { vocal.effects = effects.value; mark(); };
+    grid.appendChild(field("Vocal effects", effects));
+
     center.appendChild(grid);
   }
 
@@ -276,15 +324,17 @@ function openStudio(node, compactSummary) {
     center.replaceChildren();
     center.append(
       el("h3", "m3ss-view-title", "Arrangement"),
-      el("p", "m3ss-view-note", "The lifecycle of instruments and section intensity is edited per section."),
+      el("p", "m3ss-view-note", "Instrument suggestions come from the MiniMax prompt guide; custom instruments and production textures can be added freely."),
     );
     const list = el("div", "m3ss-arrangement-list");
     for (const section of project.timeline.sections) {
       const card = el("article", `m3ss-arrangement-card${section.id === selectedId ? " is-selected" : ""}`);
       const title = button(section.label || section.type, "m3ss-arrangement-title");
       title.onclick = () => { selectedId = section.id; render(); };
-      const instruments = textarea((section.instruments || []).join(", "), "piano, bass, drums", 3);
-      instruments.oninput = () => { section.instruments = parseList(instruments.value); mark(); };
+      const instruments = chipEditor({
+        values: section.instruments || [], suggestions: INSTRUMENT_PRESETS, placeholder: "Add instrument / texture…",
+        onChange: (values) => { section.instruments = values; mark(); },
+      });
       const directive = textarea(section.directives, "What enters, exits, intensifies, or changes?", 5);
       directive.oninput = () => { section.directives = directive.value; mark(); };
       card.append(title, field("Instruments", instruments), field("Directive", directive));
@@ -315,7 +365,7 @@ function openStudio(node, compactSummary) {
     center.replaceChildren();
     center.append(
       el("h3", "m3ss-view-title", "Prompt Preview"),
-      el("div", "m3ss-callout", "This is the semantic text sent to MiniMax Music3. Timing, BPM, key and energy remain generative targets."),
+      el("div", "m3ss-callout", "This is the semantic text sent to MiniMax Music3. Presets and custom values compile through the same caption path; timing, BPM, key and energy remain generative targets."),
     );
     const grid = el("div", "m3ss-preview-grid");
     const caption = el("section", "m3ss-preview-panel");
@@ -350,8 +400,14 @@ function openStudio(node, compactSummary) {
     const duration = numberInput(section.duration, 0.5, 360, 0.5);
     const energy = document.createElement("input");
     const energyValue = el("span", "m3ss-energy-value", `${Math.round(section.energy * 100)}%`);
-    const instruments = textarea((section.instruments || []).join(", "), "piano, bass, drums", 3);
-    const vocal = textInput(section.vocal, "soft, power, instrumental...");
+    const instruments = chipEditor({
+      values: section.instruments || [], suggestions: INSTRUMENT_PRESETS, placeholder: "Add instrument / texture…",
+      onChange: (values) => update(() => { section.instruments = values; }),
+    });
+    const vocal = editableCombo({
+      value: section.vocal, options: SECTION_VOCAL_PRESETS, placeholder: "soft, power, instrumental… or custom",
+      onInput: (value) => update(() => { section.vocal = value; }),
+    });
     const lyrics = textarea(section.lyrics, "Section lyrics", 7);
     const directive = textarea(section.directives, "Arrangement directive", 7);
     energy.type = "range";
@@ -366,8 +422,6 @@ function openStudio(node, compactSummary) {
     label.oninput = () => update(() => { section.label = label.value; });
     duration.oninput = () => update(() => { section.duration = clamp(duration.value, 0.5, 360); });
     energy.oninput = () => update(() => { section.energy = Number(energy.value) / 100; energyValue.textContent = `${energy.value}%`; });
-    instruments.oninput = () => update(() => { section.instruments = parseList(instruments.value); });
-    vocal.oninput = () => update(() => { section.vocal = vocal.value; });
     lyrics.oninput = () => update(() => { section.lyrics = lyrics.value; });
     directive.oninput = () => update(() => { section.directives = directive.value; });
 
@@ -401,7 +455,7 @@ function openStudio(node, compactSummary) {
       field("Title", label),
       field("Duration (s)", duration, "Mouse wheel changes by 0.5 s while focused."),
       field("Energy", energyWrap),
-      field("Instruments", instruments),
+      field("Instruments", instruments, "Search presets or add custom instruments."),
       field("Section vocal", vocal),
       field("Lyrics", lyrics),
       field("Arrangement", directive),
