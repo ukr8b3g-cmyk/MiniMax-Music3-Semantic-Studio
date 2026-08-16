@@ -44,6 +44,8 @@ V1 is semantic: BPM, key, exact section timing, energy, vocal treatment, and ins
 
 ### Phase A — Timeline-first Semantic Studio
 
+![Phase A Semantic Studio](docs/images/semantic-studio-phase-a.webp)
+
 The normal navigation is intentionally reduced to:
 
 - **Timeline** — primary workspace
