@@ -1,0 +1,320 @@
+.m3ss-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  background: rgb(0 0 0 / 0.68);
+  color: var(--fg-color, #e8e8e8);
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.m3ss-dialog {
+  width: min(1180px, 96vw);
+  max-height: 92vh;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  border: 1px solid var(--border-color, #4a4a4a);
+  border-radius: 12px;
+  background: var(--comfy-menu-bg, #202124);
+  box-shadow: 0 18px 60px rgb(0 0 0 / 0.55);
+}
+
+.m3ss-header,
+.m3ss-footer,
+.m3ss-tabs,
+.m3ss-timeline-toolbar,
+.m3ss-section-card-head,
+.m3ss-section-controls,
+.m3ss-energy-control,
+.m3ss-footer-actions {
+  display: flex;
+  align-items: center;
+}
+
+.m3ss-header {
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border-color, #3c3d40);
+}
+
+.m3ss-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 650;
+}
+
+.m3ss-subtitle {
+  margin: 4px 0 0;
+  color: var(--descrip-text, #a9abb2);
+  font-size: 12px;
+}
+
+.m3ss-tabs {
+  gap: 4px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color, #3c3d40);
+  background: rgb(255 255 255 / 0.02);
+}
+
+.m3ss-tab,
+.m3ss-button,
+.m3ss-icon-button {
+  border: 1px solid var(--border-color, #4a4a4a);
+  color: inherit;
+  background: var(--comfy-input-bg, #2a2b2f);
+  cursor: pointer;
+}
+
+.m3ss-tab {
+  padding: 8px 13px;
+  border-radius: 8px;
+}
+
+.m3ss-tab:hover,
+.m3ss-button:hover,
+.m3ss-icon-button:hover:not(:disabled) {
+  filter: brightness(1.14);
+}
+
+.m3ss-tab.is-active {
+  border-color: var(--error-text, #a980ff);
+  background: rgb(137 96 255 / 0.18);
+}
+
+.m3ss-body {
+  overflow: auto;
+  padding: 16px 18px 20px;
+}
+
+.m3ss-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.m3ss-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.m3ss-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.m3ss-grid-4 { grid-template-columns: 1.1fr 1.4fr 0.8fr 1.3fr; }
+
+.m3ss-field {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.m3ss-label {
+  color: var(--fg-color, #e8e8e8);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.m3ss-helper,
+.m3ss-note,
+.m3ss-duration-status {
+  color: var(--descrip-text, #a9abb2);
+  font-size: 11px;
+}
+
+.m3ss-field input[type="text"],
+.m3ss-field input[type="number"],
+.m3ss-field select,
+.m3ss-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border-color, #4a4a4a);
+  border-radius: 7px;
+  padding: 8px 9px;
+  color: inherit;
+  background: var(--comfy-input-bg, #17181b);
+  font: inherit;
+}
+
+.m3ss-field textarea {
+  resize: vertical;
+  line-height: 1.42;
+}
+
+.m3ss-field input:focus,
+.m3ss-field select:focus,
+.m3ss-field textarea:focus,
+.m3ss-tab:focus,
+.m3ss-button:focus,
+.m3ss-icon-button:focus {
+  outline: 2px solid rgb(145 110 255 / 0.8);
+  outline-offset: 1px;
+}
+
+.m3ss-section-heading {
+  margin: 20px 0 10px;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.m3ss-timeline-toolbar {
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.m3ss-note {
+  margin: 0;
+  max-width: 780px;
+}
+
+.m3ss-section-list {
+  display: grid;
+  gap: 12px;
+}
+
+.m3ss-section-card {
+  padding: 13px;
+  border: 1px solid var(--border-color, #424349);
+  border-radius: 9px;
+  background: rgb(255 255 255 / 0.025);
+}
+
+.m3ss-section-card-head {
+  gap: 9px;
+  margin-bottom: 12px;
+}
+
+.m3ss-section-index {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: rgb(137 96 255 / 0.2);
+  color: #cab9ff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.m3ss-section-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.m3ss-section-controls { gap: 5px; }
+
+.m3ss-icon-button {
+  min-width: 31px;
+  min-height: 31px;
+  border-radius: 7px;
+  font-size: 16px;
+}
+
+.m3ss-icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+.m3ss-danger { color: #ff8c8c; }
+
+.m3ss-energy-control {
+  gap: 9px;
+  min-height: 36px;
+}
+
+.m3ss-energy-control input[type="range"] {
+  flex: 1;
+  min-width: 0;
+}
+
+.m3ss-energy-value {
+  min-width: 42px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.m3ss-footer {
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-color, #3c3d40);
+  background: rgb(0 0 0 / 0.10);
+}
+
+.m3ss-footer-actions { gap: 8px; }
+
+.m3ss-button {
+  border-radius: 7px;
+  padding: 8px 12px;
+  font-weight: 600;
+}
+
+.m3ss-button-primary {
+  border-color: #7651e8;
+  background: #6944d6;
+  color: #fff;
+}
+
+.m3ss-button-secondary {
+  background: var(--comfy-input-bg, #2a2b2f);
+}
+
+.m3ss-callout {
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border: 1px solid rgb(137 96 255 / 0.45);
+  border-radius: 8px;
+  background: rgb(137 96 255 / 0.10);
+  color: var(--fg-color, #e8e8e8);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.m3ss-preview-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 14px;
+}
+
+.m3ss-preview-panel {
+  min-width: 0;
+}
+
+.m3ss-preview-panel .m3ss-section-heading {
+  margin-top: 0;
+}
+
+.m3ss-pre {
+  min-height: 220px;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  border: 1px solid var(--border-color, #424349);
+  border-radius: 8px;
+  background: var(--comfy-input-bg, #17181b);
+  color: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 12px/1.52 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+@media (max-width: 900px) {
+  .m3ss-overlay { padding: 12px; }
+  .m3ss-dialog { width: 98vw; max-height: 95vh; }
+  .m3ss-grid-4,
+  .m3ss-grid-3,
+  .m3ss-preview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 620px) {
+  .m3ss-grid-4,
+  .m3ss-grid-3,
+  .m3ss-grid-2,
+  .m3ss-preview-grid { grid-template-columns: 1fr; }
+  .m3ss-header,
+  .m3ss-footer,
+  .m3ss-timeline-toolbar { align-items: stretch; flex-direction: column; }
+  .m3ss-footer-actions { flex-wrap: wrap; }
+}
