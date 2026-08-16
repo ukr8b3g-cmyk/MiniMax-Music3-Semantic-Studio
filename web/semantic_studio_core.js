@@ -7,6 +7,20 @@ export const clone = (value) => JSON.parse(JSON.stringify(value));
 export const clamp = (value, min, max) => Math.max(min, Math.min(max, Number(value) || 0));
 export const uid = (prefix = "section") => `${prefix}-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
 
+export function splitKeyScale(value, scaleValue = "") {
+  const keyText = String(value ?? "").trim();
+  const existingScale = String(scaleValue ?? "").trim();
+  if (!keyText || existingScale) return { key: keyText, scale: existingScale };
+
+  // Accept common pitch spellings while preserving the user's exact wording:
+  // D flat major -> D flat + major, F# minor -> F# + minor,
+  // C# / Db major -> C# / Db + major. Unknown/free-form tonal text is left intact.
+  const pitch = "[A-Ga-g](?:[#♯b♭]|(?:\\s+(?:sharp|flat)))?";
+  const match = keyText.match(new RegExp(`^(${pitch}(?:\\s*\\/\\s*${pitch})?)(?:\\s+(.+))?$`, "i"));
+  if (!match || !match[2]) return { key: keyText, scale: existingScale };
+  return { key: match[1].trim(), scale: match[2].trim() };
+}
+
 export function makeSection(type="Verse", label="Verse", duration=16, energyPercent=50, instruments=[], vocal="", directives="") {
   return {id:uid(type.toLowerCase().replace(/[^a-z0-9]+/g,"-")||"section"),type,label,duration,energy:energyPercent/100,lyrics:"",instruments,vocal,directives};
 }
@@ -32,6 +46,8 @@ export function normalizeProject(raw) {
   const fallback=factoryProject(), p=raw&&typeof raw==="object"?clone(raw):fallback;
   p.schema_version=1;p.project_id=typeof p.project_id==="string"?p.project_id:"";
   p.global=p.global&&typeof p.global==="object"?p.global:clone(fallback.global);p.global.vocal=p.global.vocal&&typeof p.global.vocal==="object"?p.global.vocal:clone(fallback.global.vocal);p.global.subgenres=Array.isArray(p.global.subgenres)?p.global.subgenres:[];
+  p.global.key=String(p.global.key||"");p.global.scale=String(p.global.scale||"");
+  const keyScale=splitKeyScale(p.global.key,p.global.scale);p.global.key=keyScale.key;p.global.scale=keyScale.scale;
   p.timeline=p.timeline&&typeof p.timeline==="object"?p.timeline:{sections:[]};p.timeline.sections=Array.isArray(p.timeline.sections)&&p.timeline.sections.length?p.timeline.sections:clone(fallback.timeline.sections);
   p.timeline.sections=p.timeline.sections.slice(0,32).map((s,i)=>({...(s||{}),id:s?.id||uid("section"),type:SECTION_TYPES.includes(s?.type)?s.type:"Verse",label:String(s?.label||s?.type||`Section ${i+1}`),duration:clamp(s?.duration??16,.5,360),energy:clamp(s?.energy??.5,0,1),lyrics:String(s?.lyrics||""),instruments:Array.isArray(s?.instruments)?s.instruments.filter(Boolean):[],vocal:String(s?.vocal||""),directives:String(s?.directives||"")}));
   p.audio_edits=Array.isArray(p.audio_edits)?p.audio_edits:[];p.takes=Array.isArray(p.takes)?p.takes:[];p.conditioning_tracks=Array.isArray(p.conditioning_tracks)?p.conditioning_tracks:[];return p;
