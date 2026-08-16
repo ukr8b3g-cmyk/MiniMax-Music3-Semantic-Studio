@@ -4,6 +4,7 @@ import pytest
 
 from audio_edit_project import (
     DEFAULT_EDIT_JSON,
+    EDIT_SCHEMA_VERSION,
     SourceInfo,
     dump_edit_project,
     load_edit_project,
@@ -33,6 +34,8 @@ def test_default_edit_state_expands_to_full_primary_clip():
     assert clip["source_in"] == 0.0
     assert clip["source_out"] == 3.5
     assert project_timeline_duration(project) == 3.5
+    assert project["edit_schema_version"] == EDIT_SCHEMA_VERSION
+    assert project["tracks"][0]["name"] == "Main Track"
 
 
 def test_unknown_fields_round_trip():
@@ -79,8 +82,20 @@ def test_missing_connected_take_reference_fails_closed():
         normalize_edit_project(raw, [source()])
 
 
-def test_clip_values_are_clamped_and_envelope_sorted():
+def test_clip_and_track_values_are_clamped_and_envelopes_sorted():
     raw = json.loads(DEFAULT_EDIT_JSON)
+    raw["tracks"][0].update(
+        {
+            "muted": "yes",
+            "solo": 1,
+            "gain_db": 99,
+            "pan": -9,
+            "gain_envelope": [
+                {"time": 1.5, "gain_db": 40},
+                {"time": 0.5, "gain_db": -90},
+            ],
+        }
+    )
     raw["tracks"][0]["clips"] = [
         {
             "id": "clip",
@@ -98,7 +113,9 @@ def test_clip_values_are_clamped_and_envelope_sorted():
         }
     ]
 
-    clip = normalize_edit_project(raw, [source(duration=2.0)])["tracks"][0]["clips"][0]
+    project = normalize_edit_project(raw, [source(duration=2.0)])
+    clip = project["tracks"][0]["clips"][0]
+    track = project["tracks"][0]
 
     assert clip["source_in"] == 0.0
     assert clip["source_out"] == 2.0
@@ -110,6 +127,58 @@ def test_clip_values_are_clamped_and_envelope_sorted():
         {"time": 0.5, "gain_db": -60.0},
         {"time": 1.5, "gain_db": 24.0},
     ]
+    assert track["muted"] is True
+    assert track["solo"] is True
+    assert track["gain_db"] == 24.0
+    assert track["pan"] == -1.0
+    assert track["gain_envelope"] == [
+        {"time": 0.5, "gain_db": -60.0},
+        {"time": 1.5, "gain_db": 24.0},
+    ]
+
+
+def test_schema_1_migrates_without_changing_clip_state():
+    legacy = {
+        "edit_schema_version": 1,
+        "project_id": "legacy",
+        "view": {"zoom": 2, "scroll_seconds": 1},
+        "takes": [],
+        "tracks": [
+            {
+                "id": "main",
+                "name": "Main Comp",
+                "clips": [
+                    {
+                        "id": "clip-legacy",
+                        "source_id": "take-1",
+                        "source_in": 0,
+                        "source_out": 2,
+                        "timeline_start": 0,
+                        "gain_db": -3,
+                        "pan": 0.25,
+                        "muted": False,
+                        "reverse": False,
+                        "fade_in": {"duration": 0, "curve": "linear"},
+                        "fade_out": {"duration": 0, "curve": "linear"},
+                        "gain_envelope": [{"time": 1, "gain_db": -6}],
+                    }
+                ],
+            }
+        ],
+        "master": {"gain_db": 0, "channel_mode": "preserve", "normalize": {"enabled": False, "target_peak_dbfs": -1}},
+        "reserved": {"keep": True},
+    }
+
+    project = normalize_edit_project(legacy, [source(duration=2)])
+
+    assert project["edit_schema_version"] == 2
+    assert project["tracks"][0]["gain_db"] == 0
+    assert project["tracks"][0]["pan"] == 0
+    assert project["tracks"][0]["muted"] is False
+    assert project["tracks"][0]["gain_envelope"] == []
+    assert project["tracks"][0]["clips"][0]["gain_db"] == -3
+    assert project["tracks"][0]["clips"][0]["gain_envelope"] == [{"time": 1.0, "gain_db": -6.0}]
+    assert project["reserved"]["keep"] is True
 
 
 def test_invalid_json_and_schema_are_actionable():
