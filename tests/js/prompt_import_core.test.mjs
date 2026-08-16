@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { analyzePromptImport, applyPromptImport } from '../../web/prompt_import_core.js';
-import { factoryProject } from '../../web/semantic_studio_core.js';
+import { compilePreview, factoryProject, normalizeProject, splitKeyScale } from '../../web/semantic_studio_core.js';
 
 const caption = `### Global Metadata
 Genre: Lo-fi hip-hop with chillhop influences.
@@ -61,4 +61,30 @@ test('lyrics only creates repeated numbered sections', () => {
   assert.deepEqual(analysis.sections.map((item) => item.label), ['Verse 1', 'Chorus 1', 'Verse 2']);
   const out = applyPromptImport(factoryProject(), analysis, 'replace');
   assert.equal(out.timeline.sections[2].lyrics, 'C');
+});
+
+test('compound imported key scale is normalized into editable fields', () => {
+  const keyCaption = `### Global Metadata\nKey/scale target: D flat major.`;
+  const out = applyPromptImport(factoryProject(), analyzePromptImport({ caption: keyCaption }), 'merge');
+  assert.equal(out.global.key, 'D flat');
+  assert.equal(out.global.scale, 'major');
+
+  assert.deepEqual(splitKeyScale('F# harmonic minor'), { key: 'F#', scale: 'harmonic minor' });
+  assert.deepEqual(splitKeyScale('C# / Db major'), { key: 'C# / Db', scale: 'major' });
+  assert.deepEqual(splitKeyScale('atonal / no fixed key'), { key: 'atonal / no fixed key', scale: '' });
+});
+
+test('prompt-imported values remain ordinary project state and can be overridden manually', () => {
+  const imported = applyPromptImport(factoryProject(), analyzePromptImport({ caption, lyrics }), 'merge');
+  imported.global.genre = 'Jazz Fusion';
+  imported.global.key = 'B flat';
+  imported.global.scale = 'minor';
+  imported.global.vocal.gender = 'bright female soprano';
+  const project = normalizeProject(imported);
+  const preview = compilePreview(project).caption;
+
+  assert.match(preview, /Genre: Jazz Fusion/);
+  assert.match(preview, /Key\/scale target: B flat minor/);
+  assert.match(preview, /Lead vocal: bright female soprano/);
+  assert.doesNotMatch(preview, /Genre: Lo-fi hip-hop/);
 });
