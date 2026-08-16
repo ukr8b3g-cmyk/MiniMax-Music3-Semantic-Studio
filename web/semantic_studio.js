@@ -38,7 +38,7 @@ function openStudio(node, compactSummary){
   const durationStatus=el("div","m3ss-duration-status"),actions=el("div","m3ss-footer-actions"),reset=button("Reset","m3ss-button secondary"),cancel=button("Cancel","m3ss-button secondary"),save=button("Save to Node","m3ss-button primary");actions.append(reset,cancel,save);footer.append(durationStatus,actions);
   const selected=()=>project.timeline.sections.find(s=>s.id===selectedId)||project.timeline.sections[0]||null;
   const mark=()=>{shell.setSubtitle(`Phase 1 / Semantic authoring · ${summarizeProject(project)}`);durationStatus.textContent=`${totalDuration(project).toFixed(2)} s · ${project.timeline.sections.length} sections · changes stay local until Save to Node`;};
-  const update=(fn)=>{fn();mark();renderInspector();};
+  const update=(fn)=>{fn();mark();};
 
   function sectionRow(section,index){
     const row=el("button",`m3ss-structure-row${section.id===selectedId?" is-selected":""}`);row.type="button";row.onclick=()=>{selectedId=section.id;render();};
