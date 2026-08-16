@@ -32,7 +32,7 @@ def _normalize_waveform_shape(waveform: torch.Tensor, label: str) -> torch.Tenso
         raise ValueError(f"{label} waveform has an empty batch, channel, or sample dimension.")
     if waveform.shape[1] > 2:
         raise ValueError(
-            f"{label} has {waveform.shape[1]} channels. V2.0 supports mono or stereo AUDIO only."
+            f"{label} has {waveform.shape[1]} channels. V2 supports mono or stereo AUDIO only."
         )
     if not waveform.dtype.is_floating_point:
         waveform = waveform.float()
@@ -99,7 +99,7 @@ def collect_sources(
             mismatches.append(f"channels {info.channels} != {primary.channels}")
         if mismatches:
             raise ValueError(
-                f"{info.name} is incompatible with Take 1 for V2.0: " + ", ".join(mismatches) + "."
+                f"{info.name} is incompatible with Take 1: " + ", ".join(mismatches) + "."
             )
 
     # Render on the primary device/dtype so explicitly connected takes can originate elsewhere.
@@ -142,46 +142,66 @@ def _envelope_amplitude(
     points: list[dict[str, float]],
     device: torch.device,
     dtype: torch.dtype,
+    *,
+    zero_anchors: bool,
 ) -> torch.Tensor | None:
+    """Build a dB-linear envelope.
+
+    Schema-1 clip envelopes keep implicit 0 dB anchors for compatibility.
+    Track envelopes hold the first and last user point outside their range and
+    remain neutral when no points exist.
+    """
+
     if not points or num_samples <= 0:
         return None
 
     duration = num_samples / sample_rate
-    normalized = [{"time": 0.0, "gain_db": 0.0}]
+    normalized: list[dict[str, float]] = []
+    if zero_anchors:
+        normalized.append({"time": 0.0, "gain_db": 0.0})
     normalized.extend(points)
-    normalized.append({"time": duration, "gain_db": 0.0})
+    if zero_anchors:
+        normalized.append({"time": duration, "gain_db": 0.0})
 
-    # Duplicate boundary points are resolved by the latest point.
     deduped: dict[float, float] = {}
     for point in normalized:
         time = max(0.0, min(duration, float(point["time"])))
         deduped[round(time, 9)] = float(point["gain_db"])
     ordered = sorted(deduped.items())
+    if not ordered:
+        return None
 
     envelope_db = torch.empty((num_samples,), device=device, dtype=torch.float32)
-    for index in range(len(ordered) - 1):
-        start_t, start_db = ordered[index]
-        end_t, end_db = ordered[index + 1]
-        start = min(num_samples, _seconds_to_sample(start_t, sample_rate))
-        end = min(num_samples, _seconds_to_sample(end_t, sample_rate))
-        if end <= start:
-            continue
-        segment = torch.linspace(start_db, end_db, end - start, device=device, dtype=torch.float32)
-        envelope_db[start:end] = segment
-
-    first_sample = min(num_samples - 1, _seconds_to_sample(ordered[0][0], sample_rate))
-    if first_sample > 0:
-        envelope_db[:first_sample] = ordered[0][1]
-    last_sample = min(num_samples, _seconds_to_sample(ordered[-1][0], sample_rate))
-    if last_sample < num_samples:
-        envelope_db[last_sample:] = ordered[-1][1]
     if len(ordered) == 1:
         envelope_db.fill_(ordered[0][1])
+    else:
+        first_sample = min(num_samples, _seconds_to_sample(ordered[0][0], sample_rate))
+        if first_sample > 0:
+            envelope_db[:first_sample] = ordered[0][1]
+
+        for index in range(len(ordered) - 1):
+            start_t, start_db = ordered[index]
+            end_t, end_db = ordered[index + 1]
+            start = min(num_samples, _seconds_to_sample(start_t, sample_rate))
+            end = min(num_samples, _seconds_to_sample(end_t, sample_rate))
+            if end <= start:
+                continue
+            envelope_db[start:end] = torch.linspace(
+                start_db,
+                end_db,
+                end - start,
+                device=device,
+                dtype=torch.float32,
+            )
+
+        last_sample = min(num_samples, _seconds_to_sample(ordered[-1][0], sample_rate))
+        if last_sample < num_samples:
+            envelope_db[last_sample:] = ordered[-1][1]
 
     return torch.pow(torch.tensor(10.0, device=device), envelope_db / 20.0).to(dtype=dtype)
 
 
-def _apply_clip_pan(waveform: torch.Tensor, pan: float) -> torch.Tensor:
+def _apply_pan_balance(waveform: torch.Tensor, pan: float) -> torch.Tensor:
     if abs(pan) < 1e-9 or waveform.shape[1] < 2:
         return waveform
     result = waveform.clone()
@@ -209,12 +229,14 @@ def _render_clip(
 
     rendered *= _db_to_amplitude(clip["gain_db"], device=rendered.device, dtype=rendered.dtype)
 
+    # Legacy clip envelope remains valid after schema-1 migration.
     envelope = _envelope_amplitude(
         rendered.shape[-1],
         sample_rate,
         clip["gain_envelope"],
         rendered.device,
         rendered.dtype,
+        zero_anchors=True,
     )
     if envelope is not None:
         rendered *= envelope.view(1, 1, -1)
@@ -239,7 +261,60 @@ def _render_clip(
             rendered.dtype,
         ).view(1, 1, -1)
 
-    return _apply_clip_pan(rendered, clip["pan"])
+    return _apply_pan_balance(rendered, clip["pan"])
+
+
+def _enabled_effects(effects: Any) -> list[dict[str, Any]]:
+    return [
+        effect
+        for effect in (effects if isinstance(effects, list) else [])
+        if isinstance(effect, dict) and effect.get("enabled", True)
+    ]
+
+
+def _ensure_effects_supported(owner: str, effects: Any) -> None:
+    active = _enabled_effects(effects)
+    if active:
+        names = ", ".join(str(effect.get("type") or effect.get("id") or "unknown") for effect in active)
+        raise ValueError(f"{owner} has enabled effects ({names}), but this build has not enabled the V2.1 DSP renderer yet.")
+
+
+def _render_track(
+    track: dict[str, Any],
+    sources: dict[str, dict[str, Any]],
+    sample_rate: int,
+    output_shape: tuple[int, int, int],
+) -> torch.Tensor:
+    primary = sources["take-1"]["waveform"]
+    track_mix = torch.zeros(output_shape, device=primary.device, dtype=primary.dtype)
+    for clip in track["clips"]:
+        if clip["muted"]:
+            continue
+        source = sources[clip["source_id"]]
+        rendered = _render_clip(source, clip, sample_rate)
+        timeline_start = _seconds_to_sample(clip["timeline_start"], sample_rate)
+        timeline_end = timeline_start + rendered.shape[-1]
+        if timeline_start >= track_mix.shape[-1]:
+            continue
+        if timeline_end > track_mix.shape[-1]:
+            rendered = rendered[..., : track_mix.shape[-1] - timeline_start]
+            timeline_end = track_mix.shape[-1]
+        track_mix[..., timeline_start:timeline_end] += rendered
+
+    track_envelope = _envelope_amplitude(
+        track_mix.shape[-1],
+        sample_rate,
+        track.get("gain_envelope", []),
+        track_mix.device,
+        track_mix.dtype,
+        zero_anchors=False,
+    )
+    if track_envelope is not None:
+        track_mix *= track_envelope.view(1, 1, -1)
+    track_mix *= _db_to_amplitude(track.get("gain_db", 0.0), device=track_mix.device, dtype=track_mix.dtype)
+    track_mix = _apply_pan_balance(track_mix, track.get("pan", 0.0))
+    _ensure_effects_supported(f"Track {track.get('name') or track.get('id')}", track.get("effects", []))
+    return track_mix
 
 
 def _apply_channel_mode(waveform: torch.Tensor, mode: str) -> torch.Tensor:
@@ -251,11 +326,9 @@ def _apply_channel_mode(waveform: torch.Tensor, mode: str) -> torch.Tensor:
     if mode == "stereo":
         return waveform if channels == 2 else waveform.repeat(1, 2, 1)
     if mode == "left_only":
-        left = waveform[:, :1]
-        return left
+        return waveform[:, :1]
     if mode == "right_only":
-        right = waveform[:, 1:2] if channels >= 2 else waveform[:, :1]
-        return right
+        return waveform[:, 1:2] if channels >= 2 else waveform[:, :1]
     if mode == "swap_lr":
         if channels < 2:
             return waveform.repeat(1, 2, 1)
@@ -287,28 +360,18 @@ def render_audio_edit(
 
     timeline_duration = project_timeline_duration(project)
     output_samples = max(1, _seconds_to_sample(timeline_duration, sample_rate))
-    mixed = torch.zeros(
-        (primary.batch_size, primary.channels, output_samples),
-        device=primary_waveform.device,
-        dtype=primary_waveform.dtype,
-    )
+    output_shape = (primary.batch_size, primary.channels, output_samples)
+    mixed = torch.zeros(output_shape, device=primary_waveform.device, dtype=primary_waveform.dtype)
 
-    for track in project["tracks"]:
-        for clip in track["clips"]:
-            if clip["muted"]:
-                continue
-            source = sources[clip["source_id"]]
-            rendered = _render_clip(source, clip, sample_rate)
-            timeline_start = _seconds_to_sample(clip["timeline_start"], sample_rate)
-            timeline_end = timeline_start + rendered.shape[-1]
-            if timeline_start >= mixed.shape[-1]:
-                continue
-            if timeline_end > mixed.shape[-1]:
-                rendered = rendered[..., : mixed.shape[-1] - timeline_start]
-                timeline_end = mixed.shape[-1]
-            mixed[..., timeline_start:timeline_end] += rendered
+    tracks = project["tracks"]
+    any_solo = any(bool(track.get("solo")) for track in tracks)
+    for track in tracks:
+        if bool(track.get("muted")) or (any_solo and not bool(track.get("solo"))):
+            continue
+        mixed += _render_track(track, sources, sample_rate, output_shape)
 
     master = project["master"]
+    _ensure_effects_supported("Master", master.get("effects", []))
     mixed = _apply_channel_mode(mixed, master["channel_mode"])
     mixed *= _db_to_amplitude(master["gain_db"], device=mixed.device, dtype=mixed.dtype)
     if master["normalize"]["enabled"]:
