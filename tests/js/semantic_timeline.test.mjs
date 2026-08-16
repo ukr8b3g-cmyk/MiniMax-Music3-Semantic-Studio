@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { fitTimelineScale, resizeSectionDurations, sectionTimelineGeometry } from '../../web/semantic_timeline.js';
+import {
+  fitTimelineScale,
+  resizeSectionDurations,
+  sectionTimelineGeometry,
+  timelineScaleFactor,
+} from '../../web/semantic_timeline.js';
 
 test('timeline geometry accumulates section durations', () => {
   const sections = [{ duration: 8 }, { duration: 24 }, { duration: 16 }];
@@ -24,8 +29,14 @@ test('preserve-total resize respects minimum next duration', () => {
   assert.equal(result.current, 20.5);
 });
 
-test('fit scale stays inside interactive bounds', () => {
-  assert.equal(fitTimelineScale(2000, 100), 18.5);
+test('fit scale maps to the minimum relative zoom', () => {
+  assert.equal(fitTimelineScale(2000, 100), 3);
   assert.equal(fitTimelineScale(300, 200), 3);
-  assert.equal(fitTimelineScale(10000, 10), 20);
+});
+
+test('timeline scale changes continuously from fit to 4x zoom', () => {
+  assert.equal(timelineScaleFactor(3), 1);
+  assert.equal(timelineScaleFactor(20), 4);
+  assert.ok(timelineScaleFactor(7) > 1);
+  assert.ok(timelineScaleFactor(12) > timelineScaleFactor(7));
 });
