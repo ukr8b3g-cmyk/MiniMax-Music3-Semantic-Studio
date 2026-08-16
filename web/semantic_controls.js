@@ -35,6 +35,7 @@ function attachSuggestionPopup(root, input, options, onChoose) {
   root.appendChild(menu);
 
   let open = false;
+  let browseAll = false;
   let activeIndex = -1;
   let visible = [];
 
@@ -65,8 +66,9 @@ function attachSuggestionPopup(root, input, options, onChoose) {
     input.focus({ preventScroll: true });
   }
 
-  function renderMenu() {
-    visible = filterPresetOptions(options, input.value);
+  function renderMenu({ all = browseAll } = {}) {
+    browseAll = !!all;
+    visible = filterPresetOptions(options, browseAll ? "" : input.value);
     menu.replaceChildren();
     activeIndex = -1;
     input.removeAttribute("aria-activedescendant");
@@ -88,32 +90,39 @@ function attachSuggestionPopup(root, input, options, onChoose) {
     });
   }
 
-  function setOpen(next) {
+  function setOpen(next, { all = false } = {}) {
     open = !!next;
-    if (open) renderMenu();
+    if (open) {
+      browseAll = !!all;
+      renderMenu({ all: browseAll });
+    }
     menu.hidden = !open;
     input.setAttribute("aria-expanded", open ? "true" : "false");
     if (!open) {
+      browseAll = false;
       activeIndex = -1;
       input.removeAttribute("aria-activedescendant");
     }
   }
 
-  input.addEventListener("focus", () => setOpen(true));
+  input.addEventListener("focus", () => {
+    if (!open) setOpen(true, { all: false });
+  });
   input.addEventListener("input", () => {
+    browseAll = false;
     if (!open) open = true;
-    renderMenu();
+    renderMenu({ all: false });
     menu.hidden = false;
     input.setAttribute("aria-expanded", "true");
   });
   input.addEventListener("keydown", (event) => {
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      if (!open) setOpen(true);
+      if (!open) setOpen(true, { all: false });
       setActive(activeIndex + 1);
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
-      if (!open) setOpen(true);
+      if (!open) setOpen(true, { all: false });
       setActive(activeIndex < 0 ? visible.length - 1 : activeIndex - 1);
     } else if (event.key === "Enter" && open && activeIndex >= 0) {
       event.preventDefault();
@@ -135,7 +144,7 @@ function attachSuggestionPopup(root, input, options, onChoose) {
     menu,
     isOpen: () => open,
     setOpen,
-    refresh: renderMenu,
+    refresh: () => renderMenu({ all: browseAll }),
   };
 }
 
@@ -151,15 +160,16 @@ export function editableCombo({ value = "", options = [], placeholder = "", onIn
   input.addEventListener("input", () => onInput?.(input.value));
 
   const toggle = button("▾", "m3ss-combo-toggle");
-  toggle.title = "Show presets";
-  toggle.setAttribute("aria-label", "Show presets");
+  toggle.title = "Show all presets";
+  toggle.setAttribute("aria-label", "Show all presets");
   toggle.addEventListener("pointerdown", (event) => event.preventDefault());
 
   root.append(input, toggle);
   const popup = attachSuggestionPopup(root, input, options, (next) => onInput?.(next));
   toggle.onclick = () => {
-    popup.setOpen(!popup.isOpen());
-    input.focus({ preventScroll: true });
+    const next = !popup.isOpen();
+    popup.setOpen(next, { all: true });
+    if (next) input.focus({ preventScroll: true });
   };
 
   root.input = input;
