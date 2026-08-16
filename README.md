@@ -2,11 +2,11 @@
 
 **Music3 Semantic Studio** is an external ComfyUI custom-node package for MiniMax Music 3 generation design and non-destructive post-generation audio editing.
 
-Current status: **Phase 2 / V2.0 implemented; ComfyUI V2 integration test pending**.
+Current status:
 
-- **V1 — Music3 Semantic Studio:** semantic structure / lyrics / arrangement -> MiniMax Music3 conditioning.
-- **V2 — Music3 Semantic Studio Audio Editor:** decoded AUDIO -> non-destructive edited AUDIO.
-- **V3 — planned/experimental:** semantic conditioning automation and smart regeneration strategies.
+- **V1 / Phase A — Semantic Studio Timeline UI implemented**
+- **V2.0 — Audio Editor implemented; Phase B editor-basics polish is next**
+- **V2.1 — Effects planned; not implemented yet**
 
 Neither V1 nor V2 patches ComfyUI core, MiniMax Music3 model code, KSampler, or VAE code.
 
@@ -38,9 +38,87 @@ Load Diffusion Model -----------------------------------------> KSampler model
 Conditioning Zero Out ----------------------------------------> KSampler negative
 ```
 
-Click **Open Semantic Studio** to edit Global settings, the section Timeline, and the compiled Caption/Lyrics preview.
+Click **Open Semantic Studio** to open the Timeline-first authoring UI.
 
-V1 is semantic: BPM, key, exact section timing, energy, and instrumentation are generation targets rather than strict symbolic guarantees.
+V1 is semantic: BPM, key, exact section timing, energy, vocal treatment, and instrumentation are generation targets rather than strict symbolic guarantees.
+
+### Phase A — Timeline-first Semantic Studio
+
+The normal navigation is intentionally reduced to:
+
+- **Timeline** — primary workspace
+- **Lyrics** — section-by-section lyric editing
+- **Vocal** — Main Vocal and per-section vocal style
+- **Prompt** — authoritative Caption/Lyrics preview and Prompt Import entry point
+
+The Timeline header exposes the high-frequency song settings directly:
+
+- Genre
+- BPM
+- Key
+- Scale / Mode
+- Meter
+- Vocal / Instrumental mode
+
+`More Settings` expands title, subgenres/influences, mood/direction, and production profile.
+
+#### Editable preset controls
+
+Genre, Key, Scale / Mode, Main Vocal, timbre, delivery, and other expressive preset-backed controls remain free-form.
+
+- Click the **▼** button to show the full preset list.
+- Type in the text field to filter presets.
+- Imported/custom values are never locked by the preset catalog.
+- Prompt Import provides initial project values; later manual edits override them normally.
+
+#### Timeline rows
+
+The Timeline is organized as:
+
+1. Structure
+2. Energy
+3. Lyrics summary
+4. Instruments
+5. Vocal Style
+
+Section type determines UI color only; color is not stored in `project_json`.
+
+Section duration uses 0.1-second semantic snapping. Section edges can be dragged to change duration; Shift+drag shares time with the following section. Energy points are vertically draggable.
+
+#### Instrument lanes
+
+Instrument lanes are derived from existing `section.instruments[]` values. They are **semantic arrangement lanes, not audio stems**.
+
+- Expand **Instruments** to show lanes such as Piano, Rhodes piano, Bass, Drums, Guitar, Strings, etc., depending on the project.
+- Click a section/instrument cell to toggle that instrument for the section.
+- Collapse the group to show compact per-section instrument counts.
+- Custom instruments added in the Section Inspector automatically appear as lanes.
+
+#### Lyrics accordion
+
+Lyrics uses a compact accordion. Empty or instrumental sections stay short and show `No lyrics`; textareas start small and grow with content up to a bounded internal scroll height.
+
+#### Main Vocal vs Section Vocal Style
+
+Main Vocal is song-wide voice character: voice type, timbre, delivery, harmony, and effects description.
+
+Section Vocal Style is the per-section performance direction, for example `Soft`, `Breathy`, `Whispered`, `Powerful`, `Belting`, `Soulful`, `Husky / Rough`, `Ethereal`, or custom text. These are authoring suggestions, not model-side enums.
+
+See [`docs/PHASE_A_SEMANTIC_UI.md`](docs/PHASE_A_SEMANTIC_UI.md) for the Phase A UI contract.
+
+## Prompt Import
+
+External LLM output can be pasted into **Import Prompt** and processed locally:
+
+```text
+Import Prompt
+   -> Analyze
+   -> Import Preview
+   -> Merge / Replace
+   -> Semantic Studio fields
+```
+
+Prompt Import is deterministic and does not require an LLM connection at runtime. **Prompt Preview** remains the authoritative read-only view of the Caption/Lyrics sent to MiniMax Music3.
 
 ## V2 — non-destructive audio editor
 
@@ -80,6 +158,7 @@ The browser editor previews source takes and the **last queued rendered result**
 ### V2.0 editing features
 
 - Play / Pause / Stop, seek, waveform zoom and time ruler
+- stereo L/R split display, overlay preview, and mono-mix preview
 - drag selection
 - V1 semantic-section overlay when one upstream V1 node can be identified
 - clip split, trim, move, duplicate, reverse
@@ -96,6 +175,19 @@ The browser editor previews source takes and the **last queued rendered result**
 
 Connected takes must have compatible sample rate, batch size, and channel layout in V2.0.
 
+### Phase B — Audio Editor Basics next
+
+Phase B focuses on conventional audio-editor operations before V2.1 DSP effects:
+
+- Cut / Copy / Paste
+- Split / Duplicate / Delete / Silence
+- keyboard shortcuts and context menu
+- clearer DAW-style gain-envelope presentation
+- fade interaction polish
+- track controls and peak-meter UI
+
+Pitch/time-stretch and effect processing remain outside Phase B.
+
 ### V2 data model
 
 V2 persists a versioned, declarative `edit_json` document containing connected take metadata, tracks/clips, source ranges, timeline positions, gain/fade/envelope/pan state, and master settings. Source tensors are never overwritten.
@@ -104,13 +196,14 @@ See [`docs/V2_SPEC.md`](docs/V2_SPEC.md) for the complete V2 contract and render
 
 ## V2.1 boundary
 
-Planned after V2.0 integration validation:
+Planned after Phase B editor validation:
 
 - pitch shift / time stretch
 - EQ / filters
 - compressor / limiter
 - delay / reverb
-- spectrogram
+- stereo width
+- spectrogram / advanced analysis
 
 These are intentionally outside the V2.0 core renderer.
 
@@ -124,11 +217,14 @@ V3 remains experimental and may add time-varying semantic conditioning, conditio
 python -m pytest
 python -m compileall -q .
 node --check web/semantic_studio.js
+node --check web/semantic_timeline.js
+node --check web/semantic_controls.js
 node --check web/audio_editor.js
 node --check web/audio_editor_core.js
 node --check web/audio_waveform.js
 node --check web/audio_timeline.js
 node --check web/audio_panels.js
+npm run test:semantic
 ```
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the stable phase boundaries.
