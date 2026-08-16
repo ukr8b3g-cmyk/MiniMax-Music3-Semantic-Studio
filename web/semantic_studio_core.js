@@ -6,6 +6,7 @@ export const KEYS = ["","C","C# / Db","D","D# / Eb","E","F","F# / Gb","G","G# / 
 export const clone = (value) => JSON.parse(JSON.stringify(value));
 export const clamp = (value, min, max) => Math.max(min, Math.min(max, Number(value) || 0));
 export const uid = (prefix = "section") => `${prefix}-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
+export const snapSemanticDuration = (value) => Math.round(clamp(value, 0.5, 360) * 10) / 10;
 
 export function splitKeyScale(value, scaleValue = "") {
   const keyText = String(value ?? "").trim();
@@ -23,7 +24,7 @@ export function splitKeyScale(value, scaleValue = "") {
 }
 
 export function makeSection(type="Verse", label="Verse", duration=16, energyPercent=50, instruments=[], vocal="", directives="") {
-  return {id:uid(type.toLowerCase().replace(/[^a-z0-9]+/g,"-")||"section"),type,label,duration,energy:energyPercent/100,lyrics:"",instruments,vocal,directives};
+  return {id:uid(type.toLowerCase().replace(/[^a-z0-9]+/g,"-")||"section"),type,label,duration:snapSemanticDuration(duration),energy:energyPercent/100,lyrics:"",instruments,vocal,directives};
 }
 
 export function factoryProject() {
@@ -50,12 +51,12 @@ export function normalizeProject(raw) {
   p.global.key=String(p.global.key||"");p.global.scale=String(p.global.scale||"");
   const keyScale=splitKeyScale(p.global.key,p.global.scale);p.global.key=keyScale.key;p.global.scale=keyScale.scale;
   p.timeline=p.timeline&&typeof p.timeline==="object"?p.timeline:{sections:[]};p.timeline.sections=Array.isArray(p.timeline.sections)&&p.timeline.sections.length?p.timeline.sections:clone(fallback.timeline.sections);
-  p.timeline.sections=p.timeline.sections.slice(0,32).map((s,i)=>({...(s||{}),id:s?.id||uid("section"),type:SECTION_TYPES.includes(s?.type)?s.type:"Verse",label:String(s?.label||s?.type||`Section ${i+1}`),duration:clamp(s?.duration??16,.5,360),energy:clamp(s?.energy??.5,0,1),lyrics:String(s?.lyrics||""),instruments:Array.isArray(s?.instruments)?s.instruments.filter(Boolean):[],vocal:String(s?.vocal||""),directives:String(s?.directives||"")}));
+  p.timeline.sections=p.timeline.sections.slice(0,32).map((s,i)=>({...(s||{}),id:s?.id||uid("section"),type:SECTION_TYPES.includes(s?.type)?s.type:"Verse",label:String(s?.label||s?.type||`Section ${i+1}`),duration:snapSemanticDuration(s?.duration??16),energy:clamp(s?.energy??.5,0,1),lyrics:String(s?.lyrics||""),instruments:Array.isArray(s?.instruments)?s.instruments.filter(Boolean):[],vocal:String(s?.vocal||""),directives:String(s?.directives||"")}));
   p.audio_edits=Array.isArray(p.audio_edits)?p.audio_edits:[];p.takes=Array.isArray(p.takes)?p.takes:[];p.conditioning_tracks=Array.isArray(p.conditioning_tracks)?p.conditioning_tracks:[];return p;
 }
 
 export function parseList(value) { return String(value||"").split(/[,\n]+/).map(x=>x.trim()).filter(Boolean).filter((x,i,a)=>a.findIndex(y=>y.toLowerCase()===x.toLowerCase())===i); }
-export function totalDuration(project) { return Math.round((project?.timeline?.sections||[]).reduce((sum,s)=>sum+(Number(s.duration)||0),0)*100)/100; }
+export function totalDuration(project) { return Math.round((project?.timeline?.sections||[]).reduce((sum,s)=>sum+(Number(s.duration)||0),0)*10)/10; }
 export function formatTime(seconds) { const whole=Math.max(0,Math.round(seconds)),m=Math.floor(whole/60),s=whole%60;return `${m}:${String(s).padStart(2,"0")}`; }
 export function energyPhrase(value) { const e=clamp(value,0,1);if(e<.18)return"very sparse and restrained";if(e<.38)return"low-density and restrained";if(e<.62)return"moderate and controlled";if(e<.82)return"full and energetic";if(e<.96)return"high-intensity and expansive";return"peak intensity and maximum arrangement density"; }
 
