@@ -5,7 +5,7 @@
 Current status:
 
 - **V1 / Semantic Studio — two-view Timeline / Lyrics UI implemented**
-- **V2.0 / Phase B — Audio Editor Basics implemented; ComfyUI interaction verification pending**
+- **V2 / Phase B.2 — unified waveform editor, schema 2 track automation, and browser Draft Preview implemented; ComfyUI integration verification pending**
 - **V2.1 — Effects planned; not implemented yet**
 
 Neither V1 nor V2 patches ComfyUI core, MiniMax Music3 model code, KSampler, or VAE code.
@@ -17,7 +17,7 @@ cd ComfyUI/custom_nodes
 git clone https://github.com/ukr8b3g-cmyk/MiniMax-Music3-Semantic-Studio.git
 ```
 
-Restart ComfyUI after install/update. V1 and V2.0 add no extra Python runtime dependencies.
+Restart ComfyUI after install/update. V1 and the current V2 core add no extra Python runtime dependencies.
 
 ## V1 — semantic generation design
 
@@ -46,34 +46,16 @@ V1 is semantic: BPM, key, exact section timing, energy, vocal treatment, and ins
 
 ![Phase A Semantic Studio](docs/images/semantic-studio-phase-a.webp)
 
-The normal navigation is intentionally reduced to two horizontal tabs:
+The normal navigation is reduced to two horizontal tabs:
 
 - **Timeline** — primary song-design workspace
 - **Lyrics** — Caption, complete tagged Lyrics, and per-section Lyrics editing
 
-The Timeline header exposes the high-frequency song settings directly:
+The Timeline header exposes Genre, BPM, Key, Scale / Mode, Meter, and Vocal / Instrumental mode. `Main Vocal` contains the song-wide lead/voice type, timbre, delivery, harmony, and vocal-effects wording. `More Settings` contains title, subgenres/influences, mood/direction, and production profile.
 
-- Genre
-- BPM
-- Key
-- Scale / Mode
-- Meter
-- Vocal / Instrumental mode
+Preset-backed expressive fields remain editable and searchable. Imported/custom wording is never locked to the local preset catalog.
 
-`Main Vocal` is a compact expandable row for song-wide lead/voice type, timbre, delivery, harmony and vocal-effects wording. `More Settings` expands title, subgenres/influences, mood/direction, and production profile.
-
-#### Editable preset controls
-
-Genre, Key, Scale / Mode, Main Vocal, timbre, delivery, and other expressive preset-backed controls remain free-form.
-
-- Click the **▼** button to show the full preset list.
-- Type in the text field to filter presets.
-- Imported/custom values are never locked by the preset catalog.
-- Prompt Import provides initial project values; later manual edits override them normally.
-
-#### Timeline rows
-
-The Timeline is organized as:
+Timeline order:
 
 1. Structure
 2. Energy
@@ -81,34 +63,15 @@ The Timeline is organized as:
 4. Vocal Style
 5. Instruments
 
-Section type determines UI color only; color is not stored in `project_json`.
+Section duration uses 0.1-second semantic snapping. Section edges can be dragged; Shift+drag shares time with the following section. Energy points are vertically draggable. Instruments are semantic arrangement lanes derived from `section.instruments[]`, not audio stems.
 
-Section duration uses 0.1-second semantic snapping. Section edges can be dragged to change duration; Shift+drag shares time with the following section. Energy points are vertically draggable.
+The Lyrics workspace contains:
 
-Section Vocal Style uses compact display labels such as `Soft / Half-spoken`, `Soft + Doubles`, `Hushed`, or `Inst.` while preserving the full custom semantic wording in project data. Detailed edits remain available from the Section Inspector.
+1. **Caption** — authoritative compiler Caption in read-only mode; `Edit` creates a temporary Draft that must pass Analyze -> Import Preview -> Apply.
+2. **Full Lyrics** — editable tagged Lyrics; `Apply to Sections` updates matching section Lyrics while preserving timing, energy, instruments, and vocal style.
+3. **Section Lyrics** — compact per-section accordion.
 
-#### Instrument lanes
-
-Instrument lanes are derived from existing `section.instruments[]` values. They are **semantic arrangement lanes, not audio stems**.
-
-- Instruments is the bottom Timeline group and defaults to a compact collapsed row for new UI state.
-- The explicit **▸ / ▾** affordance opens/closes the group.
-- Expand **Instruments** to show lanes such as Piano, Rhodes piano, Bass, Drums, Guitar, Strings, etc., depending on the project.
-- Click a section/instrument cell to toggle that instrument for the section.
-- Collapse the group to show compact per-section instrument counts.
-- Custom instruments added in the Section Inspector automatically appear as lanes.
-
-#### Lyrics workspace
-
-The Lyrics tab uses three columns on wide windows:
-
-1. **Caption** — authoritative compiler Caption in read-only mode. `Edit` switches the same field into a temporary Draft; `Analyze & Import` sends the Draft through the existing Analyze -> Import Preview -> Apply workflow before it can change project state.
-2. **Full Lyrics** — editable complete tagged Lyrics (`[Intro]`, `[Verse]`, `[Chorus]`, etc.). `Apply to Sections` parses the tags and updates matching section Lyrics while preserving their timing, energy, instruments and vocal style.
-3. **Section Lyrics** — compact accordion for precise per-section editing. Every row has a visible `▸ / ▾` indicator; empty/instrumental sections stay short and show `No lyrics`.
-
-On narrower windows the three panes reflow responsively instead of forcing a wide horizontal scroll.
-
-See [`docs/PHASE_A_SEMANTIC_UI.md`](docs/PHASE_A_SEMANTIC_UI.md) for the V1 UI contract.
+See [`docs/PHASE_A_SEMANTIC_UI.md`](docs/PHASE_A_SEMANTIC_UI.md).
 
 ## Prompt Import
 
@@ -122,11 +85,9 @@ Import Prompt
    -> Semantic Studio fields
 ```
 
-The normal external-import default is **Replace section structure**, which suits a new full-song LLM draft. **Merge detected fields** remains available for updating an existing project. Caption Draft editing inside the Lyrics tab uses Merge by default because it starts from the current compiled project.
+The normal external-import default is **Replace section structure**. **Merge detected fields** remains available for incremental edits. Prompt Import is deterministic and does not require an LLM connection at runtime.
 
-Prompt Import is deterministic and does not require an LLM connection at runtime. The normal Caption view remains the authoritative read-only compiler output sent to MiniMax Music3.
-
-## V2 — non-destructive audio editor
+## V2 — unified non-destructive audio editor
 
 - Node ID: `MiniMaxMusic3SemanticStudioAudioEditor`
 - Display name: `Music3 Semantic Studio Audio Editor`
@@ -152,53 +113,84 @@ Preview Audio / Save Audio (Advanced)
 
 ### First use
 
-1. Connect the decoded AUDIO to V2.
-2. Queue the workflow once. This loads immutable source preview metadata.
+1. Connect decoded AUDIO to V2.
+2. Queue once to create immutable source-take previews and the last queued Rendered A reference.
 3. Click **Open Audio Editor**.
-4. Edit the clip plan.
+4. Edit on **Draft · Current Edits**.
 5. Click **Save Edits**.
 6. Queue again to produce the authoritative edited AUDIO.
 
-The browser editor previews source takes and the **last queued rendered result**. Unsaved edits are intentionally not treated as final audio; the Python renderer computes the output from source AUDIO plus `edit_json`.
+The browser Draft Preview is immediate authoring feedback. The Python/PyTorch renderer remains the final source of truth.
 
-### V2.0 editing features
+### Unified waveform surface
 
-- Play / Pause / Stop, seek, waveform zoom and time ruler
-- stereo L/R split display, overlay preview, and mono-mix preview
-- drag selection
-- V1 semantic-section overlay when one upstream V1 node can be identified
-- clip split, trim, move, duplicate, reverse
-- overlapping clip mix and equal-power crossfade helper
-- clip gain, pan, fade-in/out
-- draggable gain envelope with amber/orange UI; overlay defaults Off
-- master gain
-- `preserve`, `mono`, `stereo`, `left_only`, `right_only`, `swap_lr` channel modes
-- optional peak normalization
-- Undo / Redo during the editor session
-- explicit Take 1–4 comping from connected AUDIO inputs
-- Source / Rendered A/B preview
+The separate visible Main Comp lane has been removed from the normal UI. One waveform is the primary editing surface:
 
-Connected takes must have compatible sample rate, batch size, and channel layout in V2.0.
+- drag to select a range
+- click to seek
+- Cut / Copy / Paste / Split / Delete / Silence operate on the waveform selection and playhead
+- thin clip blocks at the top expose non-destructive clip boundaries and source assignments
+- the waveform grows vertically with the editor window instead of staying fixed at 220 px
+- Selection Start / End / Length can be edited numerically
 
-### Phase B — Audio Editor Basics
+Tool modes:
 
-Phase B adds conventional waveform-editor operations without changing the immutable-source architecture:
+```text
+F1  Select
+F2  Envelope
+```
 
-- **Cut / Copy / Paste at playhead** using an internal editor clipboard
-- **Split / Duplicate / Reverse / Mute**
-- **Delete / Ripple** — removes the range and closes the gap
-- **Silence / Leave Gap** — removes the range without shifting later material
-- **Cut & Leave Gap**
-- right-click context menu with shortcut hints
-- compact selected-clip track strip for Mute / Gain / Pan
-- L/R or mono **Preview Peak** meter
-- existing Fade and Gain Envelope editing retained
+### Draft Preview
 
-The internal clipboard stores declarative clip slices and immutable source references; it does not put PCM audio on the OS clipboard.
+`Draft · Current Edits` renders the current `edit_json` in the browser from decoded Take 1–4 source previews. It reflects current edits without a Queue round trip:
+
+- Cut / Paste / Split and gaps
+- clip reverse, gain, pan, mute, fades, and legacy clip envelopes
+- Main Track Mute / Solo / Gain / Pan
+- Main Track Gain Envelope
+- master channel mode, gain, and peak normalization
+
+`Rendered A · Last Queue` remains available for A/B comparison. Draft Preview is encoded for browser playback and is not the authoritative output; **Save Edits -> Queue** runs the Python renderer against the original connected AUDIO tensors.
+
+### Main Track controls and envelope
+
+The left track strip is now track-level rather than selected-clip-level:
+
+- Mute
+- Solo
+- Track Gain
+- Track Pan
+
+The orange Gain Envelope spans the complete track timeline. It is not constrained to one clip.
+
+- choose **Envelope / F2**
+- click the waveform to add a point
+- drag a point to change time/gain
+- right-click or double-click a point to delete it
+- hover shows time and dB
+- Select / F1 prevents selection and envelope gestures from conflicting
+
+Legacy schema-1 clip envelopes remain render-compatible but new automation is authored at track level.
+
+### Editing commands
+
+- Cut / Copy / Paste at playhead
+- Split / Duplicate / Reverse
+- Delete / Ripple
+- Silence / Leave Gap
+- Cut & Leave Gap
+- clip Mute and track Mute
+- equal-power Crossfade Next helper
+- Undo / Redo
+- explicit Take 1–4 comping
+- stereo L/R split, overlay, and mono-mix display
+- Preview Peak meter
 
 Keyboard shortcuts:
 
 ```text
+F1               Select tool
+F2               Envelope tool
 Ctrl/Cmd+X       Cut
 Ctrl/Cmd+C       Copy
 Ctrl/Cmd+V       Paste at playhead
@@ -207,7 +199,8 @@ Ctrl/Cmd+D       Duplicate
 Delete/Backspace Delete / Ripple
 Ctrl/Cmd+L       Silence / Leave Gap
 Ctrl/Cmd+Alt+X   Cut & Leave Gap
-M                Mute / Unmute clip
+M                Mute / Unmute track
+Shift+M          Mute / Unmute selected clip
 Ctrl/Cmd+Z       Undo
 Ctrl/Cmd+Shift+Z Redo
 Ctrl/Cmd+Y       Redo
@@ -216,19 +209,33 @@ Ctrl/Cmd+0       Fit
 Space            Play / Pause
 ```
 
-The Preview Peak meter describes the currently playing Source/Rendered browser preview. Unsaved edits are not authoritative audio until **Save Edits -> Queue**.
+### V2 schema 2
 
-See [`docs/PHASE_B_AUDIO_EDITOR.md`](docs/PHASE_B_AUDIO_EDITOR.md) for the Phase B interaction and compatibility contract.
+`edit_json.edit_schema_version` is now **2**. Existing schema-1 projects are migrated automatically and retain their clip ranges, gain, pan, mute, reverse, fades, and clip-envelope data.
 
-### V2 data model
+Schema 2 adds neutral-by-default track state:
 
-V2 persists a versioned, declarative `edit_json` document containing connected take metadata, tracks/clips, source ranges, timeline positions, gain/fade/envelope/pan state, and master settings. Source tensors are never overwritten.
+```json
+{
+  "muted": false,
+  "solo": false,
+  "gain_db": 0.0,
+  "pan": 0.0,
+  "gain_envelope": [],
+  "effects": [],
+  "clips": []
+}
+```
 
-See [`docs/V2_SPEC.md`](docs/V2_SPEC.md) for the complete V2 contract and render order.
+The backend render order is clip processing -> track automation/controls -> track mix -> master processing. Source AUDIO remains immutable.
+
+See [`docs/PHASE_B_AUDIO_EDITOR.md`](docs/PHASE_B_AUDIO_EDITOR.md) and [`docs/V2_SPEC.md`](docs/V2_SPEC.md).
 
 ## V2.1 boundary
 
-Planned after Phase B editor validation:
+The schema reserves track/master `effects[]`, but DSP effects are not enabled in this build. An enabled unsupported effect fails explicitly rather than being silently ignored.
+
+Planned V2.1 work:
 
 - pitch shift / time stretch
 - EQ / filters
@@ -237,11 +244,9 @@ Planned after Phase B editor validation:
 - stereo width
 - spectrogram / advanced analysis
 
-These are intentionally outside the V2.0 core renderer.
-
 ## V3 direction
 
-V3 remains experimental and may add time-varying semantic conditioning, conditioning morph tracks, and smart region regeneration/comping. Any model-side behavior must remain opt-in and separate from the stable V1/V2 contracts.
+V3 remains experimental and may add time-varying semantic conditioning, conditioning morph tracks, and smart region regeneration/comping. Any model-side behavior must remain opt-in and separate from stable V1/V2 contracts.
 
 ## Development checks
 
@@ -255,11 +260,12 @@ node --check web/prompt_import.js
 node --check web/audio_editor.js
 node --check web/audio_editor_core.js
 node --check web/audio_edit_commands.js
+node --check web/audio_draft_core.js
+node --check web/audio_draft_preview.js
 node --check web/audio_waveform.js
-node --check web/audio_timeline.js
 node --check web/audio_panels.js
 npm run test:semantic
 npm run test:audio
 ```
 
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the stable phase boundaries.
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
