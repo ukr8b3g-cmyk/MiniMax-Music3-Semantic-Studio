@@ -71,6 +71,7 @@ test('compound imported key scale is normalized into editable fields', () => {
 
   assert.deepEqual(splitKeyScale('F# harmonic minor'), { key: 'F#', scale: 'harmonic minor' });
   assert.deepEqual(splitKeyScale('C# / Db major'), { key: 'C# / Db', scale: 'major' });
+  assert.deepEqual(splitKeyScale('D flat major', 'major scale with jazzy extensions'), { key: 'D flat', scale: 'major scale with jazzy extensions' });
   assert.deepEqual(splitKeyScale('atonal / no fixed key'), { key: 'atonal / no fixed key', scale: '' });
 });
 
