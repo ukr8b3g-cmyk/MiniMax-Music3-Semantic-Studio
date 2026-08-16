@@ -6,11 +6,13 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Iterable
 
-EDIT_SCHEMA_VERSION = 1
+EDIT_SCHEMA_VERSION = 2
+LEGACY_EDIT_SCHEMA_VERSION = 1
 MAX_TAKES = 4
 MAX_TRACKS = 16
 MAX_CLIPS = 512
 MAX_ENVELOPE_POINTS = 128
+MAX_EFFECTS = 64
 
 TAKE_INPUTS = ("audio", "take_2", "take_3", "take_4")
 CHANNEL_MODES = ("preserve", "mono", "stereo", "left_only", "right_only", "swap_lr")
@@ -22,12 +24,19 @@ DEFAULT_EDIT_PROJECT: dict[str, Any] = {
     "view": {
         "zoom": 1.0,
         "scroll_seconds": 0.0,
+        "waveform_height": 360.0,
     },
     "takes": [],
     "tracks": [
         {
             "id": "main",
-            "name": "Main Comp",
+            "name": "Main Track",
+            "muted": False,
+            "solo": False,
+            "gain_db": 0.0,
+            "pan": 0.0,
+            "gain_envelope": [],
+            "effects": [],
             "clips": [],
         }
     ],
@@ -38,6 +47,7 @@ DEFAULT_EDIT_PROJECT: dict[str, Any] = {
             "enabled": False,
             "target_peak_dbfs": -1.0,
         },
+        "effects": [],
     },
     "reserved": {},
 }
@@ -100,11 +110,46 @@ def _unique_id(raw: Any, fallback: str, seen: set[str]) -> str:
     return candidate
 
 
-def load_edit_project(edit_json: str | dict[str, Any] | None) -> dict[str, Any]:
-    """Parse V2 edit state while preserving unknown fields.
+def _migrate_v1_to_v2(raw: dict[str, Any]) -> dict[str, Any]:
+    """Migrate V2.0 clip-centric edit state to the unified track-centric schema.
 
-    Source-aware normalization is intentionally handled by ``normalize_edit_project``.
+    Legacy clip gain/pan/mute/envelope fields remain intact. Neutral track controls
+    are added so old projects render identically after migration.
     """
+
+    migrated = deepcopy(raw)
+    tracks = migrated.get("tracks")
+    if not isinstance(tracks, list) or not tracks:
+        tracks = deepcopy(DEFAULT_EDIT_PROJECT["tracks"])
+    for index, track in enumerate(tracks):
+        if not isinstance(track, dict):
+            continue
+        track.setdefault("name", "Main Track" if index == 0 else f"Track {index + 1}")
+        track.setdefault("muted", False)
+        track.setdefault("solo", False)
+        track.setdefault("gain_db", 0.0)
+        track.setdefault("pan", 0.0)
+        track.setdefault("gain_envelope", [])
+        track.setdefault("effects", [])
+    migrated["tracks"] = tracks
+
+    master = migrated.get("master")
+    if not isinstance(master, dict):
+        master = {}
+    master.setdefault("effects", [])
+    migrated["master"] = master
+
+    view = migrated.get("view")
+    if not isinstance(view, dict):
+        view = {}
+    view.setdefault("waveform_height", 360.0)
+    migrated["view"] = view
+    migrated["edit_schema_version"] = EDIT_SCHEMA_VERSION
+    return migrated
+
+
+def load_edit_project(edit_json: str | dict[str, Any] | None) -> dict[str, Any]:
+    """Parse edit state, migrate schema 1, and preserve unknown fields."""
 
     if isinstance(edit_json, dict):
         raw = deepcopy(edit_json)
@@ -123,10 +168,12 @@ def load_edit_project(edit_json: str | dict[str, Any] | None) -> dict[str, Any]:
     if not isinstance(raw, dict):
         raise ValueError("Semantic Studio audio edit JSON must contain a JSON object at the top level.")
 
-    version = raw.get("edit_schema_version", EDIT_SCHEMA_VERSION)
+    version = raw.get("edit_schema_version", LEGACY_EDIT_SCHEMA_VERSION)
+    if version == LEGACY_EDIT_SCHEMA_VERSION:
+        return _migrate_v1_to_v2(raw)
     if version != EDIT_SCHEMA_VERSION:
         raise ValueError(
-            f"Unsupported audio edit_schema_version={version!r}; this build supports edit_schema_version={EDIT_SCHEMA_VERSION}."
+            f"Unsupported audio edit_schema_version={version!r}; this build supports versions 1 and {EDIT_SCHEMA_VERSION}."
         )
     raw["edit_schema_version"] = EDIT_SCHEMA_VERSION
     return raw
@@ -195,21 +242,39 @@ def _normalize_fade(value: Any, clip_duration: float) -> dict[str, Any]:
     return raw
 
 
-def _normalize_envelope(value: Any, clip_duration: float) -> list[dict[str, float]]:
+def _normalize_envelope(value: Any, duration: float) -> list[dict[str, float]]:
     if not isinstance(value, list):
         return []
     points: list[dict[str, float]] = []
     for item in value[:MAX_ENVELOPE_POINTS]:
         if not isinstance(item, dict):
             continue
-        time = _clamp(_float(item.get("time"), 0.0), 0.0, max(0.0, clip_duration))
+        time = _clamp(_float(item.get("time"), 0.0), 0.0, max(0.0, duration))
         gain_db = _clamp(_float(item.get("gain_db"), 0.0), -60.0, 24.0)
         points.append({"time": time, "gain_db": gain_db})
-    # Last point at a duplicate time wins. This keeps interactive drag updates deterministic.
+    # Last point at a duplicate time wins. This keeps drag updates deterministic.
     deduped: dict[float, dict[str, float]] = {}
     for point in points:
         deduped[round(point["time"], 9)] = point
     return [deduped[key] for key in sorted(deduped)]
+
+
+def _normalize_effects(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    effects: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for index, raw in enumerate(value[:MAX_EFFECTS]):
+        if not isinstance(raw, dict):
+            continue
+        effect = deepcopy(raw)
+        effect["id"] = _unique_id(effect.get("id"), f"effect-{index + 1}", seen)
+        effect["type"] = _text(effect.get("type"))
+        effect["enabled"] = _bool(effect.get("enabled"), True)
+        params = effect.get("params")
+        effect["params"] = deepcopy(params) if isinstance(params, dict) else {}
+        effects.append(effect)
+    return effects
 
 
 def _normalize_clip(
@@ -248,6 +313,7 @@ def _normalize_clip(
             "reverse": _bool(clip.get("reverse"), False),
             "fade_in": _normalize_fade(clip.get("fade_in"), clip_duration),
             "fade_out": _normalize_fade(clip.get("fade_out"), clip_duration),
+            # Kept for schema-1 compatibility and advanced clip-level automation.
             "gain_envelope": _normalize_envelope(clip.get("gain_envelope"), clip_duration),
         }
     )
@@ -275,6 +341,7 @@ def normalize_edit_project(
         {
             "zoom": _clamp(_float(view.get("zoom"), 1.0), 0.05, 100.0),
             "scroll_seconds": max(0.0, _float(view.get("scroll_seconds"), 0.0)),
+            "waveform_height": _clamp(_float(view.get("waveform_height"), 360.0), 220.0, 900.0),
         }
     )
     project["view"] = view
@@ -295,7 +362,7 @@ def normalize_edit_project(
         track = deepcopy(track_raw)
         track_id = _unique_id(track.get("id"), f"track-{track_index + 1}", seen_track_ids)
         track["id"] = track_id
-        track["name"] = _text(track.get("name")) or ("Main Comp" if track_index == 0 else f"Track {track_index + 1}")
+        track["name"] = _text(track.get("name")) or ("Main Track" if track_index == 0 else f"Track {track_index + 1}")
 
         clips_raw = track.get("clips")
         if clips_raw is None:
@@ -315,7 +382,26 @@ def normalize_edit_project(
         total_clips += len(clips)
         if total_clips > MAX_CLIPS:
             raise ValueError(f"V2 supports at most {MAX_CLIPS} clips across all tracks.")
-        track["clips"] = clips
+
+        track_duration = max(
+            (
+                max(0.0, float(clip["timeline_start"]))
+                + max(0.0, float(clip["source_out"]) - float(clip["source_in"]))
+                for clip in clips
+            ),
+            default=0.0,
+        )
+        track.update(
+            {
+                "muted": _bool(track.get("muted"), False),
+                "solo": _bool(track.get("solo"), False),
+                "gain_db": _clamp(_float(track.get("gain_db"), 0.0), -60.0, 24.0),
+                "pan": _clamp(_float(track.get("pan"), 0.0), -1.0, 1.0),
+                "gain_envelope": _normalize_envelope(track.get("gain_envelope"), track_duration),
+                "effects": _normalize_effects(track.get("effects")),
+                "clips": clips,
+            }
+        )
         tracks.append(track)
     project["tracks"] = tracks
 
@@ -341,6 +427,7 @@ def normalize_edit_project(
             "gain_db": _clamp(_float(master.get("gain_db"), 0.0), -60.0, 24.0),
             "channel_mode": channel_mode,
             "normalize": normalize,
+            "effects": _normalize_effects(master.get("effects")),
         }
     )
     project["master"] = master
