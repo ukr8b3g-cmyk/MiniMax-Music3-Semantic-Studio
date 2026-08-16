@@ -1,89 +1,86 @@
 # Phase 2 / V2 Audio Editing Specification
 
-Status: **V2.0 implemented; ComfyUI integration test pending** (2026-08-16).
+Status: **schema 2 unified waveform editor implemented; ComfyUI integration verification pending**.
 
-V2 adds deterministic non-destructive audio editing after MiniMax Music3 generation. It remains external to ComfyUI core and does not modify MiniMax Music3, KSampler, latent, or VAE code. The public V1 `MiniMaxMusic3SemanticStudio` contract remains unchanged.
+V2 is a deterministic non-destructive AUDIO companion node after MiniMax Music3 decode. It remains external to ComfyUI core and does not modify MiniMax Music3, KSampler, latent, or VAE code.
 
-## 1. Architecture
-
-V2 is a companion node after audio decode:
-
-```text
-Music3 Semantic Studio (V1)
-   |
-   v
-KSampler -> VAE Decode Audio
-                 |
-                 v
-Music3 Semantic Studio Audio Editor (V2)
-                 | AUDIO
-                 v
-          Preview / Save Audio
-```
-
-### Public node contract
+## 1. Public node contract
 
 - Node ID: `MiniMaxMusic3SemanticStudioAudioEditor`
 - Display name: `Music3 Semantic Studio Audio Editor`
 - Category: `audio/minimax music`
 - Required input: `audio: AUDIO`
-- Optional advanced inputs: `take_2`, `take_3`, `take_4` (`AUDIO`)
-- Widget: `edit_json`
-- Widget: `bypass`
+- Optional advanced inputs: `take_2`, `take_3`, `take_4`
+- Widgets: `edit_json`, `bypass`
 - Output: `AUDIO`
 - Output node: yes
 
-Take history is explicit in the graph. V2 does not silently retain earlier generations as hidden permanent files.
+V1 remains a separate conditioning node with `(CONDITIONING, seconds)` outputs.
 
 ## 2. Core rules
 
-1. Source AUDIO is immutable; every render starts from connected input tensors.
-2. Editing is non-destructive and stored as versioned `edit_json`.
-3. The Python backend renderer is authoritative. Browser playback is preview only.
-4. V2.0 adds no Python dependency beyond PyTorch/ComfyUI facilities already present in ComfyUI.
-5. V2.0 adds no runtime CDN or frontend package dependency.
-6. V1 retains `(CONDITIONING, seconds)` and does not execute V2 state.
-7. Unknown edit fields are preserved where possible for future V2.1/V3 evolution.
+1. Connected source AUDIO tensors are immutable.
+2. Editing is declarative and persisted in versioned `edit_json`.
+3. Python/PyTorch rendering is authoritative.
+4. Browser Draft Preview is immediate authoring feedback, not the final render.
+5. Take history is explicit through graph inputs; no hidden permanent take files.
+6. No runtime CDN or extra Python dependency is required by the current core.
+7. Unknown fields are preserved where possible.
 
-## 3. Frontend implementation
+## 3. Architecture
 
-The implemented V2.0 frontend uses native browser primitives instead of bundling WaveSurfer:
-
-- Canvas waveform renderer
-- `HTMLAudioElement` transport
-- Web Audio API decoding for waveform display
-- pointer-based selection, clip move/trim, and gain-envelope editing
-- native DOM controls for clip/master/take editing
-
-This keeps installation dependency-free and avoids a frontend build/runtime dependency. WaveSurfer.js, AudioMass, and waveform-playlist/dawcore remain design references only.
+```text
+Take 1–4 AUDIO tensors
+        |
+        +--------------------------+
+        |                          |
+        v                          v
+Temporary source previews      Python renderer
+        |                          |
+        v                          v
+Browser Draft renderer        Authoritative AUDIO
+        |                          |
+        v                          v
+Unified waveform             Preview / Save Audio
+```
 
 Frontend modules:
 
 ```text
 web/audio_editor.js          controller / ComfyUI integration
-web/audio_editor_core.js     project helpers / operations / semantic overlay
-web/audio_waveform.js        waveform, transport, selection, zoom
-web/audio_timeline.js        clip timeline and Take lanes
-web/audio_panels.js          clip, envelope, master controls
-web/audio_editor.css         V2 UI styling
+web/audio_editor_core.js     schema migration and project helpers
+web/audio_edit_commands.js   Cut/Copy/Paste/ripple + automation transforms
+web/audio_draft_core.js      deterministic Float32 Draft renderer
+web/audio_draft_preview.js   source decode, AudioBuffer and WAV adapter
+web/audio_waveform.js        waveform, tools, selection, clips, track envelope
+web/audio_panels.js          Track / Clip / Envelope / Master / Takes panels
+web/audio_unified.css        unified waveform presentation
 ```
 
-## 4. Edit document
-
-`edit_json` is the V2 execution source of truth.
+## 4. Edit schema 2
 
 ```json
 {
-  "edit_schema_version": 1,
+  "edit_schema_version": 2,
   "project_id": "",
-  "view": {"zoom": 1.0, "scroll_seconds": 0.0},
+  "view": {
+    "zoom": 1.0,
+    "scroll_seconds": 0.0,
+    "waveform_height": 360.0
+  },
   "takes": [
     {"id": "take-1", "input": "audio", "name": "Take 1", "enabled": true}
   ],
   "tracks": [
     {
       "id": "main",
-      "name": "Main Comp",
+      "name": "Main Track",
+      "muted": false,
+      "solo": false,
+      "gain_db": 0.0,
+      "pan": 0.0,
+      "gain_envelope": [],
+      "effects": [],
       "clips": [
         {
           "id": "clip-1",
@@ -105,180 +102,109 @@ web/audio_editor.css         V2 UI styling
   "master": {
     "gain_db": 0.0,
     "channel_mode": "preserve",
-    "normalize": {"enabled": false, "target_peak_dbfs": -1.0}
+    "normalize": {"enabled": false, "target_peak_dbfs": -1.0},
+    "effects": []
   },
   "reserved": {}
 }
 ```
 
-Persisted time values use seconds. The backend converts them to integer sample offsets using the active sample rate.
+All persisted time values use seconds. Backend and Draft renderers convert to integer sample offsets using the active sample rate.
 
-## 5. Implemented V2.0 features
+### Schema 1 migration
 
-### Transport / view
+Schema 1 is accepted. Migration:
 
-- Play / Pause / Stop
-- seek via waveform click
-- current-time display
-- waveform zoom
-- time ruler
-- drag selection
-- Source Take 1–4 / last Rendered A/B preview
-- semantic section overlay when exactly one upstream V1 Studio node is resolvable
+- retains all clips and clip properties
+- retains legacy clip gain envelopes
+- adds neutral track Mute/Solo/Gain/Pan/Envelope/Effects
+- adds neutral master Effects
+- adds default waveform height
+- sets `edit_schema_version=2`
+- preserves unknown fields
 
-The rendered preview is the **last queued backend render**. Unsaved edits are marked as not rendered; `Save to Node` followed by Queue produces the authoritative new render.
+## 5. Unified waveform UI
 
-### Clip editing
+The waveform is the primary editing surface. The old visible Main Comp lane is not rendered.
 
-- split at playhead
-- trim left/right
-- delete selected rendered region as a non-ripple edit (silence gap)
-- drag clip on timeline
-- overlaps sum in backend
-- duplicate clip
-- reverse clip
-- equal-power crossfade helper for adjacent clips
+- semantic sections appear as a header overlay when one upstream V1 node is resolvable
+- thin clip blocks expose boundaries and source assignment
+- Select tool owns selection/seek
+- Envelope tool owns full-track automation
+- waveform height follows available window space
+- Start/End/Length support numeric editing
 
-### Level / stereo
+Advanced clip fields remain in the Clip inspector.
 
-- clip gain in dB
-- draggable gain envelope
-- fade-in / fade-out
-- linear / equal-power fade curves
-- clip pan `-1..+1`
-- master gain
-- channel modes: `preserve`, `mono`, `stereo`, `left_only`, `right_only`, `swap_lr`
-- optional peak normalization with configurable target (`-1 dBFS` default)
+## 6. Browser Draft Preview contract
 
-### Takes / comping
+Draft Preview decodes source Take previews and renders current project state locally. It supports batch item 1 for interactive browser use.
 
-- primary Take 1 plus optional Take 2–4 graph inputs
-- connected Take lanes displayed in editor
-- each clip can select a connected `source_id`
-- `Use Preview Take` switches the selected clip to the currently previewed take
-- backend rejects incompatible sample rate, batch size, or channel layout with a clear error
+Draft Preview is regenerated after edit commits and debounced during envelope movement. Source/Rendered A/B audition remains available.
 
-### Editing behavior
+Draft Preview must never overwrite source AUDIO or be serialized as authoritative audio. Object URLs and decoded buffers are session state only.
 
-- Undo / Redo (browser session)
-- drag/trim/envelope gesture grouping
-- `Save to Node` writes `edit_json`
-- Cancel does not write node state
-- Reset creates one full-length Take 1 clip
-- source tensors are never overwritten
-
-## 6. Source / rendered preview contract
-
-Before a successful V2 execution, the editor shows `Run the workflow once to load source audio`.
-
-On execution the backend:
-
-1. validates source AUDIO objects and edit state
-2. writes temporary FLAC previews for each connected source take
-3. renders edited AUDIO from the immutable source(s) and `edit_json`
-4. writes a temporary rendered FLAC preview
-5. returns the rendered AUDIO
-6. returns normal ComfyUI audio UI data plus namespaced `m3ss_v2` metadata
-
-Temporary previews are for UI inspection only and are not permanent hidden take history.
-
-## 7. Backend render order
+## 7. Render order
 
 Per clip:
 
 1. resolve source take
-2. seconds -> sample indexes
-3. source slice
-4. reverse
-5. clip gain
-6. gain envelope
-7. fade-in / fade-out
-8. clip pan
-9. place/add on output timeline
+2. source slice
+3. reverse
+4. clip gain
+5. legacy clip gain envelope
+6. fade-in / fade-out
+7. clip pan
+8. timeline placement / overlap sum into track
 
-After clips:
+Per track:
 
-10. master channel mode
-11. master gain
-12. optional peak normalization
-13. finite-value sanitation
-14. return original sample rate
+9. track gain envelope
+10. track gain
+11. track pan
+12. track mute / solo routing
+13. track effects
 
-Overlapping clips are summed. Gaps are silence. The same edit graph is applied to every compatible batch item; interactive browser preview is intended primarily for batch size 1.
+After tracks:
 
-## 8. V2.1 boundary
+14. mix tracks
+15. master effects
+16. master channel mode
+17. master gain
+18. optional peak normalization
+19. finite-value sanitation
 
-Not implemented in V2.0; planned after integration/renderer stability:
+Current Python and Draft implementations match this order for implemented features.
 
-- pitch shift
-- time stretch / playback rate
-- HP/LP/3-band EQ
-- compressor / limiter
-- delay / reverb
-- spectrogram
+## 8. Effects boundary
 
-Optional DSP dependencies must be feature-detected and must not prevent V2.0 from loading.
+Schema 2 reserves `tracks[].effects[]` and `master.effects[]`:
 
-## 9. Outside V2
-
-- MiniMax latent/audio inpainting
-- model-side region regeneration
-- conditioning morphs / time-varying MiniMax conditioning
-- automatic stem separation
-- microphone recording
-- hidden automatic take-history persistence
-
-## 10. Files
-
-```text
-MiniMax-Music3-Semantic-Studio/
-├── nodes.py
-├── semantic_project.py
-├── audio_editor_node.py
-├── audio_edit_project.py
-├── audio_render.py
-├── web/
-│   ├── semantic_studio.js
-│   ├── semantic_studio.css
-│   ├── audio_editor.js
-│   ├── audio_editor_core.js
-│   ├── audio_waveform.js
-│   ├── audio_timeline.js
-│   ├── audio_panels.js
-│   └── audio_editor.css
-└── tests/
-    ├── test_semantic_project.py
-    ├── test_audio_edit_project.py
-    └── test_audio_render.py
+```json
+{"id": "fx-1", "type": "compressor", "enabled": true, "params": {}}
 ```
 
-## 11. Verification state
+The current build does not execute V2.1 effects. Enabled effects raise a clear error rather than being silently ignored. Disabled/empty effects remain round-trippable.
 
-Implemented V2 pure-backend tests cover:
+## 9. Verification
 
-- identity render
-- gaps / clip placement
-- gain and reverse
-- linear/equal-power fade endpoints
-- gain-envelope interpolation
-- explicit two-take comping
-- incompatible-take validation
-- pan/channel modes
-- peak normalization
-- overlap summing
-- muted timeline behavior
-- edit JSON validation/normalization
-- unknown-field preservation
+Pure-module validation covers:
 
-Local implementation check at implementation time: **18 V2 backend tests passed**, Python compile checks passed, and all V2 frontend JS modules passed `node --check`.
+- schema-1 migration and unknown-field preservation
+- clip normalization
+- track controls and envelope normalization
+- identity, gaps, reverse, gain, fades, clip envelope
+- track envelope, gain, pan, mute, solo
+- explicit Take comping and layout validation
+- overlap summing, channel modes, normalization
+- internal clipboard and ripple automation transforms
+- browser Draft renderer parity for track controls, clips, fades, and envelope
 
-Still required before declaring V2.0 fully validated:
+Still required in ComfyUI:
 
-- actual ComfyUI node registration
-- one-source identity render in ComfyUI
-- Open Audio Editor after queue
-- Save/Queue/reopen round trip
-- A/B source/render preview
-- optional Take 2 comping
-- direct connection to Preview Audio / Save Audio (Advanced)
-- confirmation that the existing V1 workflow still behaves unchanged
+- node registration and schema-1 workflow migration
+- source decode -> editor open
+- Draft playback after Mute/Envelope/Cut
+- Save Edits -> Queue -> Rendered A comparison
+- Take 2 comping
+- long-duration performance and memory observation
