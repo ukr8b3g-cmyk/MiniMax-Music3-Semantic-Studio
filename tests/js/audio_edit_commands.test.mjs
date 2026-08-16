@@ -43,6 +43,18 @@ test('extract creates relative internal clipboard clips', () => {
   assert.equal(payload.clips[0].source_out, 17);
 });
 
+test('exact clip-span copy/delete does not damage overlapping crossfade material', () => {
+  const selected = clip({ id: 'selected', source_in: 0, source_out: 10, timeline_start: 0 });
+  const overlap = clip({ id: 'overlap', source_in: 0, source_out: 8, timeline_start: 8 });
+  const track = { clips: [selected, overlap] };
+
+  const payload = extractTimelineRange(track, 0, 10);
+  assert.deepEqual(payload.clips.map((item) => item.id), ['selected']);
+
+  removeTimelineRange(track, 0, 10, { ripple: false, makeId: () => 'unused' });
+  assert.deepEqual(track.clips.map((item) => [item.id, item.timeline_start]), [['overlap', 8]]);
+});
+
 test('non-ripple removal leaves a gap while ripple removal closes it', () => {
   const gap = { clips: [clip({ source_out: 20 }), clip({ id: 'c2', source_in: 0, source_out: 5, timeline_start: 25 })] };
   removeTimelineRange(gap, 5, 10, { ripple: false, makeId: () => 'right' });
