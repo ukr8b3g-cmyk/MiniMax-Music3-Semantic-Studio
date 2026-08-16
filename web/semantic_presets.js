@@ -1,7 +1,9 @@
 // Presets are authoring aids only. Every editable control also accepts custom text.
 // Genre, vocal-style, instrument and BPM references are derived from MiniMax's
 // public music prompt-writing guide; mood/section-vocal suggestions are curated
-// conveniences and are not model-side enums.
+// conveniences and are not model-side enums. Section-vocal wording also includes
+// broadly compatible music-generation phrasing (for example whisper/belting/husky)
+// without claiming those terms are fixed MiniMax enums.
 
 export const GENRE_GROUPS = {
   "Pop & Dance": ["Pop", "Dance Pop", "Electropop", "Synth-pop", "Dream Pop", "K-pop", "J-pop", "C-pop", "City Pop", "House", "Future Bass", "EDM"],
@@ -42,8 +44,28 @@ export const VOCAL_DELIVERY_PRESETS = [
 ];
 
 export const SECTION_VOCAL_PRESETS = [
-  "instrumental", "soft", "intimate", "breathy", "restrained", "power", "full lead",
-  "murmured doubles", "backing harmonies", "wordless hums", "fade",
+  "instrumental",
+  "soft",
+  "intimate",
+  "breathy",
+  "whispered",
+  "powerful",
+  "powerful and soulful",
+  "belting",
+  "soulful",
+  "husky / rough",
+  "raw",
+  "bright / clear",
+  "ethereal",
+  "aggressive",
+  "melodic",
+  "half-spoken",
+  "restrained",
+  "full lead",
+  "murmured doubles",
+  "backing harmonies",
+  "wordless hums",
+  "fade",
 ];
 
 export const INSTRUMENT_GROUPS = {
