@@ -1,34 +1,30 @@
 # MiniMax Music3 Semantic Studio
 
-**Music3 Semantic Studio** is an external ComfyUI custom node for designing MiniMax Music 3 songs on a semantic timeline.
+**Music3 Semantic Studio** is an external ComfyUI custom-node package for MiniMax Music 3 generation design and non-destructive post-generation audio editing.
 
-Current status: **Phase 1 / V1**.
+Current status: **Phase 2 / V2.0 implemented; ComfyUI V2 integration test pending**.
 
-V1 focuses on generation design. It converts structure, per-section lyrics, energy, instrumentation, vocal direction, and arrangement notes into MiniMax Music3 structured caption/lyrics conditioning while leaving ComfyUI's sampler, model, latent, and VAE path untouched.
+- **V1 — Music3 Semantic Studio:** semantic structure / lyrics / arrangement -> MiniMax Music3 conditioning.
+- **V2 — Music3 Semantic Studio Audio Editor:** decoded AUDIO -> non-destructive edited AUDIO.
+- **V3 — planned/experimental:** semantic conditioning automation and smart regeneration strategies.
 
-## V1 node
-
-- Node ID: `MiniMaxMusic3SemanticStudio`
-- Display name: `Music3 Semantic Studio`
-- Category: `model/conditioning/minimax music`
-- Outputs: `CONDITIONING`, `seconds`
-
-The public output contract matches the role of ComfyUI's built-in `MiniMax Music3 Text Encode` node, so the rest of the standard MiniMax Music3 workflow can stay unchanged.
+Neither V1 nor V2 patches ComfyUI core, MiniMax Music3 model code, KSampler, or VAE code.
 
 ## Installation
-
-Clone this repository into the active ComfyUI `custom_nodes` directory and restart ComfyUI.
 
 ```bash
 cd ComfyUI/custom_nodes
 git clone https://github.com/ukr8b3g-cmyk/MiniMax-Music3-Semantic-Studio.git
 ```
 
-No additional Python runtime packages are required for V1.
+Restart ComfyUI after install/update. V1 and V2.0 add no extra Python runtime dependencies.
 
-## Basic workflow
+## V1 — semantic generation design
 
-Replace the built-in `MiniMax Music3 Text Encode` node with `Music3 Semantic Studio`:
+- Node ID: `MiniMaxMusic3SemanticStudio`
+- Display name: `Music3 Semantic Studio`
+- Category: `model/conditioning/minimax music`
+- Outputs: `CONDITIONING`, `seconds`
 
 ```text
 Load CLIP
@@ -40,55 +36,87 @@ Music3 Semantic Studio ---------------------> KSampler positive
 
 Load Diffusion Model -----------------------------------------> KSampler model
 Conditioning Zero Out ----------------------------------------> KSampler negative
-KSampler ----> VAE Decode Audio ----> Preview / Save Audio
 ```
 
-On the Studio node, click **Open Semantic Studio**.
+Click **Open Semantic Studio** to edit Global settings, the section Timeline, and the compiled Caption/Lyrics preview.
 
-### Global tab
+V1 is semantic: BPM, key, exact section timing, energy, and instrumentation are generation targets rather than strict symbolic guarantees.
 
-Defines semantic song-level intent:
+## V2 — non-destructive audio editor
 
-- genre / subgenre influences
-- BPM and meter targets
-- optional key / scale target
-- mood / emotional direction
-- production profile
-- vocal mode and vocal details
+- Node ID: `MiniMaxMusic3SemanticStudioAudioEditor`
+- Display name: `Music3 Semantic Studio Audio Editor`
+- Category: `audio/minimax music`
+- Input: `audio: AUDIO`
+- Optional inputs: `take_2`, `take_3`, `take_4`
+- Output: `AUDIO`
 
-### Timeline tab
+Place V2 after audio decode:
 
-Each section stores:
+```text
+KSampler
+   |
+   v
+VAE Decode Audio
+   |
+   v
+Music3 Semantic Studio Audio Editor
+   |
+   v
+Preview Audio / Save Audio (Advanced)
+```
 
-- section type (`Intro`, `Verse`, `Chorus`, `Bridge`, etc.)
-- display label
-- target duration
-- energy 0–100%
-- instruments
-- section vocal treatment
-- lyrics
-- arrangement directive
+### First use
 
-Sections can be added, deleted, and reordered. Saving synchronizes the total timeline duration to the node's `max_duration` value.
+1. Connect the decoded AUDIO to V2.
+2. Queue the workflow once. This loads immutable source preview metadata.
+3. Click **Open Audio Editor**.
+4. Edit the clip plan.
+5. Click **Save to Node**.
+6. Queue again to produce the authoritative edited AUDIO.
 
-### Compiled Preview tab
+The browser editor previews source takes and the **last queued rendered result**. Unsaved edits are intentionally not treated as final audio; the Python renderer computes the output from source AUDIO plus `edit_json`.
 
-Shows the Structured Caption and tagged Lyrics that V1 will compile for MiniMax Music3. The backend compiler remains authoritative; the browser preview is provided for authoring feedback.
+### V2.0 editing features
 
-## What V1 does not claim
+- Play / Pause / Stop, seek, waveform zoom and time ruler
+- drag selection
+- V1 semantic-section overlay when one upstream V1 node can be identified
+- clip split, trim, move, duplicate, reverse
+- non-ripple region delete / silence gaps
+- overlapping clip mix and equal-power crossfade helper
+- clip gain, pan, fade-in/out
+- draggable gain envelope
+- master gain
+- `preserve`, `mono`, `stereo`, `left_only`, `right_only`, `swap_lr` channel modes
+- optional peak normalization
+- Undo / Redo during the editor session
+- explicit Take 1–4 comping from connected AUDIO inputs
+- Source / Rendered A/B preview
 
-V1 is intentionally semantic. BPM, key, exact section boundaries, energy, and instrumentation are generation instructions rather than strict symbolic controls. MiniMax Music3 may deviate from those targets and may end before `max_duration`.
+Connected takes must have compatible sample rate, batch size, and channel layout in V2.0.
 
-V1 does not provide audio inpainting, stem editing, waveform effects, or time-varying model conditioning.
+### V2 data model
 
-## V2 / V3 direction
+V2 persists a versioned, declarative `edit_json` document containing connected take metadata, tracks/clips, source ranges, timeline positions, gain/fade/envelope/pan state, and master settings. Source tensors are never overwritten.
 
-- **V2**: non-destructive waveform editing, envelopes/effects, take management, and comping after generation.
-- **V3**: experimental semantic automation / conditioning morph tracks and smart region regeneration strategies.
+See [`docs/V2_SPEC.md`](docs/V2_SPEC.md) for the complete V2 contract and render order.
 
-The V1 project format already reserves `audio_edits`, `takes`, and `conditioning_tracks` so later phases can extend existing projects without replacing the V1 authoring model.
+## V2.1 boundary
 
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the implementation boundary and phase plan.
+Planned after V2.0 integration validation:
+
+- pitch shift / time stretch
+- EQ / filters
+- compressor / limiter
+- delay / reverb
+- spectrogram
+
+These are intentionally outside the V2.0 core renderer.
+
+## V3 direction
+
+V3 remains experimental and may add time-varying semantic conditioning, conditioning morph tracks, and smart region regeneration/comping. Any model-side behavior must remain opt-in and separate from the stable V1/V2 contracts.
 
 ## Development checks
 
@@ -96,4 +124,11 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the implementation bounda
 python -m pytest
 python -m compileall -q .
 node --check web/semantic_studio.js
+node --check web/audio_editor.js
+node --check web/audio_editor_core.js
+node --check web/audio_waveform.js
+node --check web/audio_timeline.js
+node --check web/audio_panels.js
 ```
+
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the stable phase boundaries.
