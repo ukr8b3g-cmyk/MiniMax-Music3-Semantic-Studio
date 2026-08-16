@@ -78,5 +78,16 @@ export const BPM_PRESETS = [
   { label: "Fast / driving · 140 BPM", value: 140 },
 ];
 
-export const KEY_PRESETS = ["", "C", "C# / Db", "D", "D# / Eb", "E", "F", "F# / Gb", "G", "G# / Ab", "A", "A# / Bb", "B"];
+// Keep enharmonic spellings separate so an imported/user-selected tonal center is
+// not silently rewritten. These are authoring presets only; custom wording remains valid.
+export const KEY_PRESETS = [
+  "",
+  "C", "C sharp", "D flat",
+  "D", "D sharp", "E flat",
+  "E", "F", "F sharp", "G flat",
+  "G", "G sharp", "A flat",
+  "A", "A sharp", "B flat",
+  "B",
+  "C# / Db", "D# / Eb", "F# / Gb", "G# / Ab", "A# / Bb",
+];
 export const SCALE_PRESETS = ["", "major", "minor", "harmonic minor", "melodic minor", "dorian", "mixolydian", "pentatonic"];
