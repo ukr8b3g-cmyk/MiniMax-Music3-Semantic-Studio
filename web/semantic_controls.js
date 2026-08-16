@@ -1,6 +1,7 @@
 import { button, clamp, el, numberInput, selectInput, textarea } from "./semantic_studio_core.js";
 
 const STYLE_ID = "m3ss-semantic-controls-style";
+const MAX_MENU_ITEMS = 80;
 let controlSerial = 0;
 const nextId = (prefix) => `${prefix}-${Date.now()}-${++controlSerial}`;
 const unique = (values) => [...new Map((values || []).filter(Boolean).map((value) => [String(value).trim().toLowerCase(), String(value).trim()])).values()];
@@ -14,27 +15,150 @@ function ensureStyles() {
   document.head.appendChild(link);
 }
 
+export function filterPresetOptions(options = [], query = "", limit = MAX_MENU_ITEMS) {
+  const values = unique(options);
+  const needle = String(query || "").trim().toLowerCase();
+  const filtered = needle ? values.filter((value) => value.toLowerCase().includes(needle)) : values;
+  return filtered.slice(0, Math.max(1, Number(limit) || MAX_MENU_ITEMS));
+}
+
+function attachSuggestionPopup(root, input, options, onChoose) {
+  const menu = el("div", "m3ss-combo-menu");
+  const menuId = nextId("m3ss-combo-menu");
+  menu.id = menuId;
+  menu.setAttribute("role", "listbox");
+  menu.hidden = true;
+  input.setAttribute("role", "combobox");
+  input.setAttribute("aria-autocomplete", "list");
+  input.setAttribute("aria-controls", menuId);
+  input.setAttribute("aria-expanded", "false");
+  root.appendChild(menu);
+
+  let open = false;
+  let activeIndex = -1;
+  let visible = [];
+
+  function setActive(next) {
+    if (!visible.length) {
+      activeIndex = -1;
+      input.removeAttribute("aria-activedescendant");
+      return;
+    }
+    activeIndex = ((next % visible.length) + visible.length) % visible.length;
+    const items = [...menu.querySelectorAll(".m3ss-combo-option")];
+    items.forEach((item, index) => item.classList.toggle("is-active", index === activeIndex));
+    const active = items[activeIndex];
+    if (active) {
+      input.setAttribute("aria-activedescendant", active.id);
+      active.scrollIntoView?.({ block: "nearest" });
+    }
+  }
+
+  function choose(value) {
+    input.value = value;
+    onChoose?.(value);
+    setOpen(false);
+    input.focus({ preventScroll: true });
+  }
+
+  function renderMenu() {
+    visible = filterPresetOptions(options, input.value);
+    menu.replaceChildren();
+    activeIndex = -1;
+    input.removeAttribute("aria-activedescendant");
+    if (!visible.length) {
+      menu.appendChild(el("div", "m3ss-combo-empty", "No preset match — custom text is allowed."));
+      return;
+    }
+    visible.forEach((value, index) => {
+      const option = el("div", "m3ss-combo-option", value);
+      option.id = `${menuId}-option-${index}`;
+      option.setAttribute("role", "option");
+      option.setAttribute("aria-selected", "false");
+      option.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        choose(value);
+      });
+      option.addEventListener("pointermove", () => setActive(index));
+      menu.appendChild(option);
+    });
+  }
+
+  function setOpen(next) {
+    open = !!next;
+    if (open) renderMenu();
+    menu.hidden = !open;
+    input.setAttribute("aria-expanded", open ? "true" : "false");
+    if (!open) {
+      activeIndex = -1;
+      input.removeAttribute("aria-activedescendant");
+    }
+  }
+
+  input.addEventListener("focus", () => setOpen(true));
+  input.addEventListener("input", () => {
+    if (!open) open = true;
+    renderMenu();
+    menu.hidden = false;
+    input.setAttribute("aria-expanded", "true");
+  });
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      if (!open) setOpen(true);
+      setActive(activeIndex + 1);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      if (!open) setOpen(true);
+      setActive(activeIndex < 0 ? visible.length - 1 : activeIndex - 1);
+    } else if (event.key === "Enter" && open && activeIndex >= 0) {
+      event.preventDefault();
+      choose(visible[activeIndex]);
+    } else if (event.key === "Escape" && open) {
+      event.preventDefault();
+      setOpen(false);
+    }
+  });
+  root.addEventListener("focusout", () => {
+    setTimeout(() => {
+      if (!root.contains(document.activeElement)) setOpen(false);
+    }, 0);
+  });
+
+  return {
+    menu,
+    isOpen: () => open,
+    setOpen,
+    refresh: renderMenu,
+  };
+}
+
 export function editableCombo({ value = "", options = [], placeholder = "", onInput = null, ariaLabel = "" } = {}) {
   ensureStyles();
   const root = el("div", "m3ss-editable-combo");
   const input = document.createElement("input");
   input.type = "text";
+  input.className = "m3ss-combo-input";
   input.value = value ?? "";
   input.placeholder = placeholder;
   if (ariaLabel) input.setAttribute("aria-label", ariaLabel);
-
-  const list = document.createElement("datalist");
-  list.id = nextId("m3ss-options");
-  input.setAttribute("list", list.id);
-  for (const optionValue of unique(options)) {
-    const option = document.createElement("option");
-    option.value = optionValue;
-    list.appendChild(option);
-  }
   input.addEventListener("input", () => onInput?.(input.value));
-  root.append(input, list);
+
+  const toggle = button("▾", "m3ss-combo-toggle");
+  toggle.title = "Show presets";
+  toggle.setAttribute("aria-label", "Show presets");
+  toggle.addEventListener("pointerdown", (event) => event.preventDefault());
+
+  root.append(input, toggle);
+  const popup = attachSuggestionPopup(root, input, options, (next) => onInput?.(next));
+  toggle.onclick = () => {
+    popup.setOpen(!popup.isOpen());
+    input.focus({ preventScroll: true });
+  };
+
   root.input = input;
-  Object.defineProperty(root, "value", { get: () => input.value, set: (next) => { input.value = next ?? ""; } });
+  root.popup = popup;
+  Object.defineProperty(root, "value", { get: () => input.value, set: (next) => { input.value = next ?? ""; popup.refresh(); } });
   return root;
 }
 
@@ -46,14 +170,6 @@ export function chipEditor({ values = [], suggestions = [], placeholder = "Type 
   const input = document.createElement("input");
   input.type = "text";
   input.placeholder = placeholder;
-  const list = document.createElement("datalist");
-  list.id = nextId("m3ss-chip-options");
-  input.setAttribute("list", list.id);
-  for (const optionValue of unique(suggestions)) {
-    const option = document.createElement("option");
-    option.value = optionValue;
-    list.appendChild(option);
-  }
   const addButton = button("Add", "m3ss-chip-add");
   let state = unique(values).slice(0, maxItems);
 
@@ -62,9 +178,14 @@ export function chipEditor({ values = [], suggestions = [], placeholder = "Type 
   function add(raw) {
     const candidate = String(raw || "").trim().replace(/,$/, "").trim();
     if (!candidate) return false;
-    if (state.some((item) => item.toLowerCase() === candidate.toLowerCase())) { input.value = ""; return false; }
+    if (state.some((item) => item.toLowerCase() === candidate.toLowerCase())) { input.value = ""; popup.refresh(); return false; }
     if (state.length >= maxItems) return false;
-    state.push(candidate); input.value = ""; render(); emit(); return true;
+    state.push(candidate);
+    input.value = "";
+    render();
+    emit();
+    popup.refresh();
+    return true;
   }
   function render() {
     chips.replaceChildren();
@@ -80,14 +201,19 @@ export function chipEditor({ values = [], suggestions = [], placeholder = "Type 
     }
   }
 
+  entry.append(input, addButton);
+  const popup = attachSuggestionPopup(entry, input, suggestions, (next) => add(next));
   addButton.onclick = () => add(input.value);
   input.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" || event.key === ",") {
-      event.preventDefault(); add(input.value);
+    if (event.key === ",") {
+      event.preventDefault();
+      add(input.value);
+    } else if (event.key === "Enter" && !popup.isOpen()) {
+      event.preventDefault();
+      add(input.value);
     }
   });
   input.addEventListener("change", () => add(input.value));
-  entry.append(input, list, addButton);
   root.append(chips, entry);
   root.getValues = () => [...state];
   root.setValues = (next) => { state = unique(next).slice(0, maxItems); render(); };
