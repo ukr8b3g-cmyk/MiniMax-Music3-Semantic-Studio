@@ -12,9 +12,27 @@ import { WaveformView } from "./audio_waveform.js";
 import { renderTimeline } from "./audio_timeline.js";
 import { renderInspector, renderEnvelope, renderMaster, renderTakes } from "./audio_panels.js";
 
+const WAVE_DISPLAY_KEY = "m3ss-layout:audio-wave-display";
+const WAVE_DISPLAY_MODES = new Set(["auto", "split", "overlay", "mono"]);
+
+function readWaveDisplayMode() {
+  try {
+    const value = localStorage.getItem(WAVE_DISPLAY_KEY);
+    return WAVE_DISPLAY_MODES.has(value) ? value : "auto";
+  } catch {
+    return "auto";
+  }
+}
+
+function writeWaveDisplayMode(value) {
+  try { localStorage.setItem(WAVE_DISPLAY_KEY, value); } catch {}
+}
+
 function summaryFromMeta(meta) {
   if (!meta?.takes?.length) return "Run once to load audio";
-  return `${meta.takes.length} take${meta.takes.length === 1 ? "" : "s"} · ${Number(meta.rendered?.duration || meta.takes[0]?.duration || 0).toFixed(1)} s · ${meta.bypass ? "Bypassed" : "Edited"}`;
+  const primary = meta.takes[0];
+  const layout = Number(primary?.channels) >= 2 ? "Stereo" : "Mono";
+  return `${meta.takes.length} take${meta.takes.length === 1 ? "" : "s"} · ${layout} · ${Number(meta.rendered?.duration || primary?.duration || 0).toFixed(1)} s · ${meta.bypass ? "Bypassed" : "Edited"}`;
 }
 
 function openEditor(node, compactSummary) {
@@ -25,8 +43,8 @@ function openEditor(node, compactSummary) {
   const shell = createStudioWindow({
     title: "Music3 Semantic Studio Audio Editor",
     subtitle: meta?.takes?.length
-      ? `Phase 2 / V2 · ${summaryFromMeta(meta)} · backend render authoritative`
-      : "Phase 2 / V2 · run once to load source audio",
+      ? `Phase 2 / V2.0 UX Final · ${summaryFromMeta(meta)} · backend render authoritative`
+      : "Phase 2 / V2.0 · run once to load source audio",
     storageKey: "m3ss-audio-window",
     defaultWidth: 1480,
     defaultHeight: 900,
@@ -59,6 +77,8 @@ function openEditor(node, compactSummary) {
   let showTakes = false;
   let viewInitialized = false;
   let envelopeOverlay = readLayoutNumber("audio-envelope-overlay", 1) !== 0;
+  let waveformDisplayMode = readWaveDisplayMode();
+  let sourceInfo = null;
   const history = [];
   const future = [];
 
@@ -84,26 +104,51 @@ function openEditor(node, compactSummary) {
   const redo = button("Redo");
   const fit = button("Fit");
   const zoom = input("range", 28, 8, 120, 1);
+  const displayMode = select([
+    { value: "auto", label: "Auto L/R" },
+    { value: "split", label: "Stereo Split" },
+    { value: "overlay", label: "Stereo Overlay" },
+    { value: "mono", label: "Mono Mix Preview" },
+  ], waveformDisplayMode);
   const envelopeToggle = button("Envelope: On");
-  envelopeToggle.title = "Show/hide the selected clip Gain Envelope over the rendered waveform";
+  envelopeToggle.title = "Show/hide and edit the selected clip Gain Envelope over the rendered waveform";
   const time = el("span", "m3ssv2-time", "0:00.00");
   const takesToggle = button(`Takes (${meta.takes.length})`);
+  const trackInfo = el("span", "m3ssv2-track-info", "Audio layout loading…");
   const renderState = el("span", "m3ssv2-render-state", "Rendered state");
   toolbar.append(
-    field("Preview", preview), play, pause, stop, undo, redo, fit, field("Zoom", zoom), envelopeToggle,
-    time, takesToggle, el("span", "m3ssv2-wheel-hint", "Wheel: zoom · Shift+Wheel: pan"), renderState,
+    field("Preview", preview), play, pause, stop, undo, redo, fit, field("Zoom", zoom),
+    field("Waveform", displayMode), envelopeToggle, time, takesToggle,
+    el("span", "m3ssv2-wheel-hint", "Wheel: zoom · Shift+Wheel: pan"), trackInfo, renderState,
   );
 
   const waveWrap = el("section", "m3ssv2-wave-wrap");
-  main.appendChild(waveWrap);
+  const waveHead = el("div", "m3ssv2-wave-head");
+  waveHead.append(
+    el("strong", "", "Waveform"),
+    el("span", "m3ssv2-wave-note", "Stereo shows Left / Right separately by default · Envelope points are directly editable on Rendered preview"),
+  );
+  main.append(waveHead, waveWrap);
+
   const timelineHead = el("div", "m3ssv2-timeline-head");
   timelineHead.append(
     el("strong", "", "Main Comp"),
-    el("span", "m3ssv2-timeline-note", "Same time scale as waveform · drag clips to move · drag edges to trim"),
+    el("span", "m3ssv2-timeline-note", "Same time scale as waveform · drag clips to move · drag edges to trim · drag top fade handles"),
   );
   main.appendChild(timelineHead);
   const timeline = el("div", "m3ssv2-timeline");
   main.appendChild(timeline);
+
+  const context = el("div", "m3ssv2-contextbar");
+  const split = button("Split @ Playhead");
+  const del = button("Delete Selection");
+  const dup = button("Duplicate");
+  const muteClip = button("Mute Clip");
+  const cross = button("Crossfade Next");
+  const useTake = button("Use Preview Take");
+  const selectionText = el("span", "m3ssv2-selection-text", "No selection");
+  context.append(split, del, dup, muteClip, cross, useTake, selectionText);
+  main.appendChild(context);
 
   let wave = null;
   wave = new WaveformView(
@@ -124,19 +169,16 @@ function openEditor(node, compactSummary) {
         project.view.scroll_seconds = seconds;
         timeline._m3ssTimelineSetScrollSeconds?.(seconds);
       },
+      onSourceInfo: (info) => {
+        sourceInfo = info;
+        updateTrackInfo();
+      },
+      onEnvelopeBegin: () => begin(),
+      onEnvelopeCommit: () => mark(true),
     },
   );
+  wave.setDisplayMode(waveformDisplayMode);
   wave.setSemanticSections(semanticOverlay(node));
-
-  const context = el("div", "m3ssv2-contextbar");
-  const split = button("Split @ Playhead");
-  const del = button("Delete Selection");
-  const dup = button("Duplicate");
-  const cross = button("Crossfade Next");
-  const useTake = button("Use Preview Take");
-  const selectionText = el("span", "m3ssv2-selection-text", "No selection");
-  context.append(split, del, dup, cross, useTake, selectionText);
-  main.appendChild(context);
 
   const inspectorTabs = el("nav", "m3ssv2-inspector-tabs");
   const inspectorBody = el("div", "m3ssv2-inspector-body");
@@ -202,6 +244,16 @@ function openEditor(node, compactSummary) {
     renderAll();
   }
 
+  function updateTrackInfo() {
+    const channels = Number(sourceInfo?.channels) || Number(meta.takes?.[0]?.channels) || 1;
+    const layout = channels >= 2 ? "Stereo" : "Mono";
+    const sampleRate = Number(sourceInfo?.sampleRate) || Number(meta.takes?.[0]?.sample_rate) || 0;
+    const modeLabels = { split: "L/R Split", overlay: "L/R Overlay", mono: channels >= 2 ? "Mono Mix Preview" : "Mono", auto: "Auto" };
+    const resolved = sourceInfo?.displayMode || (channels >= 2 ? "split" : "mono");
+    trackInfo.textContent = `${layout}${sampleRate ? ` · ${sampleRate} Hz` : ""} · ${modeLabels[resolved] || resolved}`;
+    trackInfo.title = "Waveform display is preview-only. Master Channel mode controls the queued AUDIO output.";
+  }
+
   async function setPreview(id) {
     previewId = id;
     preview.value = id;
@@ -265,22 +317,34 @@ function openEditor(node, compactSummary) {
     wave.setEnvelopeOverlay(visible ? findClip() : null, visible);
     envelopeToggle.textContent = `Envelope: ${envelopeOverlay ? "On" : "Off"}`;
     envelopeToggle.classList.toggle("is-active", envelopeOverlay);
+    envelopeToggle.disabled = previewId !== "rendered";
   }
 
   function renderAll() {
     const duration = timelineDuration(project, meta);
+    const clip = findClip();
     renderTimelinePanel();
     renderInspectorPanel();
     updateEnvelopeOverlay();
+    updateTrackInfo();
     status.textContent = `${mainTrack(project).clips.length} clips · timeline ${fmtTime(duration)} · ${meta.takes.length} take(s)${meta.interactive_supported ? "" : " · batch preview: first item only"}`;
     undo.disabled = !history.length;
     redo.disabled = !future.length;
     takesToggle.classList.toggle("is-active", showTakes);
     takesToggle.textContent = `${showTakes ? "Hide" : "Show"} Takes (${meta.takes.length})`;
     useTake.disabled = meta.takes.length <= 1 || previewId === "rendered";
+    muteClip.disabled = !clip;
+    muteClip.textContent = clip?.muted ? "Unmute Clip" : "Mute Clip";
+    muteClip.classList.toggle("is-active", !!clip?.muted);
   }
 
   preview.onchange = () => setPreview(preview.value);
+  displayMode.onchange = () => {
+    waveformDisplayMode = WAVE_DISPLAY_MODES.has(displayMode.value) ? displayMode.value : "auto";
+    writeWaveDisplayMode(waveformDisplayMode);
+    wave.setDisplayMode(waveformDisplayMode);
+    renderTimelinePanel();
+  };
   zoom.oninput = () => wave.setZoom(Number(zoom.value));
   fit.onclick = () => {
     wave.fit();
@@ -311,13 +375,13 @@ function openEditor(node, compactSummary) {
 
   split.onclick = () => {
     const track = mainTrack(project);
-    const time = wave.currentTime();
+    const playheadTime = wave.currentTime();
     const selectedIndex = track.clips.findIndex((clip) => clip.id === selectedId);
     const target = selectedIndex >= 0
       ? selectedIndex
-      : track.clips.findIndex((clip) => time > clip.timeline_start && time < clipEnd(clip));
+      : track.clips.findIndex((clip) => playheadTime > clip.timeline_start && playheadTime < clipEnd(clip));
     if (target < 0) return;
-    const pieces = splitClip(track.clips[target], time);
+    const pieces = splitClip(track.clips[target], playheadTime);
     if (!pieces) return;
     commit(() => {
       track.clips.splice(target, 1, ...pieces);
@@ -348,6 +412,12 @@ function openEditor(node, compactSummary) {
       mainTrack(project).clips.push(duplicate);
       selectedId = duplicate.id;
     });
+  };
+
+  muteClip.onclick = () => {
+    const clip = findClip();
+    if (!clip) return;
+    commit(() => { clip.muted = !clip.muted; });
   };
 
   cross.onclick = () => {
