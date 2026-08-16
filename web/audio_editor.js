@@ -6,8 +6,10 @@ import {
   NODE_ID, EXTENSION_NAME, ensureStyles, clone, uid, nodeClass, el, button, input, select, field,
   clamp, fmtTime, clipDuration, clipEnd, timelineDuration, previewUrl, firstPreviewRef, extractMeta,
   defaultProject, normalizeProject, mainTrack, semanticOverlay, snapshot, parseSnapshot, splitClip,
-  deleteTimelineRange,
 } from "./audio_editor_core.js";
+import {
+  extractTimelineRange, pasteTimelineClipboard, removeTimelineRange,
+} from "./audio_edit_commands.js";
 import { WaveformView } from "./audio_waveform.js";
 import { renderTimeline } from "./audio_timeline.js";
 import { renderInspector, renderEnvelope, renderMaster, renderTakes } from "./audio_panels.js";
@@ -43,8 +45,8 @@ function openEditor(node, compactSummary) {
   const shell = createStudioWindow({
     title: "Music3 Semantic Studio Audio Editor",
     subtitle: meta?.takes?.length
-      ? `Phase 2 / V2.0 UX Final · ${summaryFromMeta(meta)} · backend render authoritative`
-      : "Phase 2 / V2.0 · run once to load source audio",
+      ? `Phase B / Audio Editor Basics · ${summaryFromMeta(meta)} · backend render authoritative`
+      : "Phase B / Audio Editor · run once to load source audio",
     storageKey: "m3ss-audio-window",
     defaultWidth: 1480,
     defaultHeight: 900,
@@ -52,7 +54,7 @@ function openEditor(node, compactSummary) {
     minHeight: 600,
     onClose: () => cleanup(),
   });
-  shell.window.classList.add("m3ssv2-dialog");
+  shell.window.classList.add("m3ssv2-dialog", "m3ssv2-phase-b");
 
   if (!editWidget) {
     shell.content.appendChild(el("div", "m3ssv2-first-run", "edit_json widget was not found. Restart ComfyUI and reload the workflow."));
@@ -72,6 +74,7 @@ function openEditor(node, compactSummary) {
 
   let selectedId = mainTrack(project).clips[0]?.id || null;
   let selection = null;
+  let internalClipboard = null;
   let previewId = "rendered";
   let activeInspector = "clip";
   let showTakes = false;
@@ -122,13 +125,50 @@ function openEditor(node, compactSummary) {
     el("span", "m3ssv2-wheel-hint", "Wheel: zoom · Shift+Wheel: pan"), trackInfo, renderState,
   );
 
-  const waveWrap = el("section", "m3ssv2-wave-wrap");
   const waveHead = el("div", "m3ssv2-wave-head");
   waveHead.append(
     el("strong", "", "Waveform"),
-    el("span", "m3ssv2-wave-note", "Stereo shows Left / Right separately by default · Envelope points are directly editable on Rendered preview"),
+    el("span", "m3ssv2-wave-note", "Stereo L/R preview · selection drives Cut/Copy/Delete/Silence · orange Gain Envelope is optional"),
   );
-  main.append(waveHead, waveWrap);
+  main.appendChild(waveHead);
+
+  const waveArea = el("div", "m3ssv2-wave-area");
+  const trackStrip = el("aside", "m3ssv2-track-strip");
+  const trackName = el("strong", "m3ssv2-track-name", "Main Comp");
+  const channelBadge = el("span", "m3ssv2-channel-badge", "Stereo");
+  const quickMute = button("M", "m3ssv2-track-mini-button");
+  quickMute.title = "Mute / unmute selected clip (M)";
+  const quickGain = input("range", 0, -24, 12, .1);
+  quickGain.title = "Selected clip gain";
+  const quickGainValue = el("span", "m3ssv2-track-value", "0.0 dB");
+  const quickPan = input("range", 0, -1, 1, .01);
+  quickPan.title = "Selected clip pan";
+  const quickPanValue = el("span", "m3ssv2-track-value", "C");
+  trackStrip.append(
+    trackName, channelBadge,
+    el("span", "m3ssv2-track-mini-label", "Selected clip"), quickMute,
+    el("span", "m3ssv2-track-mini-label", "Gain"), quickGain, quickGainValue,
+    el("span", "m3ssv2-track-mini-label", "Pan"), quickPan, quickPanValue,
+  );
+
+  const waveWrap = el("section", "m3ssv2-wave-wrap");
+  const peakStrip = el("aside", "m3ssv2-peak-strip");
+  peakStrip.title = "Preview peak meter. This meters the currently playing Source/Rendered preview, not unsaved browser edits.";
+  peakStrip.appendChild(el("strong", "m3ssv2-peak-title", "Preview Peak"));
+  const makePeak = (label) => {
+    const row = el("div", "m3ssv2-peak-row");
+    const rail = el("div", "m3ssv2-peak-rail");
+    const bar = el("div", "m3ssv2-peak-bar");
+    rail.appendChild(bar);
+    const value = el("span", "m3ssv2-peak-value", "-∞");
+    row.append(el("span", "m3ssv2-peak-label", label), rail, value);
+    peakStrip.appendChild(row);
+    return { row, bar, value, label: row.querySelector(".m3ssv2-peak-label") };
+  };
+  const peakL = makePeak("L");
+  const peakR = makePeak("R");
+  waveArea.append(trackStrip, waveWrap, peakStrip);
+  main.appendChild(waveArea);
 
   const timelineHead = el("div", "m3ssv2-timeline-head");
   timelineHead.append(
@@ -140,15 +180,24 @@ function openEditor(node, compactSummary) {
   main.appendChild(timeline);
 
   const context = el("div", "m3ssv2-contextbar");
-  const split = button("Split @ Playhead");
-  const del = button("Delete Selection");
-  const dup = button("Duplicate");
-  const muteClip = button("Mute Clip");
+  const cut = button("Cut"); cut.title = "Ctrl+X";
+  const copy = button("Copy"); copy.title = "Ctrl+C";
+  const paste = button("Paste"); paste.title = "Ctrl+V · paste at playhead";
+  const split = button("Split"); split.title = "Ctrl+I · split selected clip at playhead";
+  const del = button("Delete"); del.title = "Delete · ripple delete selection/clip";
+  const silence = button("Silence"); silence.title = "Ctrl+L · remove selection but leave a gap";
+  const dup = button("Duplicate"); dup.title = "Ctrl+D";
+  const reverse = button("Reverse");
+  const muteClip = button("Mute Clip"); muteClip.title = "M";
   const cross = button("Crossfade Next");
   const useTake = button("Use Preview Take");
   const selectionText = el("span", "m3ssv2-selection-text", "No selection");
-  context.append(split, del, dup, muteClip, cross, useTake, selectionText);
+  context.append(cut, copy, paste, split, del, silence, dup, reverse, muteClip, cross, useTake, selectionText);
   main.appendChild(context);
+
+  const contextMenu = el("div", "m3ssv2-context-menu");
+  contextMenu.hidden = true;
+  root.appendChild(contextMenu);
 
   let wave = null;
   wave = new WaveformView(
@@ -157,7 +206,8 @@ function openEditor(node, compactSummary) {
       selection = nextSelection;
       selectionText.textContent = nextSelection
         ? `Selection ${fmtTime(nextSelection.start)}–${fmtTime(nextSelection.end)}`
-        : "No selection";
+        : internalClipboard?.clips?.length ? `Clipboard ${internalClipboard.clips.length} clip part(s)` : "No selection";
+      updateCommandState();
     },
     {
       onZoom: (nextZoom) => {
@@ -215,6 +265,8 @@ function openEditor(node, compactSummary) {
   });
 
   const findClip = () => mainTrack(project).clips.find((clip) => clip.id === selectedId) || null;
+  const hasSelection = () => !!selection && selection.end - selection.start >= .001 && previewId === "rendered";
+  const makeClipId = () => uid("clip");
 
   function begin() {
     history.push(snapshot(project));
@@ -252,6 +304,37 @@ function openEditor(node, compactSummary) {
     const resolved = sourceInfo?.displayMode || (channels >= 2 ? "split" : "mono");
     trackInfo.textContent = `${layout}${sampleRate ? ` · ${sampleRate} Hz` : ""} · ${modeLabels[resolved] || resolved}`;
     trackInfo.title = "Waveform display is preview-only. Master Channel mode controls the queued AUDIO output.";
+    channelBadge.textContent = layout;
+    peakL.label.textContent = channels >= 2 ? "L" : "M";
+    peakR.row.hidden = channels < 2;
+  }
+
+  function setPeak(entry, db) {
+    const normalized = clamp((db + 60) / 60, 0, 1);
+    entry.bar.style.height = `${normalized * 100}%`;
+    entry.bar.classList.toggle("is-warn", db > -12);
+    entry.bar.classList.toggle("is-hot", db > -3);
+    entry.value.textContent = db <= -59.9 ? "-∞" : `${db.toFixed(1)}`;
+  }
+
+  function samplePeakDb(channel) {
+    const decoded = wave?.decoded;
+    if (!decoded || !decoded.length || wave.audio.paused) return -60;
+    const safeChannel = Math.min(channel, decoded.numberOfChannels - 1);
+    const data = decoded.getChannelData(Math.max(0, safeChannel));
+    const sampleRate = decoded.sampleRate || 44100;
+    const center = Math.floor(clamp(wave.currentTime(), 0, decoded.duration) * sampleRate);
+    const half = Math.max(64, Math.floor(sampleRate * .025));
+    const start = Math.max(0, center - half), end = Math.min(data.length, center + half);
+    const stride = Math.max(1, Math.floor((end - start) / 1024));
+    let peak = 0;
+    for (let index = start; index < end; index += stride) peak = Math.max(peak, Math.abs(data[index] || 0));
+    return peak > 1e-5 ? Math.max(-60, 20 * Math.log10(peak)) : -60;
+  }
+
+  function updatePeakMeter() {
+    setPeak(peakL, samplePeakDb(0));
+    setPeak(peakR, samplePeakDb(1));
   }
 
   async function setPreview(id) {
@@ -272,12 +355,11 @@ function openEditor(node, compactSummary) {
     renderTimelinePanel();
     renderInspectorPanel();
     updateEnvelopeOverlay();
+    updateCommandState();
   }
 
   function cleanupInspector() {
-    for (const child of inspectorBody.querySelectorAll(".m3ssv2-envelope-wrap")) {
-      child._m3ssResizeObserver?.disconnect?.();
-    }
+    for (const child of inspectorBody.querySelectorAll(".m3ssv2-envelope-wrap")) child._m3ssResizeObserver?.disconnect?.();
   }
 
   function renderInspectorPanel() {
@@ -292,14 +374,8 @@ function openEditor(node, compactSummary) {
   function renderTimelinePanel() {
     const duration = timelineDuration(project, meta);
     renderTimeline(
-      timeline,
-      project,
-      meta,
-      selectedId,
-      (id) => { selectedId = id; renderAll(); },
-      begin,
-      () => mark(true),
-      duration,
+      timeline, project, meta, selectedId,
+      (id) => { selectedId = id; renderAll(); }, begin, () => mark(true), duration,
       {
         showTakes,
         pixelWidth: wave.contentWidth(),
@@ -320,6 +396,25 @@ function openEditor(node, compactSummary) {
     envelopeToggle.disabled = previewId !== "rendered";
   }
 
+  function panText(value) {
+    const pan = Number(value) || 0;
+    if (Math.abs(pan) < .01) return "C";
+    return `${pan < 0 ? "L" : "R"} ${Math.round(Math.abs(pan) * 100)}`;
+  }
+
+  function updateCommandState() {
+    const clip = findClip();
+    const canRegion = hasSelection();
+    cut.disabled = !(canRegion || clip);
+    copy.disabled = !(canRegion || clip);
+    paste.disabled = !internalClipboard?.clips?.length || previewId !== "rendered";
+    split.disabled = !clip;
+    del.disabled = !(canRegion || clip);
+    silence.disabled = !canRegion;
+    dup.disabled = !clip;
+    reverse.disabled = !clip;
+  }
+
   function renderAll() {
     const duration = timelineDuration(project, meta);
     const clip = findClip();
@@ -327,7 +422,7 @@ function openEditor(node, compactSummary) {
     renderInspectorPanel();
     updateEnvelopeOverlay();
     updateTrackInfo();
-    status.textContent = `${mainTrack(project).clips.length} clips · timeline ${fmtTime(duration)} · ${meta.takes.length} take(s)${meta.interactive_supported ? "" : " · batch preview: first item only"}`;
+    status.textContent = `${mainTrack(project).clips.length} clips · timeline ${fmtTime(duration)} · ${meta.takes.length} take(s)${internalClipboard?.clips?.length ? ` · clipboard ${internalClipboard.clips.length}` : ""}${meta.interactive_supported ? "" : " · batch preview: first item only"}`;
     undo.disabled = !history.length;
     redo.disabled = !future.length;
     takesToggle.classList.toggle("is-active", showTakes);
@@ -336,6 +431,68 @@ function openEditor(node, compactSummary) {
     muteClip.disabled = !clip;
     muteClip.textContent = clip?.muted ? "Unmute Clip" : "Mute Clip";
     muteClip.classList.toggle("is-active", !!clip?.muted);
+    quickMute.disabled = !clip;
+    quickMute.classList.toggle("is-active", !!clip?.muted);
+    quickGain.disabled = !clip;
+    quickPan.disabled = !clip;
+    if (clip) {
+      quickGain.value = String(clip.gain_db || 0);
+      quickGainValue.textContent = `${Number(clip.gain_db || 0).toFixed(1)} dB`;
+      quickPan.value = String(clip.pan || 0);
+      quickPanValue.textContent = panText(clip.pan);
+    } else {
+      quickGainValue.textContent = "—";
+      quickPanValue.textContent = "—";
+    }
+    updateCommandState();
+  }
+
+  function selectedRangeOrClip() {
+    if (hasSelection()) return { start: selection.start, end: selection.end, region: true };
+    const clip = findClip();
+    if (!clip) return null;
+    return { start: Number(clip.timeline_start) || 0, end: clipEnd(clip), region: false };
+  }
+
+  function copyCurrent() {
+    const range = selectedRangeOrClip();
+    if (!range) return false;
+    const payload = extractTimelineRange(mainTrack(project), range.start, range.end);
+    if (!payload.clips.length) return false;
+    internalClipboard = payload;
+    selectionText.textContent = `Clipboard ${payload.clips.length} clip part(s) · ${fmtTime(payload.duration)}`;
+    updateCommandState();
+    return true;
+  }
+
+  function cutCurrent({ leaveGap = false } = {}) {
+    const range = selectedRangeOrClip();
+    if (!range || !copyCurrent()) return;
+    commit(() => {
+      removeTimelineRange(mainTrack(project), range.start, range.end, { ripple: !leaveGap, makeId: makeClipId });
+      selectedId = mainTrack(project).clips[0]?.id || null;
+      selection = null;
+      wave.setSelection(null);
+    });
+  }
+
+  function deleteCurrent({ leaveGap = false } = {}) {
+    const range = selectedRangeOrClip();
+    if (!range) return;
+    commit(() => {
+      removeTimelineRange(mainTrack(project), range.start, range.end, { ripple: !leaveGap, makeId: makeClipId });
+      selectedId = mainTrack(project).clips[0]?.id || null;
+      selection = null;
+      wave.setSelection(null);
+    });
+  }
+
+  function pasteCurrent() {
+    if (!internalClipboard?.clips?.length || previewId !== "rendered") return;
+    commit(() => {
+      const pasted = pasteTimelineClipboard(mainTrack(project), internalClipboard, wave.currentTime(), { makeId: makeClipId });
+      selectedId = pasted[0]?.id || selectedId;
+    });
   }
 
   preview.onchange = () => setPreview(preview.value);
@@ -358,8 +515,8 @@ function openEditor(node, compactSummary) {
     updateEnvelopeOverlay();
   };
   play.onclick = () => wave.play();
-  pause.onclick = () => wave.pause();
-  stop.onclick = () => wave.stop();
+  pause.onclick = () => { wave.pause(); updatePeakMeter(); };
+  stop.onclick = () => { wave.stop(); updatePeakMeter(); };
   takesToggle.onclick = () => { showTakes = !showTakes; renderAll(); };
 
   undo.onclick = () => {
@@ -374,12 +531,9 @@ function openEditor(node, compactSummary) {
   };
 
   split.onclick = () => {
-    const track = mainTrack(project);
-    const playheadTime = wave.currentTime();
+    const track = mainTrack(project), playheadTime = wave.currentTime();
     const selectedIndex = track.clips.findIndex((clip) => clip.id === selectedId);
-    const target = selectedIndex >= 0
-      ? selectedIndex
-      : track.clips.findIndex((clip) => playheadTime > clip.timeline_start && playheadTime < clipEnd(clip));
+    const target = selectedIndex >= 0 ? selectedIndex : track.clips.findIndex((clip) => playheadTime > clip.timeline_start && playheadTime < clipEnd(clip));
     if (target < 0) return;
     const pieces = splitClip(track.clips[target], playheadTime);
     if (!pieces) return;
@@ -389,17 +543,16 @@ function openEditor(node, compactSummary) {
     });
   };
 
-  del.onclick = () => {
-    if (!selection || selection.end - selection.start < 0.001 || previewId !== "rendered") {
-      alert("Select a region on the Rendered preview first. Delete Selection is non-ripple and leaves a silence gap.");
+  copy.onclick = () => copyCurrent();
+  cut.onclick = () => cutCurrent();
+  paste.onclick = () => pasteCurrent();
+  del.onclick = () => deleteCurrent();
+  silence.onclick = () => {
+    if (!hasSelection()) {
+      alert("Select a region on the Rendered preview first. Silence leaves the timeline length unchanged.");
       return;
     }
-    commit(() => {
-      deleteTimelineRange(mainTrack(project), selection.start, selection.end);
-      selectedId = mainTrack(project).clips[0]?.id || null;
-      selection = null;
-      wave.setSelection(null);
-    });
+    deleteCurrent({ leaveGap: true });
   };
 
   dup.onclick = () => {
@@ -408,10 +561,16 @@ function openEditor(node, compactSummary) {
     commit(() => {
       const duplicate = clone(clip);
       duplicate.id = uid("clip");
-      duplicate.timeline_start = clipEnd(clip) + 0.05;
+      duplicate.timeline_start = clipEnd(clip) + .05;
       mainTrack(project).clips.push(duplicate);
       selectedId = duplicate.id;
     });
+  };
+
+  reverse.onclick = () => {
+    const clip = findClip();
+    if (!clip) return;
+    commit(() => { clip.reverse = !clip.reverse; });
   };
 
   muteClip.onclick = () => {
@@ -419,16 +578,27 @@ function openEditor(node, compactSummary) {
     if (!clip) return;
     commit(() => { clip.muted = !clip.muted; });
   };
-
-  cross.onclick = () => {
-    const track = mainTrack(project);
+  quickMute.onclick = () => muteClip.click();
+  quickGain.onchange = () => {
     const clip = findClip();
     if (!clip) return;
+    const next = clamp(quickGain.value, -24, 12);
+    commit(() => { clip.gain_db = next; });
+  };
+  quickPan.onchange = () => {
+    const clip = findClip();
+    if (!clip) return;
+    const next = clamp(quickPan.value, -1, 1);
+    commit(() => { clip.pan = next; });
+  };
+
+  cross.onclick = () => {
+    const track = mainTrack(project), clip = findClip();
+    if (!clip) return;
     const ordered = [...track.clips].sort((a, b) => a.timeline_start - b.timeline_start);
-    const index = ordered.findIndex((item) => item.id === clip.id);
-    const next = ordered[index + 1];
+    const index = ordered.findIndex((item) => item.id === clip.id), next = ordered[index + 1];
     if (!next) return;
-    const duration = Math.min(0.5, clipDuration(clip) / 2, clipDuration(next) / 2);
+    const duration = Math.min(.5, clipDuration(clip) / 2, clipDuration(next) / 2);
     if (duration <= 0) return;
     commit(() => {
       if (clipEnd(clip) - next.timeline_start < duration) next.timeline_start = Math.max(0, clipEnd(clip) - duration);
@@ -445,14 +615,53 @@ function openEditor(node, compactSummary) {
     const clip = findClip();
     if (!clip) return;
     const take = meta.takes.find((item) => item.id === previewId);
-    const max = Number(take?.duration) || clipDuration(clip);
-    const old = clipDuration(clip);
+    const max = Number(take?.duration) || clipDuration(clip), old = clipDuration(clip);
     commit(() => {
       clip.source_id = previewId;
       clip.source_in = clamp(clip.source_in, 0, max);
-      clip.source_out = clamp(clip.source_in + old, clip.source_in + 0.01, max);
+      clip.source_out = clamp(clip.source_in + old, clip.source_in + .01, max);
     });
   };
+
+  function menuItem(label, shortcut, action, disabled = false) {
+    const item = button("", "m3ssv2-context-menu-item");
+    item.disabled = !!disabled;
+    item.append(el("span", "", label), el("kbd", "", shortcut || ""));
+    item.onclick = () => { hideContextMenu(); if (!item.disabled) action?.(); };
+    return item;
+  }
+
+  function hideContextMenu() {
+    contextMenu.hidden = true;
+    contextMenu.replaceChildren();
+  }
+
+  function showContextMenu(event) {
+    event.preventDefault();
+    const clip = findClip(), region = hasSelection();
+    contextMenu.replaceChildren(
+      menuItem("Cut", "Ctrl+X", () => cut.click(), !(region || clip)),
+      menuItem("Copy", "Ctrl+C", () => copy.click(), !(region || clip)),
+      menuItem("Paste at Playhead", "Ctrl+V", () => paste.click(), !internalClipboard?.clips?.length || previewId !== "rendered"),
+      el("div", "m3ssv2-context-menu-sep"),
+      menuItem("Split Clip", "Ctrl+I", () => split.click(), !clip),
+      menuItem("Duplicate", "Ctrl+D", () => dup.click(), !clip),
+      menuItem("Delete / Ripple", "Del", () => del.click(), !(region || clip)),
+      menuItem("Silence / Leave Gap", "Ctrl+L", () => silence.click(), !region),
+      menuItem("Cut & Leave Gap", "Ctrl+Alt+X", () => cutCurrent({ leaveGap: true }), !region),
+      el("div", "m3ssv2-context-menu-sep"),
+      menuItem("Reverse", "", () => reverse.click(), !clip),
+      menuItem(clip?.muted ? "Unmute Clip" : "Mute Clip", "M", () => muteClip.click(), !clip),
+      menuItem("Pitch & Speed… (V2.1)", "", null, true),
+    );
+    contextMenu.hidden = false;
+    contextMenu.style.left = `${Math.min(event.clientX, window.innerWidth - 250)}px`;
+    contextMenu.style.top = `${Math.min(event.clientY, window.innerHeight - 360)}px`;
+  }
+
+  main.addEventListener("contextmenu", showContextMenu);
+  const closeMenu = (event) => { if (!contextMenu.hidden && !contextMenu.contains(event.target)) hideContextMenu(); };
+  document.addEventListener("pointerdown", closeMenu, true);
 
   reset.onclick = () => {
     if (!confirm("Reset V2 edits to one full-length Take 1 clip?")) return;
@@ -461,6 +670,7 @@ function openEditor(node, compactSummary) {
     project.project_id = raw?.project_id || uid("audio-project");
     selectedId = mainTrack(project).clips[0]?.id || null;
     selection = null;
+    internalClipboard = null;
     wave.setSelection(null);
     mark(true);
   };
@@ -477,25 +687,55 @@ function openEditor(node, compactSummary) {
   cancel.onclick = () => shell.close();
 
   function keys(event) {
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
+    const mod = event.ctrlKey || event.metaKey;
+    const key = event.key.toLowerCase();
+    const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName);
+    if (typing && !(mod && key === "s")) return;
+
+    if (mod && key === "z") {
       event.preventDefault();
       event.shiftKey ? redo.click() : undo.click();
-    }
-    if ((event.ctrlKey || event.metaKey) && event.key === "0") {
-      event.preventDefault();
-      fit.click();
-    }
-    if (event.code === "Space" && !["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName)) {
-      event.preventDefault();
-      wave.audio.paused ? play.click() : pause.click();
+    } else if (mod && key === "y") {
+      event.preventDefault(); redo.click();
+    } else if (mod && key === "s") {
+      event.preventDefault(); save.click();
+    } else if (mod && event.altKey && key === "x") {
+      event.preventDefault(); cutCurrent({ leaveGap: true });
+    } else if (mod && key === "x") {
+      event.preventDefault(); cut.click();
+    } else if (mod && key === "c") {
+      event.preventDefault(); copy.click();
+    } else if (mod && key === "v") {
+      event.preventDefault(); paste.click();
+    } else if (mod && key === "i") {
+      event.preventDefault(); split.click();
+    } else if (mod && key === "d") {
+      event.preventDefault(); dup.click();
+    } else if (mod && key === "l") {
+      event.preventDefault(); silence.click();
+    } else if (mod && event.key === "0") {
+      event.preventDefault(); fit.click();
+    } else if (event.key === "Delete" || event.key === "Backspace") {
+      event.preventDefault(); del.click();
+    } else if (key === "m") {
+      event.preventDefault(); muteClip.click();
+    } else if (event.code === "Space") {
+      event.preventDefault(); wave.audio.paused ? play.click() : pause.click();
+    } else if (event.key === "Escape") {
+      hideContextMenu();
     }
   }
 
   document.addEventListener("keydown", keys);
-  const timer = setInterval(() => { time.textContent = fmtTime(wave.currentTime()); }, 100);
+  const timer = setInterval(() => {
+    time.textContent = fmtTime(wave.currentTime());
+    updatePeakMeter();
+  }, 80);
   cleanup = () => {
     clearInterval(timer);
     document.removeEventListener("keydown", keys);
+    document.removeEventListener("pointerdown", closeMenu, true);
+    main.removeEventListener("contextmenu", showContextMenu);
     cleanupInspector();
     cleanupPaneSplitter();
     wave.destroy();
