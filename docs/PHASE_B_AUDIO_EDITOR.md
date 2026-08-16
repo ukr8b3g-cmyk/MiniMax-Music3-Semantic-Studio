@@ -4,9 +4,19 @@ Status: implemented in frontend; ComfyUI visual/integration verification pending
 
 Phase B completes the conventional audio-editing surface of the existing V2.0 non-destructive Audio Editor. It does **not** add V2.1 DSP effects.
 
+## Editing surface
+
+The rendered/source Waveform is the primary edit surface. Dragging it creates the time selection used by Cut / Copy / Delete / Silence, and the playhead drives Split and Paste-at-playhead commands.
+
+The edit-command bar is placed directly below the Waveform so these operations read as waveform edits rather than as controls belonging only to the lower clip plan.
+
+The existing Main Comp plan remains visible as a compact secondary **Clip Lane**. It is intentionally retained because overlapping clips, crossfades, clip moves, trims and fade handles cannot be represented clearly by a single flattened preview waveform. The Clip Lane is visually smaller so it no longer competes with the primary Waveform.
+
+The transport time readout uses a fixed width and tabular numerals so changing time values do not move neighboring toolbar controls.
+
 ## Editing commands
 
-The Audio Editor now exposes the normal selection/clip operations expected from a waveform editor:
+The Audio Editor exposes the normal selection/clip operations expected from a waveform editor:
 
 - Cut
 - Copy
@@ -67,7 +77,7 @@ No fake track-level solo state is introduced because the current authoritative e
 
 ## Preview peak meter
 
-A lightweight L/R (or mono) **Preview Peak** meter is shown next to the waveform. It samples the decoded browser preview around the current playhead position and reports approximate dBFS peaks.
+A lightweight L/R (or mono) **Preview Peak** meter is shown next to the waveform. It samples the decoded browser preview around the current playhead position and reports approximate dBFS peaks. The numeric peak field also uses a fixed tabular layout to avoid UI jitter while the value changes.
 
 Important: this meter describes the currently playing Source/Rendered preview. Unsaved browser edits are not authoritative audio; queued backend rendering remains the source of truth.
 
