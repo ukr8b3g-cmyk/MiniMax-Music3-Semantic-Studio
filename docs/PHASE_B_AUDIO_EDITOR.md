@@ -77,7 +77,7 @@ Draft render order mirrors Python:
 16. master gain
 17. peak normalization
 
-Draft Preview updates after editing commands and while envelope gestures pause briefly. Mute, envelope, Cut, Paste, Split, and track controls can therefore be auditioned without Queue.
+Draft Preview updates after editing commands and after an envelope gesture is committed. Mute, envelope, Cut, Paste, Split, and track controls can therefore be auditioned without Queue.
 
 The browser preview is not authoritative. PCM16 browser playback may differ at clipping/extreme gain boundaries. **Save Edits -> Queue** always rerenders from original connected AUDIO tensors in Python/PyTorch.
 
