@@ -5,12 +5,12 @@ from typing import Any
 
 from comfy_api.latest import io, ui
 
-from .audio_edit_project import DEFAULT_EDIT_JSON, normalize_edit_project, project_timeline_duration
+from .audio_edit_project import DEFAULT_EDIT_JSON, EDIT_SCHEMA_VERSION, normalize_edit_project, project_timeline_duration
 from .audio_render import collect_sources, render_audio_edit
 
 
 class MiniMaxMusic3SemanticStudioAudioEditor(io.ComfyNode):
-    """Phase 2 / V2 non-destructive audio editor for Music3 Semantic Studio."""
+    """Non-destructive unified waveform editor for Music3 Semantic Studio."""
 
     @classmethod
     def define_schema(cls) -> io.Schema:
@@ -20,8 +20,8 @@ class MiniMaxMusic3SemanticStudioAudioEditor(io.ComfyNode):
             category="audio/minimax music",
             essentials_category="Audio/Editing",
             description=(
-                "Phase 2 non-destructive audio editor. Connect decoded AUDIO, run once to load previews, "
-                "then use Open Audio Editor. Rendering is derived from source AUDIO plus edit_json."
+                "Non-destructive unified waveform editor. Connect decoded AUDIO, run once to load previews, "
+                "then use Open Audio Editor. Final rendering is derived from source AUDIO plus versioned edit_json."
             ),
             inputs=[
                 io.Audio.Input("audio", tooltip="Primary source audio (Take 1)."),
@@ -51,14 +51,15 @@ class MiniMaxMusic3SemanticStudioAudioEditor(io.ComfyNode):
 
     @classmethod
     def validate_inputs(cls, edit_json, **kwargs) -> bool | str:
-        # Source-aware validation is performed at execution because AUDIO metadata is not
-        # guaranteed to be available to frontend-side schema validation.
         try:
             if isinstance(edit_json, str) and edit_json.strip():
                 parsed = json.loads(edit_json)
                 version = parsed.get("edit_schema_version", 1) if isinstance(parsed, dict) else None
-                if version != 1:
-                    return f"Unsupported audio edit_schema_version={version!r}; this build supports edit_schema_version=1."
+                if version not in {1, EDIT_SCHEMA_VERSION}:
+                    return (
+                        f"Unsupported audio edit_schema_version={version!r}; "
+                        f"this build supports schema 1 migration and schema {EDIT_SCHEMA_VERSION}."
+                    )
         except json.JSONDecodeError as exc:
             return f"Semantic Studio audio edit JSON is invalid: {exc.msg} at line {exc.lineno} column {exc.colno}"
         return True
@@ -130,7 +131,7 @@ class MiniMaxMusic3SemanticStudioAudioEditor(io.ComfyNode):
         rendered_duration = rendered_waveform.shape[-1] / rendered_audio["sample_rate"]
 
         metadata = {
-            "edit_schema_version": 1,
+            "edit_schema_version": EDIT_SCHEMA_VERSION,
             "bypass": bool(bypass),
             "interactive_supported": infos[0].batch_size == 1,
             "takes": take_previews,
@@ -146,8 +147,6 @@ class MiniMaxMusic3SemanticStudioAudioEditor(io.ComfyNode):
             "normalized_edit_json": json.dumps(project, ensure_ascii=False, separators=(",", ":")),
         }
 
-        # Keep standard ComfyUI audio preview compatibility while adding namespaced
-        # source/take metadata for the custom editor dialog.
         ui_payload = {
             "audio": rendered_refs,
             "m3ss_v2": [metadata],
