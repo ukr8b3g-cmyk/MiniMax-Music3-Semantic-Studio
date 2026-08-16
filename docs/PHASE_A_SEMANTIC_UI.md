@@ -24,7 +24,7 @@ The Timeline header exposes the high-frequency song-wide fields already stored i
 - Meter
 - Vocal / Instrumental mode
 
-`Main Vocal` is a compact expandable row containing song-wide lead/voice type, timbre/character, delivery, harmony and vocal-effects wording.
+`Main Vocal` is a visually differentiated expandable row containing song-wide lead/voice type, timbre/character, delivery, harmony and vocal-effects wording. New UI state defaults the accordion open; subsequent open/closed state is remembered locally.
 
 `More Settings` expands Working title, Subgenres / influences, Mood / direction and Production profile. Preset-backed expressive controls remain editable and imported/custom wording is not locked.
 
@@ -83,7 +83,7 @@ On wide windows Lyrics uses three columns:
 2. Full Lyrics
 3. Section Lyrics
 
-The view reflows responsively on smaller windows.
+The two vertical dividers are draggable. Caption and Full Lyrics pane widths are remembered in local UI storage, and double-clicking either divider restores its default width. On smaller windows the splitters disappear and the panes stack vertically.
 
 ### Caption
 
@@ -120,7 +120,7 @@ The normal external import default is Replace section structure. Merge detected 
 - public V1 node ID and `(CONDITIONING, seconds)` outputs are unchanged
 - `project_json.schema_version` remains 1
 - no new required project field is introduced
-- section colors, top-tab choice, accordion state, Caption Draft and Full Lyrics Draft are presentation/session state only
+- section colors, top-tab choice, accordion state, Caption Draft, Full Lyrics Draft and pane widths are presentation/session state only
 - existing `global`, `timeline.sections`, `section.instruments`, `section.vocal`, `lyrics` and `directives` fields remain the saved source of truth
 - Prompt Preview / normal Caption remains the authoritative compiler output
 - no Python runtime dependency is added
