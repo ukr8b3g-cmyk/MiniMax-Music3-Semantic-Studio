@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test:import": "node --test tests/js/prompt_import_core.test.mjs",
     "test:ui": "playwright test",
     "test:ui:headed": "playwright test --headed"
   },
