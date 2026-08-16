@@ -24,6 +24,7 @@ export class WaveformView {
     this.onSourceInfo = options.onSourceInfo || null;
     this.onEnvelopeBegin = options.onEnvelopeBegin || null;
     this.onEnvelopeCommit = options.onEnvelopeCommit || null;
+    this.onEnvelopePreview = options.onEnvelopePreview || null;
     this.onClipSelect = options.onClipSelect || null;
     this.cache = new Map();
     this.audio = new Audio();
@@ -151,7 +152,7 @@ export class WaveformView {
     this.duration = decoded.duration || 1;
     await waitForMetadata(this.audio);
     this.audio.currentTime = clamp(previousTime, 0, Math.max(0, this.duration - .001));
-    this.selection = null;
+    this.setSelection(null);
     this.emitSourceInfo();
     this.render();
     if (wasPlaying) await this.play();
@@ -463,6 +464,7 @@ export class WaveformView {
     this.track.gain_envelope.sort((a, b) => a.time - b.time);
     this.renderEnvelope();
     this.showEnvelopeTooltip(event, this.envelopeDrag);
+    this.onEnvelopePreview?.();
   }
 
   finishEnvelopePoint(event) {
