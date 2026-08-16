@@ -1,0 +1,12 @@
+{
+  "name": "minimax-music3-semantic-studio-ui-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:ui": "playwright test",
+    "test:ui:headed": "playwright test --headed"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1"
+  }
+}
