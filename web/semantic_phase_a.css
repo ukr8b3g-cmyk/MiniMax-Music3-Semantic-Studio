@@ -19,10 +19,10 @@
 .m3ss-phase-a .m3ss-tl-stage{isolation:isolate;background:#0a111a}
 .m3ss-tl-selected-column{position:absolute;z-index:0;top:30px;bottom:0;background:color-mix(in srgb,var(--m3ss-section-accent) 8%,transparent);border-left:1px solid color-mix(in srgb,var(--m3ss-section-accent) 30%,transparent);border-right:1px solid color-mix(in srgb,var(--m3ss-section-accent) 30%,transparent);pointer-events:none}
 .m3ss-phase-a .m3ss-tl-row{z-index:1}.m3ss-phase-a .m3ss-tl-ruler{z-index:2}
-.m3ss-phase-a .m3ss-tl-section-block{border-color:var(--m3ss-section-border);background:linear-gradient(180deg,color-mix(in srgb,var(--m3ss-section-fill) 90%,#fff 3%),var(--m3ss-section-fill));color:#f2f5f8;box-shadow:inset 0 1px rgba(255,255,255,.05)}
+.m3ss-phase-a .m3ss-tl-section-block{padding:7px 6px 18px;border-color:var(--m3ss-section-border);background:linear-gradient(180deg,color-mix(in srgb,var(--m3ss-section-fill) 90%,#fff 3%),var(--m3ss-section-fill));color:#f2f5f8;text-align:center;box-shadow:inset 0 1px rgba(255,255,255,.05)}
 .m3ss-phase-a .m3ss-tl-section-block:hover{filter:brightness(1.16)}
 .m3ss-phase-a .m3ss-tl-section-block.is-selected{border-color:var(--m3ss-section-accent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--m3ss-section-accent) 65%,transparent),0 0 0 1px rgba(255,255,255,.06)}
-.m3ss-phase-a .m3ss-tl-duration-badge{color:#e5edf6}
+.m3ss-phase-a .m3ss-tl-duration-badge{left:4px;right:4px;bottom:4px;color:#e5edf6;text-align:center;font-size:8px}
 .m3ss-phase-a .m3ss-tl-detail-block{border-color:rgba(108,149,255,.2);background:rgba(42,58,81,.28);color:#b7c4d5}.m3ss-phase-a .m3ss-tl-detail-block.is-selected{border-color:var(--m3ss-section-accent);background:color-mix(in srgb,var(--m3ss-section-fill) 28%,#172132)}
 .m3ss-phase-a .m3ss-tl-energy-line{stroke:#72cdb8;stroke-width:2}
 .m3ss-phase-a .m3ss-tl-energy-point{fill:var(--m3ss-section-accent,#75a2ff);stroke:#f3f6fa;stroke-width:1.2}.m3ss-phase-a .m3ss-tl-energy-point.is-selected{filter:drop-shadow(0 0 4px var(--m3ss-section-accent,#f0c56d))}
