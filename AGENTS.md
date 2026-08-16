@@ -6,6 +6,8 @@
 - V1 is semantic conditioning only. BPM, key, section timing, energy, vocal treatment, and instruments are prompt targets, not strict symbolic controls. Do not present them as guaranteed model behavior.
 - Reserve `audio_edits`, `takes`, and `conditioning_tracks` for later phases. V1 must not execute or reinterpret them.
 - Prefer deterministic, dependency-free project compilation. Add runtime dependencies only when a phase needs them.
+- Semantic preset catalogs are authoring aids, not MiniMax model-side enums. Genre, key/scale, vocal descriptions, moods, instruments and similar imported/custom values must remain usable even when they are absent from local preset lists.
+- Keep preset-backed expressive controls editable/searchable. Do not replace free-form Music3 wording with a closed dropdown unless the underlying field is genuinely finite (for example Vocal/Instrumental mode or meter choices).
 - Prompt Import must remain deterministic and local. Do not require a connected LLM, network service, or model runtime to analyze/import structured Caption and tagged Lyrics.
 - Keep Prompt Preview as the authoritative read-only view of what the V1 compiler will send to MiniMax. Import is a separate Analyze -> Import Preview -> Apply workflow.
 - Prompt Import Merge updates detected Global/Vocal fields and matches sections by section-type occurrence, appending missing sections. Replace rebuilds section order only when imported sections are detected. Both modes must preserve `project_id`, unknown top-level fields, and reserved `audio_edits` / `takes` / `conditioning_tracks` data.
@@ -23,4 +25,4 @@
 - Keep prompt parsing/merge logic in `prompt_import_core.js`; the dialog/controller must not duplicate parser rules.
 - Future effects, automation lanes, and V3 conditioning tracks must extend the existing shell/command/data boundaries rather than replacing them. Browser preview remains non-authoritative.
 - Playwright is a development-only dependency. UI smoke tests must not become a runtime requirement for the ComfyUI custom node.
-- Before committing Python changes, run `python -m pytest` and `python -m compileall -q .`. Before committing frontend changes, run `node --check` on all changed frontend modules. Run `npm run test:import` for Prompt Import changes. When Playwright and a browser binary are available, also run `npm run test:ui`.
+- Before committing Python changes, run `python -m pytest` and `python -m compileall -q .`. Before committing frontend changes, run `node --check` on all changed frontend modules. Run `npm run test:semantic` for Prompt Import / semantic preset changes. When Playwright and a browser binary are available, also run `npm run test:ui`.
