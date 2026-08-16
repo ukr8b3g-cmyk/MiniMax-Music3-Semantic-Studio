@@ -2,6 +2,18 @@ import { clamp, clipDuration, el, fmtTime } from "./audio_editor_core.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const DISPLAY_MODES = new Set(["auto", "split", "overlay", "mono"]);
+const TOOL_MODES = new Set(["select", "envelope"]);
+const DB_MAX = 24;
+const DB_MIN = -60;
+
+function waitForMetadata(audio) {
+  if (audio.readyState >= 1) return Promise.resolve();
+  return new Promise((resolve) => {
+    const done = () => { audio.removeEventListener("loadedmetadata", done); resolve(); };
+    audio.addEventListener("loadedmetadata", done, { once: true });
+    setTimeout(done, 1200);
+  });
+}
 
 export class WaveformView {
   constructor(container, onSelection, options = {}) {
@@ -12,6 +24,7 @@ export class WaveformView {
     this.onSourceInfo = options.onSourceInfo || null;
     this.onEnvelopeBegin = options.onEnvelopeBegin || null;
     this.onEnvelopeCommit = options.onEnvelopeCommit || null;
+    this.onClipSelect = options.onClipSelect || null;
     this.cache = new Map();
     this.audio = new Audio();
     this.audio.preload = "auto";
@@ -19,12 +32,15 @@ export class WaveformView {
     this.decoded = null;
     this.zoom = 28;
     this.duration = 1;
-    this.height = 220;
+    this.height = 360;
     this.displayMode = "auto";
+    this.toolMode = "select";
     this.selection = null;
     this.sections = [];
-    this.envelopeClip = null;
-    this.envelopeVisible = false;
+    this.clips = [];
+    this.selectedClipId = null;
+    this.track = null;
+    this.envelopeVisible = true;
     this.envelopeDrag = null;
     this.raf = null;
     this.build();
@@ -37,19 +53,23 @@ export class WaveformView {
     this.canvas = document.createElement("canvas");
     this.canvas.className = "m3ssv2-wave-canvas";
     this.sectionLayer = el("div", "m3ssv2-semantic-overlay");
+    this.clipLayer = el("div", "m3ssv2-wave-clips");
     this.selectionEl = el("div", "m3ssv2-wave-selection");
     this.envelopeSvg = document.createElementNS(SVG_NS, "svg");
     this.envelopeSvg.classList.add("m3ssv2-wave-envelope");
-    this.envelopeSvg.setAttribute("aria-label", "Selected clip gain envelope");
+    this.envelopeSvg.setAttribute("aria-label", "Main Track gain envelope");
     this.playhead = el("div", "m3ssv2-playhead");
-    this.stage.append(this.canvas, this.sectionLayer, this.selectionEl, this.envelopeSvg, this.playhead);
+    this.tooltip = el("div", "m3ssv2-envelope-tooltip");
+    this.tooltip.hidden = true;
+    this.stage.append(this.canvas, this.sectionLayer, this.clipLayer, this.selectionEl, this.envelopeSvg, this.playhead, this.tooltip);
     this.scroll.appendChild(this.stage);
     this.root.appendChild(this.scroll);
     this.container.appendChild(this.root);
 
     let drag = null;
     this.stage.addEventListener("pointerdown", (event) => {
-      if (event.button !== 0 || event.defaultPrevented) return;
+      if (this.toolMode !== "select" || event.button !== 0 || event.defaultPrevented) return;
+      if (event.target.closest?.(".m3ssv2-wave-clip")) return;
       const rect = this.stage.getBoundingClientRect();
       drag = clamp((event.clientX - rect.left) / rect.width * this.duration, 0, this.duration);
       this.stage.setPointerCapture?.(event.pointerId);
@@ -94,6 +114,7 @@ export class WaveformView {
     this.envelopeSvg.addEventListener("pointermove", (event) => this.moveEnvelopePoint(event));
     this.envelopeSvg.addEventListener("pointerup", (event) => this.finishEnvelopePoint(event));
     this.envelopeSvg.addEventListener("pointercancel", (event) => this.finishEnvelopePoint(event));
+    this.envelopeSvg.addEventListener("pointerleave", () => { if (!this.envelopeDrag) this.tooltip.hidden = true; });
 
     this.audio.addEventListener("timeupdate", () => this.updatePlayhead());
     this.audio.addEventListener("ended", () => this.stopAnimation());
@@ -105,9 +126,12 @@ export class WaveformView {
     this.audio.src = "";
   }
 
-  async setSource(url) {
+  async setSource(url, { preserveTime = false, resume = false } = {}) {
     if (!url) return;
+    const previousTime = preserveTime ? this.currentTime() : 0;
+    const wasPlaying = resume && !this.audio.paused;
     this.url = url;
+    this.audio.pause();
     this.audio.src = url;
     let decoded = this.cache.get(url);
     if (!decoded) {
@@ -125,25 +149,72 @@ export class WaveformView {
     if (this.url !== url) return;
     this.decoded = decoded;
     this.duration = decoded.duration || 1;
+    await waitForMetadata(this.audio);
+    this.audio.currentTime = clamp(previousTime, 0, Math.max(0, this.duration - .001));
     this.selection = null;
-    this.onSourceInfo?.({
-      channels: decoded.numberOfChannels,
-      sampleRate: decoded.sampleRate,
-      duration: this.duration,
-      displayMode: this.resolvedDisplayMode(),
-    });
+    this.emitSourceInfo();
     this.render();
+    if (wasPlaying) await this.play();
   }
 
-  setDisplayMode(mode) {
-    this.displayMode = DISPLAY_MODES.has(mode) ? mode : "auto";
+  async setBuffer(buffer, url, { preserveTime = true, resume = true } = {}) {
+    if (!buffer || !url) return;
+    const previousTime = preserveTime ? this.currentTime() : 0;
+    const wasPlaying = resume && !this.audio.paused;
+    this.audio.pause();
+    this.url = url;
+    this.audio.src = url;
+    this.decoded = buffer;
+    this.duration = buffer.duration || 1;
+    await waitForMetadata(this.audio);
+    this.audio.currentTime = clamp(previousTime, 0, Math.max(0, this.duration - .001));
+    if (this.selection) {
+      this.selection.start = clamp(this.selection.start, 0, this.duration);
+      this.selection.end = clamp(this.selection.end, 0, this.duration);
+    }
+    this.emitSourceInfo();
     this.render();
+    if (wasPlaying) await this.play();
+  }
+
+  emitSourceInfo() {
     this.onSourceInfo?.({
       channels: this.decoded?.numberOfChannels || 0,
       sampleRate: this.decoded?.sampleRate || 0,
       duration: this.duration,
       displayMode: this.resolvedDisplayMode(),
     });
+  }
+
+  setDisplayMode(mode) {
+    this.displayMode = DISPLAY_MODES.has(mode) ? mode : "auto";
+    this.render();
+    this.emitSourceInfo();
+  }
+
+  setToolMode(mode) {
+    this.toolMode = TOOL_MODES.has(mode) ? mode : "select";
+    this.root.dataset.tool = this.toolMode;
+    this.renderEnvelope();
+  }
+
+  setHeight(value) {
+    const next = clamp(value, 220, 900);
+    if (Math.abs(next - this.height) < 2) return;
+    this.height = next;
+    this.render();
+  }
+
+  setClipLayout(clips, selectedId = null) {
+    this.clips = Array.isArray(clips) ? clips : [];
+    this.selectedClipId = selectedId;
+    this.renderClips();
+  }
+
+  setTrackEnvelope(track, visible = true) {
+    this.track = track || null;
+    this.envelopeVisible = !!visible;
+    this.renderEnvelope();
   }
 
   resolvedDisplayMode() {
@@ -162,7 +233,7 @@ export class WaveformView {
   }
 
   setScrollSeconds(seconds) {
-    this.scroll.scrollLeft = clamp(seconds, 0, this.duration) / Math.max(this.duration, 0.001) * this.contentWidth();
+    this.scroll.scrollLeft = clamp(seconds, 0, this.duration) / Math.max(this.duration, .001) * this.contentWidth();
   }
 
   setZoom(value, anchorClientX = null) {
@@ -179,7 +250,7 @@ export class WaveformView {
   }
 
   fit() {
-    const fitZoom = clamp((this.scroll.clientWidth || 900) / Math.max(this.duration, 0.001), 8, 120);
+    const fitZoom = clamp((this.scroll.clientWidth || 900) / Math.max(this.duration, .001), 8, 120);
     this.zoom = fitZoom;
     this.render();
     this.scroll.scrollLeft = 0;
@@ -188,25 +259,13 @@ export class WaveformView {
     return this.zoom;
   }
 
-  resetZoom() {
-    return this.fit();
-  }
-
-  setSemanticSections(sections) {
-    this.sections = sections || [];
-    this.renderSections();
-  }
-
-  setEnvelopeOverlay(clip, visible = true) {
-    this.envelopeClip = clip || null;
-    this.envelopeVisible = !!visible;
-    this.renderEnvelope();
-  }
+  resetZoom() { return this.fit(); }
+  setSemanticSections(sections) { this.sections = sections || []; this.renderSections(); }
 
   drawWaveData(context, data, width, top, bottom, strokeStyle) {
     const length = data.length;
     const half = (top + bottom) / 2;
-    const amplitude = Math.max(1, (bottom - top) / 2) * 0.88;
+    const amplitude = Math.max(1, (bottom - top) / 2) * .88;
     context.strokeStyle = strokeStyle;
     context.beginPath();
     for (let x = 0; x < width; x++) {
@@ -220,8 +279,8 @@ export class WaveformView {
         low = Math.min(low, sample);
         high = Math.max(high, sample);
       }
-      context.moveTo(x + 0.5, half - high * amplitude);
-      context.lineTo(x + 0.5, half - low * amplitude);
+      context.moveTo(x + .5, half - high * amplitude);
+      context.lineTo(x + .5, half - low * amplitude);
     }
     context.stroke();
   }
@@ -236,7 +295,7 @@ export class WaveformView {
     const data = Array.from({ length: channels }, (_, channel) => this.decoded.getChannelData(channel));
     const length = this.decoded.length;
     const half = (top + bottom) / 2;
-    const amplitude = Math.max(1, (bottom - top) / 2) * 0.88;
+    const amplitude = Math.max(1, (bottom - top) / 2) * .88;
     context.strokeStyle = "rgba(92,210,190,.92)";
     context.beginPath();
     for (let x = 0; x < width; x++) {
@@ -251,8 +310,8 @@ export class WaveformView {
         low = Math.min(low, sample);
         high = Math.max(high, sample);
       }
-      context.moveTo(x + 0.5, half - high * amplitude);
-      context.lineTo(x + 0.5, half - low * amplitude);
+      context.moveTo(x + .5, half - high * amplitude);
+      context.lineTo(x + .5, half - low * amplitude);
     }
     context.stroke();
   }
@@ -278,8 +337,8 @@ export class WaveformView {
       const x = time / this.duration * width;
       context.strokeStyle = "rgba(255,255,255,.07)";
       context.beginPath();
-      context.moveTo(x + 0.5, 0);
-      context.lineTo(x + 0.5, height);
+      context.moveTo(x + .5, 0);
+      context.lineTo(x + .5, height);
       context.stroke();
       context.fillStyle = "rgba(255,255,255,.48)";
       context.fillText(fmtTime(time), x + 4, height - 6);
@@ -288,7 +347,7 @@ export class WaveformView {
     if (this.decoded) {
       const mode = this.resolvedDisplayMode();
       const channels = this.decoded.numberOfChannels;
-      const top = 28;
+      const top = 56;
       const bottom = height - 22;
       context.lineWidth = 1;
       if (mode === "split" && channels >= 2) {
@@ -316,6 +375,7 @@ export class WaveformView {
       }
     }
     this.renderSections();
+    this.renderClips();
     this.updateSelection();
     this.renderEnvelope();
     this.updatePlayhead();
@@ -330,31 +390,54 @@ export class WaveformView {
       if (end <= start) continue;
       const node = el("div", "m3ssv2-semantic-section", section.label);
       node.style.left = `${start}%`;
-      node.style.width = `${Math.max(0.2, end - start)}%`;
+      node.style.width = `${Math.max(.2, end - start)}%`;
       node.title = `${section.label} · ${fmtTime(section.start)}–${fmtTime(section.end)}`;
       this.sectionLayer.appendChild(node);
     }
   }
 
+  renderClips() {
+    if (!this.clipLayer) return;
+    this.clipLayer.replaceChildren();
+    for (const clip of this.clips) {
+      const start = clamp(Number(clip.timeline_start) / this.duration * 100, 0, 100);
+      const width = clamp(clipDuration(clip) / this.duration * 100, .15, 100 - start);
+      const node = el("button", `m3ssv2-wave-clip${clip.id === this.selectedClipId ? " is-selected" : ""}${clip.muted ? " is-muted" : ""}`);
+      node.type = "button";
+      node.style.left = `${start}%`;
+      node.style.width = `${width}%`;
+      node.title = `${clip.source_id} · ${fmtTime(clip.timeline_start)}–${fmtTime(Number(clip.timeline_start) + clipDuration(clip))}${clip.muted ? " · muted" : ""}`;
+      if (width > 5) node.appendChild(el("span", "", clip.source_id || "Clip"));
+      node.onclick = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.selectedClipId = clip.id;
+        this.onClipSelect?.(clip.id);
+        this.renderClips();
+      };
+      this.clipLayer.appendChild(node);
+    }
+  }
+
+  envelopeBounds() {
+    return { top: 60, bottom: Math.max(100, this.height - 30) };
+  }
+
   envelopeCoords(event) {
-    const clip = this.envelopeClip;
-    if (!clip) return null;
+    if (!this.track) return null;
     const rect = this.envelopeSvg.getBoundingClientRect();
-    const clipStart = Math.max(0, Number(clip.timeline_start) || 0);
-    const duration = Math.max(0.001, clipDuration(clip));
-    const absoluteTime = clamp((event.clientX - rect.left) / Math.max(rect.width, 1) * this.duration, clipStart, clipStart + duration);
-    const top = 30;
-    const bottom = this.height - 30;
-    const y = clamp((event.clientY - rect.top) / Math.max(rect.height, 1) * this.height, top, bottom);
-    const gainDb = clamp(24 - (y - top) / Math.max(bottom - top, 1) * 84, -60, 24);
-    return { time: absoluteTime - clipStart, gain_db: gainDb };
+    const bounds = this.envelopeBounds();
+    const time = clamp((event.clientX - rect.left) / Math.max(rect.width, 1) * this.duration, 0, this.duration);
+    const y = clamp((event.clientY - rect.top) / Math.max(rect.height, 1) * this.height, bounds.top, bounds.bottom);
+    const gainDb = clamp(DB_MAX - (y - bounds.top) / Math.max(bounds.bottom - bounds.top, 1) * (DB_MAX - DB_MIN), DB_MIN, DB_MAX);
+    return { time, gain_db: gainDb };
   }
 
   beginEnvelopePoint(event, point = null) {
-    if (!this.envelopeVisible || !this.envelopeClip || event.button !== 0) return;
+    if (this.toolMode !== "envelope" || !this.envelopeVisible || !this.track || event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
-    const points = this.envelopeClip.gain_envelope || (this.envelopeClip.gain_envelope = []);
+    const points = this.track.gain_envelope || (this.track.gain_envelope = []);
     if (!point && points.length >= 128) return;
     this.onEnvelopeBegin?.();
     const target = point || this.envelopeCoords(event);
@@ -364,17 +447,22 @@ export class WaveformView {
     points.sort((a, b) => a.time - b.time);
     this.envelopeSvg.setPointerCapture?.(event.pointerId);
     this.renderEnvelope();
+    this.showEnvelopeTooltip(event, target);
   }
 
   moveEnvelopePoint(event) {
-    if (!this.envelopeDrag || !this.envelopeClip) return;
+    if (!this.envelopeDrag || !this.track) {
+      if (this.toolMode === "envelope") this.showEnvelopeTooltip(event, this.envelopeCoords(event));
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
     const next = this.envelopeCoords(event);
     if (!next) return;
     Object.assign(this.envelopeDrag, next);
-    this.envelopeClip.gain_envelope.sort((a, b) => a.time - b.time);
+    this.track.gain_envelope.sort((a, b) => a.time - b.time);
     this.renderEnvelope();
+    this.showEnvelopeTooltip(event, this.envelopeDrag);
   }
 
   finishEnvelopePoint(event) {
@@ -383,14 +471,15 @@ export class WaveformView {
     event.stopPropagation();
     this.envelopeSvg.releasePointerCapture?.(event.pointerId);
     this.envelopeDrag = null;
+    this.tooltip.hidden = true;
     this.onEnvelopeCommit?.();
   }
 
   deleteEnvelopePoint(event, point) {
     event.preventDefault();
     event.stopPropagation();
-    if (!this.envelopeClip) return;
-    const points = this.envelopeClip.gain_envelope || [];
+    if (!this.track) return;
+    const points = this.track.gain_envelope || [];
     const index = points.indexOf(point);
     if (index < 0) return;
     this.onEnvelopeBegin?.();
@@ -399,71 +488,72 @@ export class WaveformView {
     this.onEnvelopeCommit?.();
   }
 
+  showEnvelopeTooltip(event, point) {
+    if (!point || this.toolMode !== "envelope") { this.tooltip.hidden = true; return; }
+    const rect = this.stage.getBoundingClientRect();
+    this.tooltip.textContent = `${fmtTime(point.time)} · ${Number(point.gain_db).toFixed(1)} dB`;
+    this.tooltip.style.left = `${clamp(event.clientX - rect.left + 12, 4, Math.max(4, rect.width - 130))}px`;
+    this.tooltip.style.top = `${clamp(event.clientY - rect.top - 28, 4, Math.max(4, rect.height - 28))}px`;
+    this.tooltip.hidden = false;
+  }
+
   renderEnvelope() {
     const svg = this.envelopeSvg;
     if (!svg) return;
     svg.replaceChildren();
-    const clip = this.envelopeClip;
-    if (!this.envelopeVisible || !clip || this.duration <= 0) {
+    if (!this.envelopeVisible || !this.track || this.duration <= 0) {
       svg.style.display = "none";
       return;
     }
     svg.style.display = "block";
-    svg.setAttribute("viewBox", `0 0 1000 ${this.height}`);
+    svg.classList.toggle("is-editing", this.toolMode === "envelope");
+    const plotWidth = this.contentWidth();
+    svg.setAttribute("viewBox", `0 0 ${plotWidth} ${this.height}`);
     svg.setAttribute("preserveAspectRatio", "none");
+    const bounds = this.envelopeBounds();
 
-    const clipStart = Math.max(0, Number(clip.timeline_start) || 0);
-    const duration = Math.max(0.001, clipDuration(clip));
-    const clipEnd = Math.min(this.duration, clipStart + duration);
-    if (clipEnd <= clipStart) return;
-    const top = 30;
-    const bottom = this.height - 30;
-
-    const shade = document.createElementNS(SVG_NS, "rect");
-    shade.setAttribute("x", String(clipStart / this.duration * 1000));
-    shade.setAttribute("width", String((clipEnd - clipStart) / this.duration * 1000));
-    shade.setAttribute("y", String(top));
-    shade.setAttribute("height", String(bottom - top));
-    shade.setAttribute("class", "m3ssv2-envelope-range");
-    svg.appendChild(shade);
+    const zeroY = bounds.top + (DB_MAX - 0) / (DB_MAX - DB_MIN) * (bounds.bottom - bounds.top);
+    const zero = document.createElementNS(SVG_NS, "line");
+    zero.setAttribute("class", "m3ssv2-envelope-zero");
+    zero.setAttribute("x1", "0");
+    zero.setAttribute("x2", String(plotWidth));
+    zero.setAttribute("y1", String(zeroY));
+    zero.setAttribute("y2", String(zeroY));
+    svg.appendChild(zero);
 
     const hit = document.createElementNS(SVG_NS, "rect");
-    hit.setAttribute("x", String(clipStart / this.duration * 1000));
-    hit.setAttribute("width", String((clipEnd - clipStart) / this.duration * 1000));
-    hit.setAttribute("y", String(top));
-    hit.setAttribute("height", String(bottom - top));
+    hit.setAttribute("x", "0");
+    hit.setAttribute("width", String(plotWidth));
+    hit.setAttribute("y", String(bounds.top));
+    hit.setAttribute("height", String(bounds.bottom - bounds.top));
     hit.setAttribute("class", "m3ssv2-envelope-hit");
     hit.addEventListener("pointerdown", (event) => this.beginEnvelopePoint(event));
     svg.appendChild(hit);
 
-    const userPoints = clip.gain_envelope || [];
-    const points = [{ time: 0, gain_db: 0, boundary: true }, ...userPoints, { time: duration, gain_db: 0, boundary: true }];
-    const deduped = new Map();
-    for (const point of points) {
-      const time = clamp(point.time, 0, duration);
-      deduped.set(time.toFixed(6), { source: point, time, gain_db: clamp(point.gain_db, -60, 24), boundary: !!point.boundary });
-    }
-    const ordered = [...deduped.values()].sort((a, b) => a.time - b.time);
-    const toX = (point) => (clipStart + point.time) / this.duration * 1000;
-    const toY = (point) => top + (24 - point.gain_db) / 84 * (bottom - top);
+    const userPoints = this.track.gain_envelope || [];
+    const ordered = [...userPoints].sort((a, b) => a.time - b.time);
+    const displayPoints = ordered.length
+      ? [{ time: 0, gain_db: ordered[0].gain_db, boundary: true }, ...ordered, { time: this.duration, gain_db: ordered.at(-1).gain_db, boundary: true }]
+      : [{ time: 0, gain_db: 0, boundary: true }, { time: this.duration, gain_db: 0, boundary: true }];
+    const toX = (point) => clamp(point.time / this.duration * plotWidth, 0, plotWidth);
+    const toY = (point) => bounds.top + (DB_MAX - clamp(point.gain_db, DB_MIN, DB_MAX)) / (DB_MAX - DB_MIN) * (bounds.bottom - bounds.top);
 
     const line = document.createElementNS(SVG_NS, "polyline");
     line.setAttribute("class", "m3ssv2-envelope-line");
-    line.setAttribute("points", ordered.map((point) => `${toX(point)},${toY(point)}`).join(" "));
+    line.setAttribute("points", displayPoints.map((point) => `${toX(point)},${toY(point)}`).join(" "));
     svg.appendChild(line);
 
     for (const point of ordered) {
       const dot = document.createElementNS(SVG_NS, "circle");
-      dot.setAttribute("class", point.boundary ? "m3ssv2-envelope-point is-boundary" : "m3ssv2-envelope-point is-user");
+      dot.setAttribute("class", "m3ssv2-envelope-point is-user");
       dot.setAttribute("cx", String(toX(point)));
       dot.setAttribute("cy", String(toY(point)));
-      dot.setAttribute("r", point.boundary ? "3.5" : "4.5");
-      if (!point.boundary) {
-        dot.setAttribute("tabindex", "0");
-        dot.addEventListener("pointerdown", (event) => this.beginEnvelopePoint(event, point.source));
-        dot.addEventListener("contextmenu", (event) => this.deleteEnvelopePoint(event, point.source));
-        dot.addEventListener("dblclick", (event) => this.deleteEnvelopePoint(event, point.source));
-      }
+      dot.setAttribute("r", "5");
+      dot.setAttribute("tabindex", "0");
+      dot.addEventListener("pointerdown", (event) => this.beginEnvelopePoint(event, point));
+      dot.addEventListener("contextmenu", (event) => this.deleteEnvelopePoint(event, point));
+      dot.addEventListener("dblclick", (event) => this.deleteEnvelopePoint(event, point));
+      dot.addEventListener("pointerenter", (event) => this.showEnvelopeTooltip(event, point));
       svg.appendChild(dot);
     }
   }
@@ -481,30 +571,13 @@ export class WaveformView {
     }
     this.selectionEl.style.display = "block";
     this.selectionEl.style.left = `${this.selection.start / this.duration * 100}%`;
-    this.selectionEl.style.width = `${Math.max(0.1, (this.selection.end - this.selection.start) / this.duration * 100)}%`;
+    this.selectionEl.style.width = `${Math.max(.1, (this.selection.end - this.selection.start) / this.duration * 100)}%`;
   }
 
-  currentTime() {
-    return Number(this.audio.currentTime) || 0;
-  }
-
-  play() {
-    this.audio.play();
-    this.startAnimation();
-  }
-
-  pause() {
-    this.audio.pause();
-    this.stopAnimation();
-    this.updatePlayhead();
-  }
-
-  stop() {
-    this.audio.pause();
-    this.audio.currentTime = 0;
-    this.stopAnimation();
-    this.updatePlayhead();
-  }
+  currentTime() { return Number(this.audio.currentTime) || 0; }
+  async play() { await this.audio.play(); this.startAnimation(); }
+  pause() { this.audio.pause(); this.stopAnimation(); this.updatePlayhead(); }
+  stop() { this.audio.pause(); this.audio.currentTime = 0; this.stopAnimation(); this.updatePlayhead(); }
 
   startAnimation() {
     this.stopAnimation();
@@ -515,12 +588,6 @@ export class WaveformView {
     this.raf = requestAnimationFrame(tick);
   }
 
-  stopAnimation() {
-    if (this.raf) cancelAnimationFrame(this.raf);
-    this.raf = null;
-  }
-
-  updatePlayhead() {
-    this.playhead.style.left = `${clamp(this.currentTime() / Math.max(this.duration, 0.001) * 100, 0, 100)}%`;
-  }
+  stopAnimation() { if (this.raf) cancelAnimationFrame(this.raf); this.raf = null; }
+  updatePlayhead() { this.playhead.style.left = `${clamp(this.currentTime() / Math.max(this.duration, .001) * 100, 0, 100)}%`; }
 }
