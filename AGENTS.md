@@ -6,6 +6,10 @@
 - V1 is semantic conditioning only. BPM, key, section timing, energy, vocal treatment, and instruments are prompt targets, not strict symbolic controls. Do not present them as guaranteed model behavior.
 - Reserve `audio_edits`, `takes`, and `conditioning_tracks` for later phases. V1 must not execute or reinterpret them.
 - Prefer deterministic, dependency-free project compilation. Add runtime dependencies only when a phase needs them.
+- Prompt Import must remain deterministic and local. Do not require a connected LLM, network service, or model runtime to analyze/import structured Caption and tagged Lyrics.
+- Keep Prompt Preview as the authoritative read-only view of what the V1 compiler will send to MiniMax. Import is a separate Analyze -> Import Preview -> Apply workflow.
+- Prompt Import Merge updates detected Global/Vocal fields and matches sections by section-type occurrence, appending missing sections. Replace rebuilds section order only when imported sections are detected. Both modes must preserve `project_id`, unknown top-level fields, and reserved `audio_edits` / `takes` / `conditioning_tracks` data.
+- When prompt parsing is approximate (for example descriptive energy phrases without an exact percentage), surface a warning in Import Preview rather than pretending the value is exact.
 - V2 must remain a separate downstream AUDIO companion node; do not add AUDIO inputs/outputs to the V1 conditioning node.
 - Preserve the V2 node ID `MiniMaxMusic3SemanticStudioAudioEditor`, its `AUDIO -> AUDIO` contract, and `edit_json.edit_schema_version` semantics unless a versioned migration is explicitly planned.
 - V2 source AUDIO is immutable. The backend renderer must derive output only from connected AUDIO input(s) plus versioned `edit_json`; browser preview is never authoritative.
@@ -16,6 +20,7 @@
 - Treat `web/studio_shell.js` / `web/studio_shell.css` as the shared window foundation for both editors. Do not fork maximize/restore/resize behavior into separate V1/V2 implementations.
 - Keep persisted raw JSON widgets hidden in normal node UI. Project data remains serialized exactly as before; compact summaries and Open Editor buttons are presentation only.
 - Keep Semantic Studio state/compiler helpers separate from the ComfyUI controller (`semantic_studio_core.js` vs `semantic_studio.js`). Keep Audio Editor waveform/timeline/inspector modules separate from its controller.
+- Keep prompt parsing/merge logic in `prompt_import_core.js`; the dialog/controller must not duplicate parser rules.
 - Future effects, automation lanes, and V3 conditioning tracks must extend the existing shell/command/data boundaries rather than replacing them. Browser preview remains non-authoritative.
 - Playwright is a development-only dependency. UI smoke tests must not become a runtime requirement for the ComfyUI custom node.
-- Before committing Python changes, run `python -m pytest` and `python -m compileall -q .`. Before committing frontend changes, run `node --check` on all changed frontend modules. When Playwright and a browser binary are available, also run `npm run test:ui`.
+- Before committing Python changes, run `python -m pytest` and `python -m compileall -q .`. Before committing frontend changes, run `node --check` on all changed frontend modules. Run `npm run test:import` for Prompt Import changes. When Playwright and a browser binary are available, also run `npm run test:ui`.
