@@ -32,3 +32,22 @@ test('focused duration number supports mouse-wheel stepping', async ({ page }) =
   await page.mouse.wheel(0,-100);
   await expect(duration).toHaveValue('3.5');
 });
+
+test('vertical pane splitter grows and restores the inspector width', async ({ page }) => {
+  const side=page.locator('#fixture-side');
+  const splitter=page.locator('#fixture-splitter');
+  const before=await side.boundingBox();
+  const handle=await splitter.boundingBox();
+  if(!before||!handle) throw new Error('splitter fixture not measurable');
+
+  await page.mouse.move(handle.x+handle.width/2,handle.y+handle.height/2);
+  await page.mouse.down();
+  await page.mouse.move(handle.x-80,handle.y+handle.height/2,{steps:5});
+  await page.mouse.up();
+  const grown=await side.boundingBox();
+  expect(grown?.width).toBeGreaterThan(before.width+50);
+
+  await splitter.dblclick();
+  const reset=await side.boundingBox();
+  expect(Math.abs((reset?.width||0)-280)).toBeLessThan(5);
+});
