@@ -37,7 +37,7 @@ export function normalizeProject(raw) {
   p.audio_edits=Array.isArray(p.audio_edits)?p.audio_edits:[];p.takes=Array.isArray(p.takes)?p.takes:[];p.conditioning_tracks=Array.isArray(p.conditioning_tracks)?p.conditioning_tracks:[];return p;
 }
 
-export function parseList(value) { return String(value||"").split(",").map(x=>x.trim()).filter(Boolean).filter((x,i,a)=>a.findIndex(y=>y.toLowerCase()===x.toLowerCase())===i); }
+export function parseList(value) { return String(value||"").split(/[,\n]+/).map(x=>x.trim()).filter(Boolean).filter((x,i,a)=>a.findIndex(y=>y.toLowerCase()===x.toLowerCase())===i); }
 export function totalDuration(project) { return Math.round((project?.timeline?.sections||[]).reduce((sum,s)=>sum+(Number(s.duration)||0),0)*100)/100; }
 export function formatTime(seconds) { const whole=Math.max(0,Math.round(seconds)),m=Math.floor(whole/60),s=whole%60;return `${m}:${String(s).padStart(2,"0")}`; }
 export function energyPhrase(value) { const e=clamp(value,0,1);if(e<.18)return"very sparse and restrained";if(e<.38)return"low-density and restrained";if(e<.62)return"moderate and controlled";if(e<.82)return"full and energetic";if(e<.96)return"high-intensity and expansive";return"peak intensity and maximum arrangement density"; }
