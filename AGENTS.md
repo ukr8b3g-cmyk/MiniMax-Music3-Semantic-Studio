@@ -13,4 +13,9 @@
 - Do not use runtime CDN assets in V2. The implemented V2.0 frontend intentionally uses native Canvas, HTMLAudioElement, and Web Audio APIs so the editor remains dependency-free. WaveSurfer/waveform-playlist may remain design references but are not required runtime dependencies.
 - V2 takes must be explicit graph inputs; do not silently persist automatic generation history as hidden files.
 - Follow `docs/V2_SPEC.md` for V2 node IDs, edit schema semantics, render order, feature boundaries, and acceptance criteria.
-- Before committing Python changes, run `python -m pytest` and `python -m compileall -q .`. Before committing frontend changes, run `node --check web/semantic_studio.js` and `node --check` on all V2 frontend modules when Node.js is available.
+- Treat `web/studio_shell.js` / `web/studio_shell.css` as the shared window foundation for both editors. Do not fork maximize/restore/resize behavior into separate V1/V2 implementations.
+- Keep persisted raw JSON widgets hidden in normal node UI. Project data remains serialized exactly as before; compact summaries and Open Editor buttons are presentation only.
+- Keep Semantic Studio state/compiler helpers separate from the ComfyUI controller (`semantic_studio_core.js` vs `semantic_studio.js`). Keep Audio Editor waveform/timeline/inspector modules separate from its controller.
+- Future effects, automation lanes, and V3 conditioning tracks must extend the existing shell/command/data boundaries rather than replacing them. Browser preview remains non-authoritative.
+- Playwright is a development-only dependency. UI smoke tests must not become a runtime requirement for the ComfyUI custom node.
+- Before committing Python changes, run `python -m pytest` and `python -m compileall -q .`. Before committing frontend changes, run `node --check` on all changed frontend modules. When Playwright and a browser binary are available, also run `npm run test:ui`.
