@@ -10,15 +10,16 @@ export const uid = (prefix = "section") => `${prefix}-${globalThis.crypto?.rando
 export function splitKeyScale(value, scaleValue = "") {
   const keyText = String(value ?? "").trim();
   const existingScale = String(scaleValue ?? "").trim();
-  if (!keyText || existingScale) return { key: keyText, scale: existingScale };
+  if (!keyText) return { key: keyText, scale: existingScale };
 
   // Accept common pitch spellings while preserving the user's exact wording:
   // D flat major -> D flat + major, F# minor -> F# + minor,
-  // C# / Db major -> C# / Db + major. Unknown/free-form tonal text is left intact.
+  // C# / Db major -> C# / Db + major. If a separate scale already exists,
+  // clean the compound key but keep that explicit scale unchanged.
   const pitch = "[A-Ga-g](?:[#♯b♭]|(?:\\s+(?:sharp|flat)))?";
   const match = keyText.match(new RegExp(`^(${pitch}(?:\\s*\\/\\s*${pitch})?)(?:\\s+(.+))?$`, "i"));
   if (!match || !match[2]) return { key: keyText, scale: existingScale };
-  return { key: match[1].trim(), scale: match[2].trim() };
+  return { key: match[1].trim(), scale: existingScale || match[2].trim() };
 }
 
 export function makeSection(type="Verse", label="Verse", duration=16, energyPercent=50, instruments=[], vocal="", directives="") {
