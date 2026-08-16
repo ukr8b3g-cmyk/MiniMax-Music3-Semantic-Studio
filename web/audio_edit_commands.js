@@ -4,6 +4,14 @@ export const deepClone = (value) => JSON.parse(JSON.stringify(value));
 export const commandClipDuration = (clip) => Math.max(0, Number(clip?.source_out) - Number(clip?.source_in));
 export const commandClipEnd = (clip) => Number(clip?.timeline_start || 0) + commandClipDuration(clip);
 
+function exactClipForRange(track, start, end) {
+  const exact = (track?.clips || []).filter((clip) => {
+    const clipStart = Number(clip?.timeline_start) || 0;
+    return Math.abs(clipStart - start) <= EPS && Math.abs(commandClipEnd(clip) - end) <= EPS;
+  });
+  return exact.length === 1 ? exact[0] : null;
+}
+
 function trimEnvelope(points, trimLeft, newDuration) {
   if (!Array.isArray(points)) return [];
   const end = trimLeft + newDuration;
@@ -53,16 +61,17 @@ export function sliceClipToRange(clip, start, end) {
   next.fade_out = fadeOut;
   next.gain_envelope = trimEnvelope(clip.gain_envelope, trimLeft, duration);
 
-  // Guard against floating-point drift after source-range arithmetic.
   if (Number(next.source_out) <= Number(next.source_in) + EPS || originalDuration <= 0) return null;
   return next;
 }
 
-/** Create an internal clipboard payload from the selected timeline range. */
+/** Create an internal clipboard payload from a selected range or an exact clip span. */
 export function extractTimelineRange(track, start, end) {
   if (!track || !(end > start)) return { duration: 0, clips: [] };
+  const exact = exactClipForRange(track, start, end);
+  const sourceClips = exact ? [exact] : (track.clips || []);
   const clips = [];
-  for (const clip of track.clips || []) {
+  for (const clip of sourceClips) {
     const sliced = sliceClipToRange(clip, start, end);
     if (!sliced) continue;
     sliced.timeline_start -= start;
@@ -73,15 +82,30 @@ export function extractTimelineRange(track, start, end) {
 }
 
 /**
- * Remove [start,end) from a track. ripple=false leaves a silence gap; ripple=true
- * closes the gap by shifting material at/after end to the left.
+ * Remove [start,end) from a track. If the range exactly matches one clip, only
+ * that clip is removed; this prevents clip Cut/Delete from damaging overlapping
+ * crossfade material. Otherwise ripple=false leaves a gap and ripple=true closes
+ * the selected time range.
  */
 export function removeTimelineRange(track, start, end, { ripple = false, makeId = null } = {}) {
   if (!track || !(end > start)) return [];
-  const out = [];
   const delta = end - start;
-  const idFactory = typeof makeId === "function" ? makeId : (() => null);
+  const exact = exactClipForRange(track, start, end);
+  if (exact) {
+    const out = [];
+    for (const clip of track.clips || []) {
+      if (clip === exact) continue;
+      if (ripple && Number(clip.timeline_start) >= end - EPS) {
+        clip.timeline_start = Math.max(0, Number(clip.timeline_start) - delta);
+      }
+      out.push(clip);
+    }
+    track.clips = out.sort((a, b) => Number(a.timeline_start) - Number(b.timeline_start));
+    return track.clips;
+  }
 
+  const out = [];
+  const idFactory = typeof makeId === "function" ? makeId : (() => null);
   for (const clip of track.clips || []) {
     const clipStart = Number(clip.timeline_start) || 0;
     const clipEnd = commandClipEnd(clip);
