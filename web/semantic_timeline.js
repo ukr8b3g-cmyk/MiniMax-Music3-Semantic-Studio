@@ -1,6 +1,9 @@
 import { clamp, el, formatTime } from "./semantic_studio_core.js";
 
 const MIN_DURATION = 0.5;
+const SCALE_MIN = 3;
+const SCALE_MAX = 20;
+const MAX_ZOOM_FACTOR = 4;
 
 export function sectionTimelineGeometry(sections = []) {
   let cursor = 0;
@@ -13,9 +16,14 @@ export function sectionTimelineGeometry(sections = []) {
   });
 }
 
-export function fitTimelineScale(width, duration) {
-  const available = Math.max(320, Number(width) || 900) - 150;
-  return clamp(available / Math.max(Number(duration) || 1, 1), 3, 20);
+export function timelineScaleFactor(value) {
+  const normalized = (clamp(value, SCALE_MIN, SCALE_MAX) - SCALE_MIN) / (SCALE_MAX - SCALE_MIN);
+  return 1 + normalized * (MAX_ZOOM_FACTOR - 1);
+}
+
+export function fitTimelineScale(_width, _duration) {
+  // The slider is now a relative DAW-style zoom control: minimum == Fit.
+  return SCALE_MIN;
 }
 
 export function resizeSectionDurations(sections, index, requestedDuration, preserveTotal = false) {
@@ -79,17 +87,20 @@ export function renderSemanticTimeline(container, project, selectedId, {
 
   const geometry = sectionTimelineGeometry(sections);
   const total = Math.max(MIN_DURATION, geometry.at(-1)?.end || MIN_DURATION);
-  const stageWidth = Math.max(620, Math.round(total * clamp(pxPerSecond, 3, 20)));
-  const secondsPerPixel = total / stageWidth;
 
   const shell = el("div", "m3ss-semantic-timeline");
   const labels = el("div", "m3ss-tl-labels");
   const scroll = el("div", "m3ss-tl-scroll");
   const stage = el("div", "m3ss-tl-stage");
-  stage.style.width = `${stageWidth}px`;
   scroll.appendChild(stage);
   shell.append(labels, scroll);
   container.appendChild(shell);
+
+  const visibleWidth = Math.max(240, scroll.clientWidth || container.clientWidth || 620);
+  const zoomFactor = timelineScaleFactor(pxPerSecond);
+  const stageWidth = Math.max(visibleWidth, Math.round(visibleWidth * zoomFactor));
+  const secondsPerPixel = total / stageWidth;
+  stage.style.width = `${stageWidth}px`;
 
   addLabel(labels, "Time", "is-ruler");
   addLabel(labels, "Structure", "is-structure");
@@ -277,5 +288,5 @@ export function renderSemanticTimeline(container, project, selectedId, {
     point.addEventListener("click", () => onSelect?.(item.section.id));
   });
 
-  return { width: stageWidth, total };
+  return { width: stageWidth, total, zoomFactor };
 }
