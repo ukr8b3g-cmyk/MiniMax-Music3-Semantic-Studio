@@ -3,7 +3,7 @@
 .m3ssv2-toolbar,.m3ssv2-contextbar,.m3ssv2-footer,.m3ssv2-footer-actions,.m3ssv2-inspector-tabs,.m3ssv2-timeline-head,.m3ssv2-wave-head{display:flex;align-items:center;gap:7px}
 .m3ssv2-toolbar{flex:0 0 auto;flex-wrap:wrap;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.08);background:#0b111b}
 .m3ssv2-workspace{--m3ssv2-inspector-width:360px;display:grid;grid-template-columns:minmax(0,1fr) 7px var(--m3ssv2-inspector-width);flex:1;min-width:0;min-height:0;overflow:hidden}
-.m3ssv2-main{min-width:0;min-height:0;overflow:auto}
+.m3ssv2-main{display:flex;min-width:0;min-height:0;flex-direction:column;overflow:auto}
 .m3ssv2-side{display:flex;min-width:0;min-height:0;flex-direction:column;overflow:hidden;background:#0c131d}
 .m3ssv2-pane-splitter{position:relative;z-index:5;width:7px;cursor:col-resize;background:rgba(255,255,255,.035);touch-action:none;transition:background .12s ease}
 .m3ssv2-pane-splitter::after{content:"";position:absolute;top:0;bottom:0;left:3px;width:1px;background:rgba(255,255,255,.12)}
@@ -16,6 +16,7 @@
 .m3ssv2-field{display:grid;grid-template-columns:minmax(92px,1fr) minmax(104px,1.25fr);align-items:center;gap:7px;margin:0 0 8px}
 .m3ssv2-toolbar .m3ssv2-field{display:flex;margin:0}
 .m3ssv2-label,.m3ssv2-helper,.m3ssv2-time,.m3ssv2-selection-text,.m3ssv2-status,.m3ssv2-wheel-hint,.m3ssv2-timeline-note,.m3ssv2-wave-note{color:#9eacbf;font-size:11px}
+.m3ssv2-time{display:inline-block;width:78px;min-width:78px;text-align:center;white-space:nowrap;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
 .m3ssv2-helper{grid-column:1/-1;line-height:1.4}
 .m3ssv2-field input,.m3ssv2-field select,.m3ssv2-toolbar select{min-width:0;border:1px solid rgba(255,255,255,.12);border-radius:6px;background:#151e2b;color:#ecf1f8;padding:6px 8px;font-size:12px}
 .m3ssv2-field input[type=checkbox]{width:18px;justify-self:start}
@@ -87,6 +88,14 @@
 .m3ssv2-footer-actions{margin-left:auto}.m3ssv2-wheel-hint{white-space:nowrap}
 
 /* Phase B — conventional audio-editor controls, internal clipboard and preview peak meter. */
+.m3ssv2-phase-b .m3ssv2-wave-head{order:1;margin:5px 10px 0;padding:7px 9px;border-left:3px solid rgba(85,185,165,.7);border-radius:6px;background:linear-gradient(90deg,rgba(55,124,112,.13),transparent)}
+.m3ssv2-phase-b .m3ssv2-wave-head strong::after{content:" · Primary Edit Surface";color:#72cdb8;font-size:10px;font-weight:600}
+.m3ssv2-phase-b .m3ssv2-wave-area{order:2}
+.m3ssv2-phase-b .m3ssv2-contextbar{order:3;position:relative;bottom:auto;margin:0 10px 7px;border:1px solid rgba(85,185,165,.14);border-radius:7px;background:#0c151d;box-shadow:none}
+.m3ssv2-phase-b .m3ssv2-contextbar::before{content:"Waveform Edit";margin-right:2px;color:#72cdb8;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.m3ssv2-phase-b .m3ssv2-timeline-head{order:4;margin:0 10px;padding:4px 4px 3px;border-top:1px solid rgba(255,255,255,.055);color:#9aa8ba}
+.m3ssv2-phase-b .m3ssv2-timeline-head strong{font-size:11px;font-weight:650;color:#b8c4d4}.m3ssv2-phase-b .m3ssv2-timeline-head strong::after{content:" · Clip Lane";color:#718198;font-size:9px;font-weight:500}.m3ssv2-phase-b .m3ssv2-timeline-note{font-size:9px;color:#718198}
+.m3ssv2-phase-b .m3ssv2-timeline{order:5;margin-top:0;background:#0b111a}
 .m3ssv2-wave-area{display:grid;grid-template-columns:112px minmax(0,1fr) 86px;gap:0;align-items:stretch;margin:6px 10px 5px;border:1px solid rgba(255,255,255,.09);border-radius:8px;background:#0b0f18;overflow:hidden}
 .m3ssv2-wave-area .m3ssv2-wave-wrap{min-width:0;padding:0;border-left:1px solid rgba(255,255,255,.07);border-right:1px solid rgba(255,255,255,.07)}
 .m3ssv2-wave-area .m3ssv2-wave-scroll{border:0;border-radius:0}
@@ -96,14 +105,14 @@
 .m3ssv2-track-mini-label{margin-top:2px;color:#77899f;font-size:9px}
 .m3ssv2-track-mini-button{width:34px;height:28px;border:1px solid rgba(255,255,255,.13);border-radius:5px;background:#192333;color:#dce6f2;cursor:pointer}.m3ssv2-track-mini-button.is-active{border-color:#f6c86f;background:rgba(246,200,111,.15);color:#ffe6aa}
 .m3ssv2-track-strip input[type=range]{width:100%;accent-color:#7aa7ff}
-.m3ssv2-track-value{color:#aab8ca;font-size:9px;text-align:right}
+.m3ssv2-track-value{color:#aab8ca;font-size:9px;text-align:right;font-variant-numeric:tabular-nums}
 .m3ssv2-peak-strip{display:flex;flex-direction:column;gap:7px;padding:9px 7px;background:#0f1722}
 .m3ssv2-peak-title{color:#aebacd;font-size:9px;font-weight:650;text-align:center}
-.m3ssv2-peak-row{display:grid;grid-template-columns:10px 14px minmax(32px,1fr);align-items:end;gap:4px;min-height:82px}
+.m3ssv2-peak-row{display:grid;grid-template-columns:10px 14px 34px;align-items:end;justify-content:center;gap:4px;min-height:82px}
 .m3ssv2-peak-label{align-self:end;color:#8e9db0;font-size:9px;text-align:center}
 .m3ssv2-peak-rail{position:relative;width:12px;height:76px;overflow:hidden;border:1px solid rgba(255,255,255,.1);border-radius:3px;background:linear-gradient(to top,#13201d 0 72%,#241d12 72% 92%,#271216 92%)}
 .m3ssv2-peak-bar{position:absolute;right:1px;bottom:1px;left:1px;height:0;background:#55c58e;transition:height .08s linear,background .08s linear}.m3ssv2-peak-bar.is-warn{background:#e2b94d}.m3ssv2-peak-bar.is-hot{background:#e15d68}
-.m3ssv2-peak-value{align-self:end;color:#9eacbf;font:8px ui-monospace,monospace;text-align:right}
+.m3ssv2-peak-value{align-self:end;width:34px;color:#9eacbf;font:8px ui-monospace,monospace;text-align:right;font-variant-numeric:tabular-nums}
 .m3ssv2-contextbar button{font-size:10px}.m3ssv2-contextbar button[title*="Ctrl"]::after{content:""}
 .m3ssv2-context-menu{position:fixed;z-index:100000;display:grid;min-width:230px;padding:5px;border:1px solid rgba(122,161,226,.28);border-radius:8px;background:#101824;box-shadow:0 14px 36px rgba(0,0,0,.52)}
 .m3ssv2-context-menu[hidden]{display:none}
@@ -111,6 +120,11 @@
 .m3ssv2-context-menu-item kbd{color:#8192a8;font:9px ui-monospace,monospace}
 .m3ssv2-context-menu-sep{height:1px;margin:4px 3px;background:rgba(255,255,255,.075)}
 
-@media(max-width:1100px){.m3ssv2-workspace{grid-template-columns:minmax(0,1fr) 7px minmax(290px,var(--m3ssv2-inspector-width))}.m3ssv2-wheel-hint{display:none}.m3ssv2-timeline-layout{grid-template-columns:92px minmax(0,1fr)}.m3ssv2-wave-note{display:none}.m3ssv2-wave-area{grid-template-columns:96px minmax(0,1fr) 74px}.m3ssv2-peak-value{display:none}}
+/* Compact secondary clip lane: overlap/crossfade/move/trim/fade remain visible without competing with the waveform. */
+.m3ssv2-phase-b .m3ssv2-fixed-label{height:38px;padding:11px 8px;font-size:10px}.m3ssv2-phase-b .m3ssv2-fixed-label.is-header{height:24px;padding:6px 8px;font-size:9px}.m3ssv2-phase-b .m3ssv2-fixed-label.is-take{height:30px;padding:8px;font-size:9px}
+.m3ssv2-phase-b .m3ssv2-stage-row{height:38px;font-size:9px}.m3ssv2-phase-b .m3ssv2-stage-row.is-header{height:24px;padding:6px 9px;font-size:9px}.m3ssv2-phase-b .m3ssv2-stage-row.m3ssv2-take-row{height:30px;padding:5px 7px}
+.m3ssv2-phase-b .m3ssv2-clip-lane{min-height:38px}.m3ssv2-phase-b .m3ssv2-clip{top:5px;height:28px;border-radius:5px}.m3ssv2-phase-b .m3ssv2-clip-title{inset:0 10px;font-size:10px}.m3ssv2-phase-b .m3ssv2-fade-handle{width:8px;height:8px;margin-left:-4px}.m3ssv2-phase-b .m3ssv2-fade-handle.fade-out{margin-right:-4px}
+
+@media(max-width:1100px){.m3ssv2-workspace{grid-template-columns:minmax(0,1fr) 7px minmax(290px,var(--m3ssv2-inspector-width))}.m3ssv2-wheel-hint{display:none}.m3ssv2-timeline-layout{grid-template-columns:92px minmax(0,1fr)}.m3ssv2-wave-note{display:none}.m3ssv2-wave-area{grid-template-columns:96px minmax(0,1fr) 74px}.m3ssv2-peak-value{display:none}.m3ssv2-peak-row{grid-template-columns:10px 14px}}
 @media(max-width:850px){.m3ssv2-workspace{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) 260px}.m3ssv2-pane-splitter{display:none}.m3ssv2-main{border-bottom:1px solid rgba(255,255,255,.08)}.m3ssv2-side{min-height:220px}.m3ssv2-inspector-body{padding:9px}.m3ssv2-render-state{margin-left:0}.m3ssv2-selection-text{margin-left:0}.m3ssv2-track-info{order:20}.m3ssv2-wave-area{grid-template-columns:82px minmax(0,1fr) 54px}.m3ssv2-track-strip{padding:7px 5px}.m3ssv2-peak-strip{padding:7px 4px}}
-@media(max-width:620px){.m3ssv2-toolbar{gap:5px}.m3ssv2-toolbar .m3ssv2-field{display:none}.m3ssv2-time{margin-left:auto}.m3ssv2-footer{align-items:stretch;flex-direction:column}.m3ssv2-footer-actions{justify-content:flex-end;margin-left:0}.m3ssv2-timeline-layout{grid-template-columns:78px minmax(0,1fr)}.m3ssv2-wave-head{align-items:flex-start;flex-direction:column}.m3ssv2-track-info{display:none}.m3ssv2-wave-area{grid-template-columns:1fr}.m3ssv2-track-strip,.m3ssv2-peak-strip{display:none}}
+@media(max-width:620px){.m3ssv2-toolbar{gap:5px}.m3ssv2-toolbar .m3ssv2-field{display:none}.m3ssv2-time{width:72px;min-width:72px;margin-left:auto}.m3ssv2-footer{align-items:stretch;flex-direction:column}.m3ssv2-footer-actions{justify-content:flex-end;margin-left:0}.m3ssv2-timeline-layout{grid-template-columns:78px minmax(0,1fr)}.m3ssv2-wave-head{align-items:flex-start;flex-direction:column}.m3ssv2-track-info{display:none}.m3ssv2-wave-area{grid-template-columns:1fr}.m3ssv2-track-strip,.m3ssv2-peak-strip{display:none}.m3ssv2-phase-b .m3ssv2-contextbar::before{width:100%}}
