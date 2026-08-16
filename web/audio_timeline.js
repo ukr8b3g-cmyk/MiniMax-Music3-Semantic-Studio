@@ -63,11 +63,28 @@ export function renderTimeline(
     item.appendChild(el("span", "m3ssv2-clip-title", source?.name || clip.source_id));
     const left = el("span", "m3ssv2-trim-handle left");
     const right = el("span", "m3ssv2-trim-handle right");
-    item.append(left, right);
+    const fadeInFill = el("span", "m3ssv2-fade-fill fade-in");
+    const fadeOutFill = el("span", "m3ssv2-fade-fill fade-out");
+    const fadeIn = el("span", "m3ssv2-fade-handle fade-in");
+    const fadeOut = el("span", "m3ssv2-fade-handle fade-out");
+    fadeIn.title = "Fade in · drag horizontally";
+    fadeOut.title = "Fade out · drag horizontally";
+    item.append(fadeInFill, fadeOutFill, fadeIn, fadeOut, left, right);
     body.appendChild(item);
 
+    const updateFadeVisuals = () => {
+      const clipDur = Math.max(0.001, clipDuration(clip));
+      const inPercent = clamp(Number(clip.fade_in?.duration) || 0, 0, clipDur) / clipDur * 100;
+      const outPercent = clamp(Number(clip.fade_out?.duration) || 0, 0, clipDur) / clipDur * 100;
+      fadeIn.style.left = `${inPercent}%`;
+      fadeOut.style.right = `${outPercent}%`;
+      fadeInFill.style.width = `${inPercent}%`;
+      fadeOutFill.style.width = `${outPercent}%`;
+    };
+    updateFadeVisuals();
+
     item.addEventListener("pointerdown", (event) => {
-      if (event.target === left || event.target === right) return;
+      if ([left, right, fadeIn, fadeOut].includes(event.target)) return;
       onSelect(clip.id);
       const startX = event.clientX;
       const startTime = Number(clip.timeline_start);
@@ -126,8 +143,11 @@ export function renderTimeline(
         } else {
           clip.source_out = clamp(old.source_out + delta, Number(old.source_in) + 0.01, max);
         }
+        clip.fade_in.duration = clamp(clip.fade_in.duration, 0, clipDuration(clip));
+        clip.fade_out.duration = clamp(clip.fade_out.duration, 0, clipDuration(clip));
         item.style.left = `${percent(clip.timeline_start, duration)}%`;
         item.style.width = `${Math.max(0.3, clipDuration(clip) / Math.max(duration, 0.001) * 100)}%`;
+        updateFadeVisuals();
       };
       const up = (upEvent) => {
         item.releasePointerCapture?.(upEvent.pointerId);
@@ -142,16 +162,53 @@ export function renderTimeline(
     };
     left.addEventListener("pointerdown", (event) => trim("left", event));
     right.addEventListener("pointerdown", (event) => trim("right", event));
+
+    const fade = (side, event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      onSelect(clip.id);
+      const startX = event.clientX;
+      const clipDur = Math.max(0.001, clipDuration(clip));
+      const original = side === "in" ? Number(clip.fade_in?.duration) || 0 : Number(clip.fade_out?.duration) || 0;
+      const rect = item.getBoundingClientRect();
+      let started = false;
+      item.setPointerCapture?.(event.pointerId);
+      const move = (moveEvent) => {
+        const dx = moveEvent.clientX - startX;
+        if (!started && Math.abs(dx) < 2) return;
+        if (!started) {
+          begin();
+          started = true;
+        }
+        const delta = dx / Math.max(rect.width, 1) * clipDur;
+        if (side === "in") clip.fade_in.duration = clamp(original + delta, 0, clipDur);
+        else clip.fade_out.duration = clamp(original - delta, 0, clipDur);
+        updateFadeVisuals();
+      };
+      const up = (upEvent) => {
+        item.releasePointerCapture?.(upEvent.pointerId);
+        item.removeEventListener("pointermove", move);
+        item.removeEventListener("pointerup", up);
+        item.removeEventListener("pointercancel", up);
+        if (started) refresh();
+      };
+      item.addEventListener("pointermove", move);
+      item.addEventListener("pointerup", up);
+      item.addEventListener("pointercancel", up);
+    };
+    fadeIn.addEventListener("pointerdown", (event) => fade("in", event));
+    fadeOut.addEventListener("pointerdown", (event) => fade("out", event));
   }
 
   if (showTakes) {
     for (const take of meta?.takes || []) {
       addLabel(take.name || take.id, "is-take");
       const row = addStageRow("m3ssv2-take-row");
+      const channelLabel = Number(take.channels) >= 2 ? "Stereo" : "Mono";
       const fill = el(
         "div",
         "m3ssv2-source-bar",
-        `${take.channels}ch · ${take.sample_rate} Hz · ${Number(take.duration).toFixed(2)} s`,
+        `${channelLabel} · ${take.sample_rate} Hz · ${Number(take.duration).toFixed(2)} s`,
       );
       fill.style.width = `${Math.min(100, Number(take.duration) / Math.max(duration, 0.001) * 100)}%`;
       row.appendChild(fill);
