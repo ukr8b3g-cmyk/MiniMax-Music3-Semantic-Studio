@@ -117,11 +117,23 @@ function placeBlock(row, item, total, className, text, selected) {
   row.appendChild(block); return block;
 }
 
-function vocalLabel(value) {
+export function vocalLabel(value) {
   const clean = String(value || "").trim();
   if (!clean) return "—";
-  const aliases = { power: "Powerful", soft: "Soft", fade: "Fade", instrumental: "Instrumental" };
-  return aliases[clean.toLowerCase()] || clean.replace(/\b\w/g, (char) => char.toUpperCase());
+  const key = clean.toLowerCase();
+  const aliases = {
+    power: "Powerful",
+    powerful: "Powerful",
+    soft: "Soft",
+    fade: "Fade",
+    instrumental: "Inst.",
+    "hushed hums": "Hushed",
+    "soft half-sung half-spoken": "Soft / Half-spoken",
+    "soft lead with murmured doubles": "Soft + Doubles",
+  };
+  if (aliases[key]) return aliases[key];
+  const title = clean.replace(/\b\w/g, (char) => char.toUpperCase());
+  return title.length > 24 ? `${title.slice(0, 23)}…` : title;
 }
 
 export function renderSemanticTimeline(container, project, selectedId, {
@@ -156,14 +168,17 @@ export function renderSemanticTimeline(container, project, selectedId, {
     applyPalette(highlight, selectedGeometry.section); stage.appendChild(highlight);
   }
 
-  addLabel(labels, "Time", "is-ruler"); addLabel(labels, "Structure", "is-structure"); addLabel(labels, "Energy", "is-energy"); addLabel(labels, "Lyrics", "is-detail");
-  const instrumentLabel = addLabel(labels, `Instruments (${instruments.length})`, "is-instruments");
+  addLabel(labels, "Time", "is-ruler");
+  addLabel(labels, "Structure", "is-structure");
+  addLabel(labels, "Energy", "is-energy");
+  addLabel(labels, "Lyrics", "is-detail");
+  addLabel(labels, "Vocal Style", "is-vocal");
+  const instrumentLabel = addLabel(labels, `${showInstruments ? "▾" : "▸"} Instruments (${instruments.length})`, "is-instruments");
   instrumentLabel.classList.toggle("is-collapsed", !showInstruments);
   instrumentLabel.title = "Click to show/hide instrument lanes"; instrumentLabel.tabIndex = 0;
   const toggleLabels = () => onToggleInstruments?.(!showInstruments);
   instrumentLabel.addEventListener("click", toggleLabels);
   instrumentLabel.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggleLabels(); } });
-  addLabel(labels, "Vocal Style", "is-vocal");
 
   const ruler = makeRow(stage, "m3ss-tl-ruler");
   const tickStep = total > 240 ? 60 : total > 120 ? 30 : total > 60 ? 15 : 10;
@@ -224,10 +239,19 @@ export function renderSemanticTimeline(container, project, selectedId, {
     point.addEventListener("click", () => onSelect?.(item.section.id));
   }
 
-  const instrumentHeader = makeRow(stage, "m3ss-tl-instrument-header"), instrumentToggle = el("button", "m3ss-tl-instrument-toggle", `${showInstruments ? "▾" : "▸"} Instruments · click cells to toggle`);
+  const vocal = makeRow(stage, "m3ss-tl-vocal-row");
+  for (const item of geometry) {
+    const cell = placeBlock(vocal, item, total, "m3ss-tl-vocal-block", vocalLabel(item.section.vocal), item.section.id === selectedId);
+    cell.onclick = () => onSelect?.(item.section.id);
+    cell.title = `${item.section.label || item.section.type} · ${item.section.vocal || "No section vocal style"}`;
+  }
+
+  const instrumentHeader = makeRow(stage, "m3ss-tl-instrument-header"), instrumentToggle = el("button", "m3ss-tl-instrument-toggle", `${showInstruments ? "▾" : "▸"} Instruments (${instruments.length})${showInstruments ? " · click cells to toggle" : ""}`);
   instrumentToggle.type = "button"; instrumentToggle.onclick = toggleLabels; instrumentHeader.appendChild(instrumentToggle);
   if (showInstruments) {
-    const labelNames = el("div", "m3ss-tl-instrument-labels"); instrumentLabel.replaceChildren(labelNames);
+    const labelNames = el("div", "m3ss-tl-instrument-labels");
+    labelNames.appendChild(el("div", "m3ss-tl-instrument-label-head", `▾ Instruments (${instruments.length})`));
+    instrumentLabel.replaceChildren(labelNames);
     for (const instrument of instruments) labelNames.appendChild(el("div", "m3ss-tl-instrument-name", instrument));
     if (!instruments.length) {
       const emptyRow = makeRow(stage, "m3ss-tl-instrument-row is-empty"); emptyRow.appendChild(el("div", "m3ss-tl-instrument-empty", "Add instruments from the Section Inspector to create lanes."));
@@ -247,12 +271,6 @@ export function renderSemanticTimeline(container, project, selectedId, {
       const cell = placeBlock(summaryRow, item, total, "m3ss-tl-instrument-summary", item.section.instruments?.length ? `${item.section.instruments.length} inst.` : "—", item.section.id === selectedId);
       cell.onclick = () => onSelect?.(item.section.id); cell.title = item.section.instruments?.join(", ") || "No instruments";
     }
-  }
-
-  const vocal = makeRow(stage, "m3ss-tl-vocal-row");
-  for (const item of geometry) {
-    const cell = placeBlock(vocal, item, total, "m3ss-tl-vocal-block", vocalLabel(item.section.vocal), item.section.id === selectedId);
-    cell.onclick = () => onSelect?.(item.section.id); cell.title = `${item.section.label || item.section.type} · ${item.section.vocal || "No section vocal style"}`;
   }
   return { width: stageWidth, total, zoomFactor, instrumentCount: instruments.length };
 }
