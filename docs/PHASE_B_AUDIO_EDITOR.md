@@ -4,6 +4,23 @@ Status: implemented in frontend/backend with pure-module tests; ComfyUI visual/a
 
 Phase B.2 replaces the clip-lane-first interaction with an Audacity-style unified waveform surface while preserving immutable source AUDIO and authoritative Python rendering.
 
+## Mockup-aligned layout
+
+The approved Audio Editor mockup is implemented as four visible areas:
+
+1. a compact metadata toolbar for Preview, Undo/Redo, Fit, Zoom and waveform layout
+2. a colored command dock containing Transport, Select/Envelope tools and primary edit commands
+3. a unified Main Track surface with Track controls, L/R meters, semantic sections, waveform, clip boundaries and Track Envelope
+4. a large bottom dock for Position, Selection and upstream semantic Tempo/Meter/Key references
+
+Transport now includes Go to Start and Go to End around Play/Pause/Stop. `Home` and `End` trigger the same navigation.
+
+The command groups use restrained functional accents:
+
+- green — Transport and playback
+- blue — Select / Envelope tools
+- purple — Cut / Copy / Paste / Split / Delete / Silence
+
 ## Editing surface
 
 The visible standalone Main Comp lane is removed from the normal editor. The main waveform is the edit surface for:
@@ -18,7 +35,7 @@ The visible standalone Main Comp lane is removed from the normal editor. The mai
 
 Non-destructive `tracks[].clips[]` remain the persisted implementation. Thin clip blocks at the top of the waveform show boundaries, source take, selected state, and clip mute state without creating a second competing timeline.
 
-The waveform height follows available editor space through `ResizeObserver`; `view.waveform_height` is normalized to 220–900 px.
+The waveform height follows available editor space through `ResizeObserver`; `view.waveform_height` remains normalized by schema 2 and the mockup UI keeps a larger practical minimum while maximized.
 
 ## Tool modes
 
@@ -27,7 +44,7 @@ The waveform height follows available editor space through `ResizeObserver`; `vi
 
 Select mode owns waveform selection/seek gestures. Envelope mode owns gain-automation point gestures, preventing ambiguous pointer behavior.
 
-## Main Track controls
+## Main Track controls and meters
 
 The left strip controls the Main Track rather than the selected clip:
 
@@ -35,6 +52,8 @@ The left strip controls the Main Track rather than the selected clip:
 - Solo
 - Gain
 - Pan
+
+The Preview Peak meter is placed below these controls instead of occupying a separate right column. Stereo L/R meters are always shown side by side, use wider/taller rails, and show fixed-width values such as `-22.2 dBFS` or `-∞ dBFS`. Mono preview uses one centered meter.
 
 Advanced clip-specific source ranges, gain, pan, mute, reverse, and fades remain available in the Clip inspector.
 
@@ -51,7 +70,7 @@ Schema 2 adds `tracks[].gain_envelope` as full-timeline gain automation.
 - before the first point and after the last point, the nearest user value is held
 - an empty envelope is neutral 0 dB
 
-Schema-1 clip envelopes remain supported for compatibility but are not the primary authoring surface.
+The approved UI presents automation as a visually separated lower lane inside the same waveform surface. Schema-1 clip envelopes remain supported for compatibility but are not the primary authoring surface.
 
 ## Browser Draft Preview
 
@@ -81,15 +100,26 @@ Draft Preview updates after editing commands and after an envelope gesture is co
 
 The browser preview is not authoritative. PCM16 browser playback may differ at clipping/extreme gain boundaries. **Save Edits -> Queue** always rerenders from original connected AUDIO tensors in Python/PyTorch.
 
-## Selection
+## Position, Selection and semantic reference
 
-The bottom Selection bar exposes fixed-width numeric fields:
+The bottom dock uses large fixed-width `HH:MM:SS.mmm` fields:
 
-- Start
-- End
-- Length
+- Position — current playhead location
+- Selection Start
+- Selection End
+- Selection Length
 
-Selection values use seconds with millisecond steps. The transport and peak values use tabular numerals to avoid UI jitter.
+Start and End accept either seconds or `MM:SS.mmm` / `HH:MM:SS.mmm` input.
+
+When exactly one upstream Semantic Studio can be resolved, the dock also shows its semantic target values:
+
+- Tempo / BPM
+- Meter
+- Key / Scale wording
+
+These values are references to generation targets, not measured guarantees of the rendered waveform.
+
+Optional selection/split/paste snap supports Off, 1/4, 1/8 and 1/16 using the upstream semantic BPM. Snap defaults to Off because generated audio may not land exactly on the requested beat grid.
 
 ## Editing commands
 
