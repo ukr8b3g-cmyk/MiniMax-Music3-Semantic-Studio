@@ -1,3 +1,5 @@
+import "./audio_mockup_style_fix.js";
+
 export const SNAP_MODES = ["off", "1/4", "1/8", "1/16"];
 
 const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, Number(value) || 0));
