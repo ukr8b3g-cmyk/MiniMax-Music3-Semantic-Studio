@@ -1,6 +1,4 @@
-import { app } from "../../scripts/app.js";
 import { createStudioWindow } from "./studio_shell.js";
-import { getNodeWidget } from "./node_compact.js";
 import { installCssSizeDrag, makeVerticalSplitter } from "./layout_splitter.js";
 import {
   el, button, field, input, select, semanticOverlay,
@@ -29,6 +27,7 @@ const JA = {
   "Preview Peak": "プレビューピーク",
   "Save Edits": "編集を保存",
   "Cancel": "キャンセル",
+  "Close": "閉じる",
   "No source audio is loaded yet.": "まだソース音声が読み込まれていません。",
   "Audio-dependent editing becomes available after the first Queue.": "最初のQueue後に音声編集機能が利用できます。",
   "Drag to resize track height · double-click to reset": "ドラッグでトラックの高さを変更 · ダブルクリックでリセット",
@@ -134,7 +133,6 @@ function installEmptyTrackResize(main, waveArea) {
 
 export function openEmptyAudioEditor(node, compactSummary) {
   ensureStyles();
-  const editWidget = getNodeWidget(node, "edit_json");
   let cleanupLocalization = () => {};
   let cleanupSplitter = () => {};
 
@@ -256,19 +254,9 @@ export function openEmptyAudioEditor(node, compactSummary) {
 
   const status = el("div", "m3ssv2-empty-status", tr("Queue the workflow once to load audio."));
   const actions = el("div", "m3ssv2-footer-actions");
-  const cancel = button(tr("Cancel"));
-  const save = button(tr("Save Edits"), "m3ssv2-button primary");
-  save.disabled = !editWidget;
-  cancel.onclick = () => shell.close();
-  save.onclick = () => {
-    if (editWidget) {
-      compactSummary?.update?.(tr("No source audio"));
-      node.setDirtyCanvas?.(true, true);
-      app.graph?.setDirtyCanvas?.(true, true);
-    }
-    shell.close();
-  };
-  actions.append(cancel, save);
+  const close = button(tr("Close"), "m3ssv2-button primary");
+  close.onclick = () => shell.close();
+  actions.append(close);
   footer.append(status, actions);
 
   shell.mount();
