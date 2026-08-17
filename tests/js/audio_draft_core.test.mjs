@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildEnvelopeAmplitude, renderDraftProject } from '../../web/audio_draft_core.js';
+import { makeWaveformDisplayProject } from '../../web/audio_draft_preview.js';
 
 const source = (channels, sampleRate = 4) => ({ sampleRate, channels: channels.map((items) => Float32Array.from(items)) });
 const project = (track = {}, master = {}) => ({
@@ -25,6 +26,24 @@ test('track mute and envelope affect draft output', () => {
   const automated = renderDraftProject(project({ gain_envelope: [{ time: .25, gain_db: -6.020599913 }, { time: .75, gain_db: 0 }] }), input);
   assert.ok(Math.abs(automated.channels[0][0] - .5) < 1e-4);
   assert.ok(Math.abs(automated.channels[0][3] - 1) < 1e-4);
+});
+
+test('waveform display project removes only track envelope automation', () => {
+  const state = project({
+    gain_db: 3,
+    pan: -.25,
+    gain_envelope: [{ time: .25, gain_db: -12 }, { time: .75, gain_db: 3 }],
+    custom_future_field: { keep: true },
+  });
+  const display = makeWaveformDisplayProject(state);
+  assert.notEqual(display, state);
+  assert.notEqual(display.tracks[0], state.tracks[0]);
+  assert.deepEqual(display.tracks[0].gain_envelope, []);
+  assert.deepEqual(state.tracks[0].gain_envelope, [{ time: .25, gain_db: -12 }, { time: .75, gain_db: 3 }]);
+  assert.equal(display.tracks[0].gain_db, 3);
+  assert.equal(display.tracks[0].pan, -.25);
+  assert.deepEqual(display.tracks[0].custom_future_field, { keep: true });
+  assert.equal(display.tracks[0].clips, state.tracks[0].clips);
 });
 
 test('clip cuts, reverse and track pan mirror the declarative model', () => {
