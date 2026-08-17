@@ -91,7 +91,7 @@ function polishKeyDisplay(dialog) {
     const raw = output.dataset.m3ssRawKey || current;
     const compact = compactKeyText(raw);
     output.dataset.m3ssCompactKey = compact;
-    output.textContent = compact;
+    if (current !== compact) output.textContent = compact;
     output.title = raw;
     field.classList.add("m3ssv2-key-reference-field");
   }
@@ -169,6 +169,13 @@ function findEffect(project, effectId) {
   return null;
 }
 
+function localizeLimiterCard(card) {
+  if (currentUiLocale() !== "ja") return;
+  for (const label of card.querySelectorAll(".m3ssv2-fx-param-label")) {
+    if (String(label.textContent || "").trim() === "Input Gain") label.textContent = "入力ゲイン";
+  }
+}
+
 function installLimiterAuto(dialog) {
   const body = dialog.querySelector(".m3ssv2-inspector-body");
   const context = body?._m3ssEffectsContext;
@@ -178,6 +185,7 @@ function installLimiterAuto(dialog) {
   for (const card of body.querySelectorAll(".m3ssv2-fx-card[data-effect-id]")) {
     const effect = findEffect(context.project, card.dataset.effectId);
     if (effect?.type !== "limiter") continue;
+    localizeLimiterCard(card);
     const actions = card.querySelector(".m3ssv2-fx-card-actions");
     if (!actions || actions.querySelector(".m3ssv2-limiter-auto")) continue;
     const auto = document.createElement("button");
