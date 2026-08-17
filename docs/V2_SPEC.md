@@ -1,6 +1,6 @@
 # Phase 2 / V2 Audio Editing Specification
 
-Status: **schema 2 unified waveform editor and V2.1-A Effects Rack foundation implemented; ComfyUI integration verification pending**.
+Status: **schema 2 unified waveform editor, V2.1-B basic DSP, Effects Rack, and selection-loop audition implemented; ComfyUI integration verification pending**.
 
 V2 is a deterministic non-destructive AUDIO companion node after MiniMax Music3 decode. It remains external to ComfyUI core and does not modify MiniMax Music3, KSampler, latent, or VAE code.
 
@@ -24,8 +24,10 @@ V1 remains a separate conditioning node with `(CONDITIONING, seconds)` outputs.
 3. Python/PyTorch rendering is authoritative.
 4. Browser Draft Preview is immediate authoring feedback, not the final render.
 5. Take history is explicit through graph inputs; no hidden permanent take files.
-6. No runtime CDN or extra Python dependency is required by the current core.
+6. No runtime CDN or extra custom-node Python dependency is required by the current core.
 7. Unknown fields are preserved where possible.
+8. Supported effects must keep Browser Draft and Python render order/behavior aligned closely enough for reliable authoring preview.
+9. Enabled unsupported effects fail explicitly rather than being silently ignored.
 
 ## 3. Architecture
 
@@ -53,11 +55,15 @@ web/audio_edit_commands.js   Cut/Copy/Paste/ripple + automation transforms
 web/audio_draft_core.js      deterministic Float32 Draft renderer
 web/audio_draft_preview.js   source decode, AudioBuffer and WAV adapter
 web/audio_waveform.js        waveform, tools, selection, clips, track envelope
-web/audio_panels.js          Track / Clip / Envelope / Master / Takes panels
-web/audio_effects_core.js    V2.1 effect catalog, defaults and rack mutations
+web/audio_panels.js          legacy panel renderers used by simplified inspector
+web/audio_effects_core.js    effect catalog, defaults and rack mutations
+web/audio_effects_dsp.js     Browser Draft basic DSP implementation
 web/audio_effects.js         compact Track/Master Effects Rack UI
+web/audio_playback_loop.js   session-only selection-loop helpers
 web/audio_unified.css        unified waveform presentation
 ```
+
+Authoritative DSP lives in `audio_effects_dsp.py` and is called by `audio_render.py`.
 
 ## 4. Edit schema 2
 
@@ -113,6 +119,8 @@ web/audio_unified.css        unified waveform presentation
 
 All persisted time values use seconds. Backend and Draft renderers convert to integer sample offsets using the active sample rate.
 
+Selection-loop audition is session UI state and is intentionally **not** persisted in `edit_json`.
+
 ### Schema 1 migration
 
 Schema 1 is accepted. Migration:
@@ -130,13 +138,25 @@ Schema 1 is accepted. Migration:
 The waveform is the primary editing surface. The old visible Main Comp lane is not rendered.
 
 - semantic sections appear as a header overlay when one upstream V1 node is resolvable
-- thin clip blocks expose boundaries and source assignment
+- thin clip boundaries expose non-destructive clip/source assignment
 - Select tool owns selection/seek
 - Envelope tool owns full-track automation
-- waveform height follows available window space
+- waveform track height can be resized vertically and reset
 - Start/End/Length support numeric editing
+- the simplified inspector exposes `Effects / Edit / Mixer`, plus `Sources` only when multiple Takes are connected
+- Audio Editor can open as an Audacity-style empty workspace before source AUDIO has been queued
+- long semantic Key text is compacted in the reference strip while the full value remains available as a tooltip
 
-Advanced clip fields remain in the Clip inspector.
+### Selection loop
+
+A valid waveform selection enables **Loop / リピート**.
+
+- enabling Loop starts audition from the selection start
+- playback jumps back at the selection end
+- changing the selection updates the active loop range
+- clearing the selection disables Loop
+- `Shift+Space` toggles selection Loop
+- Loop changes playback only; it does not modify audio or `edit_json`
 
 ## 6. Browser Draft Preview contract
 
@@ -165,12 +185,12 @@ Per track:
 10. track gain
 11. track pan
 12. track mute / solo routing
-13. track effects
+13. track effects in rack order
 
 After tracks:
 
 14. mix tracks
-15. master effects
+15. master effects in rack order
 16. master channel mode
 17. master gain
 18. optional peak normalization
@@ -178,17 +198,16 @@ After tracks:
 
 Current Python and Draft implementations match this order for implemented features.
 
-## 8. V2.1 Effects boundary
+## 8. V2.1 Effects
 
-Schema 2 reserves `tracks[].effects[]` and `master.effects[]`:
+Schema 2 stores track/master effects as:
 
 ```json
-{"id": "fx-1", "type": "compressor", "enabled": false, "params": {}}
+{"id": "fx-1", "type": "compressor", "enabled": true, "params": {}}
 ```
 
-V2.1-A implements the Effects Rack authoring foundation without changing the schema version:
+The Effects Rack provides:
 
-- a dedicated Effects inspector tab
 - separate Main Track and Master racks
 - `+ Add Effect` grouped by category
 - effect ON/OFF state
@@ -196,20 +215,34 @@ V2.1-A implements the Effects Rack authoring foundation without changing the sch
 - numeric input plus slider for continuous parameters
 - reset, delete, move up/down and drag reorder
 - unknown effect objects remain round-trippable
-- new effects are created disabled so existing Draft/Queue rendering continues to work
 
-The initial authoring catalog is:
+### V2.1-B supported DSP
 
-- Gain / Amplify
-- Compressor
-- Limiter
-- EQ (3-Band)
-- High-Pass Filter
-- Low-Pass Filter
-- Stereo Width
-- Reverb
+The following enabled effects execute in both Browser Draft and authoritative Python/PyTorch rendering:
 
-V2.1-A does **not** execute these effects. Enabled effects still raise a clear error in Browser Draft and Python/PyTorch rendering rather than being silently ignored. V2.1-B will implement DSP and Draft/backend parity for the supported types.
+- **Gain / Amplify** — linear dB gain
+- **High-Pass Filter** — cascaded biquad stages according to slope
+- **Low-Pass Filter** — cascaded biquad stages according to slope
+- **EQ (3-Band)** — low shelf, mid peaking band, high shelf
+- **Compressor** — channel-linked peak detection with attack/release and makeup gain
+- **Limiter** — input gain, ceiling, release, short lookahead peak anticipation
+- **Stereo Width** — mid/side width control for stereo material
+
+Python filtering uses `torchaudio.functional.lfilter` when available and retains a PyTorch fallback so importing the custom node does not depend on an optional DSP package import succeeding.
+
+### Limiter Auto Level
+
+The expanded Limiter card provides **Auto Level / オートレベル**.
+
+- Limiter must be OFF while measuring to avoid measuring its own processed output
+- Auto Level measures the current Draft/preview peak
+- it sets `input_gain_db` so the measured peak approaches the current Limiter ceiling
+- the value is only a starting point; users may edit Input Gain/Ceiling manually afterward
+- it does not change source AUDIO
+
+### Future effects
+
+Reverb remains present in the authoring catalog for the next phase but is not executed by V2.1-B. An enabled Reverb or any unknown future effect raises a clear unsupported-effect error in both Draft and authoritative rendering.
 
 ## 9. Verification
 
@@ -223,16 +256,19 @@ Pure-module validation covers:
 - explicit Take comping and layout validation
 - overlap summing, channel modes, normalization
 - internal clipboard and ripple automation transforms
-- browser Draft renderer parity for track controls, clips, fades, and envelope
 - V2.1 effect defaults, parameter clamping, reset, owner separation and rack ordering
+- supported basic DSP behavior for Gain, Filters, EQ, Compressor, Limiter and Stereo Width
+- disabled-effect neutrality and explicit unsupported-effect failure
+- Browser Draft support for enabled V2.1-B effects
+- selection-loop range clamping and end-of-range jump behavior
 
 Still required in ComfyUI:
 
-- node registration and schema-1 workflow migration
-- source decode -> editor open
-- Draft playback after Mute/Envelope/Cut
-- Save Edits -> Queue -> Rendered A comparison
-- Effects tab open/add/edit/reorder/delete and Save Edits round-trip
-- explicit enabled-effect error before V2.1-B DSP exists
+- source decode -> editor open / empty editor -> queued source transition
+- Draft playback after Mute/Envelope/Cut and supported effects
+- Save Edits -> Queue -> Rendered A comparison for each V2.1-B effect
+- rack-order comparison with multiple effects
+- Limiter Auto Level on representative generated songs
+- Selection Loop start/end behavior during long playback
 - Take 2 comping
 - long-duration performance and memory observation
