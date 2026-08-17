@@ -1,12 +1,23 @@
+import { installUiLocalization, tr } from "./ui_i18n.js";
+
 const STYLE_ID = "m3ss-common-shell-style";
+const FINAL_STYLE_ID = "m3ss-editor-final-polish-style";
 
 export function ensureStudioShellStyles() {
-  if (document.getElementById(STYLE_ID)) return;
-  const link = document.createElement("link");
-  link.id = STYLE_ID;
-  link.rel = "stylesheet";
-  link.href = new URL("./studio_shell.css", import.meta.url).href;
-  document.head.appendChild(link);
+  if (!document.getElementById(STYLE_ID)) {
+    const link = document.createElement("link");
+    link.id = STYLE_ID;
+    link.rel = "stylesheet";
+    link.href = new URL("./studio_shell.css", import.meta.url).href;
+    document.head.appendChild(link);
+  }
+  if (!document.getElementById(FINAL_STYLE_ID)) {
+    const link = document.createElement("link");
+    link.id = FINAL_STYLE_ID;
+    link.rel = "stylesheet";
+    link.href = new URL("./editor_final_polish.css", import.meta.url).href;
+    document.head.appendChild(link);
+  }
 }
 
 function make(tag, className = "", text) {
@@ -49,7 +60,7 @@ export function createStudioWindow({
   minHeight = 520,
   maximizeLabel = "Maximize",
   restoreLabel = "Restore",
-  startMaximized = false,
+  startMaximized = storageKey === "m3ss-semantic-window" || storageKey === "m3ss-audio-window",
   onClose = null,
   onResize = null,
 } = {}) {
@@ -79,12 +90,12 @@ export function createStudioWindow({
   const controls = make("div", "m3shell-window-controls");
   const maximizeButton = make("button", "m3shell-control", "□");
   maximizeButton.type = "button";
-  maximizeButton.title = maximizeLabel;
-  maximizeButton.setAttribute("aria-label", maximizeLabel);
+  maximizeButton.title = tr(maximizeLabel);
+  maximizeButton.setAttribute("aria-label", tr(maximizeLabel));
   const closeButton = make("button", "m3shell-control", "×");
   closeButton.type = "button";
-  closeButton.title = "Close";
-  closeButton.setAttribute("aria-label", "Close");
+  closeButton.title = tr("Close");
+  closeButton.setAttribute("aria-label", tr("Close"));
   controls.append(maximizeButton, closeButton);
   header.append(heading, controls);
 
@@ -96,6 +107,7 @@ export function createStudioWindow({
   let closed = false;
   let beforeMaximize = null;
   let resizeObserver = null;
+  let cleanupLocalization = () => {};
 
   function setMaximized(next) {
     if (closed || maximized === next) return;
@@ -108,16 +120,16 @@ export function createStudioWindow({
       windowEl.style.width = "";
       windowEl.style.height = "";
       maximizeButton.textContent = "❐";
-      maximizeButton.title = restoreLabel;
-      maximizeButton.setAttribute("aria-label", restoreLabel);
+      maximizeButton.title = tr(restoreLabel);
+      maximizeButton.setAttribute("aria-label", tr(restoreLabel));
     } else {
       windowEl.classList.remove("is-maximized");
       const size = beforeMaximize || readSize(storageKey) || { width: defaultWidth, height: defaultHeight };
       windowEl.style.width = `${Math.min(size.width, Math.max(320, window.innerWidth - 32))}px`;
       windowEl.style.height = `${Math.min(size.height, Math.max(320, window.innerHeight - 32))}px`;
       maximizeButton.textContent = "□";
-      maximizeButton.title = maximizeLabel;
-      maximizeButton.setAttribute("aria-label", maximizeLabel);
+      maximizeButton.title = tr(maximizeLabel);
+      maximizeButton.setAttribute("aria-label", tr(maximizeLabel));
     }
     maximized = next;
     onResize?.(windowEl.getBoundingClientRect(), { maximized });
@@ -126,6 +138,7 @@ export function createStudioWindow({
   function close() {
     if (closed) return;
     closed = true;
+    cleanupLocalization();
     resizeObserver?.disconnect();
     document.removeEventListener("keydown", keyHandler);
     window.removeEventListener("resize", viewportHandler);
@@ -170,6 +183,7 @@ export function createStudioWindow({
 
   function mount(parent = document.body) {
     parent.appendChild(overlay);
+    cleanupLocalization = installUiLocalization(windowEl);
     if (startMaximized) setMaximized(true);
     else onResize?.(windowEl.getBoundingClientRect(), { maximized });
     return api;
