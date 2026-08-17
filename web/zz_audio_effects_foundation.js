@@ -54,6 +54,9 @@ function installTrackHeightResize(dialog) {
   handle.className = "m3ssv2-track-height-handle";
   handle.setAttribute("role", "separator");
   handle.setAttribute("aria-orientation", "horizontal");
+  handle.setAttribute("aria-valuemin", "260");
+  handle.setAttribute("aria-valuemax", "760");
+  handle.title = tr("Drag to resize track height · double-click to reset", "ドラッグでトラックの高さを変更 · ダブルクリックでリセット");
   handle.tabIndex = 0;
   waveArea.after(handle);
 
@@ -61,7 +64,7 @@ function installTrackHeightResize(dialog) {
   const setHeight = (value, persist = true) => {
     const available = main.clientHeight || 760;
     const maximum = Math.max(260, Math.min(760, available - 150));
-    const next = Math.max(220, Math.min(maximum, Number(value) || defaultHeight));
+    const next = Math.max(260, Math.min(maximum, Number(value) || defaultHeight));
     waveArea.classList.add("has-manual-track-height");
     waveArea.style.height = `${next}px`;
     waveArea.style.flexBasis = `${next}px`;
@@ -119,6 +122,11 @@ function installDialog(dialog) {
   ensureStyles();
   dialog.dataset[DIALOG_INSTALLED] = "1";
   installTrackHeightResize(dialog);
+  const takeCount = previewTakeCount(dialog);
+  if (takeCount <= 1) {
+    const useTake = [...dialog.querySelectorAll(".m3ssv2-secondary-commands button")].find((button) => /Use Preview Take|プレビューテイクを使用/.test(String(button.textContent || "")));
+    if (useTake) useTake.hidden = true;
+  }
 
   const [trackTab, clipTab, envelopeTab, masterTab, takesTab] = originals;
   for (const tab of originals) tab.hidden = true;
@@ -145,7 +153,7 @@ function installDialog(dialog) {
   const effectsTab = makeTab("effects", tr("Effects", "エフェクト"), "is-effects");
   const editTab = makeTab("edit", tr("Edit", "編集"), "is-edit");
   const mixerTab = makeTab("mixer", tr("Mixer", "ミキサー"), "is-mixer");
-  const sourcesTab = previewTakeCount(dialog) > 1
+  const sourcesTab = takeCount > 1
     ? makeTab("sources", tr("Sources", "ソース"), "is-sources")
     : null;
   tabs.classList.add("is-workspace-polished");
@@ -185,8 +193,16 @@ function installDialog(dialog) {
     officialClick(envelopeButton?.classList.contains("is-active") ? envelopeTab : clipTab);
   };
 
+  const removeField = (labelTexts) => {
+    for (const label of [...body.querySelectorAll(".m3ssv2-label")]) {
+      if (!labelTexts.includes(String(label.textContent || "").trim())) continue;
+      label.closest?.(".m3ssv2-field")?.remove();
+    }
+  };
+
   const renderMixer = () => {
     officialClick(trackTab);
+    removeField(["Automation", "オートメーション"]);
     const trackSection = document.createElement("section");
     trackSection.className = "m3ssv2-mixer-section";
     const trackTitle = document.createElement("h3");
@@ -194,6 +210,7 @@ function installDialog(dialog) {
     trackSection.append(trackTitle, ...body.childNodes);
 
     officialClick(masterTab);
+    removeField(["Effects", "エフェクト"]);
     const masterSection = document.createElement("section");
     masterSection.className = "m3ssv2-mixer-section";
     const masterTitle = document.createElement("h3");
