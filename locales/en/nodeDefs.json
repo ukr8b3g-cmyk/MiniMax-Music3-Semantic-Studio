@@ -1,0 +1,29 @@
+{
+  "MiniMaxMusic3SemanticStudio": {
+    "display_name": "Music3 Semantic Studio",
+    "inputs": {
+      "clip": { "name": "clip" },
+      "project_json": { "name": "Studio Project JSON" },
+      "seed": { "name": "Music Seed (AR)" },
+      "max_duration": { "name": "Duration Limit" },
+      "cfg_scale": { "name": "Music CFG (AR)" },
+      "top_k": { "name": "Music Top-K" }
+    },
+    "outputs": {
+      "0": { "name": "CONDITIONING" },
+      "1": { "name": "seconds" }
+    }
+  },
+  "MiniMaxMusic3SemanticStudioAudioEditor": {
+    "display_name": "Music3 Semantic Studio Audio Editor",
+    "inputs": {
+      "audio": { "name": "audio" },
+      "take_2": { "name": "take_2" },
+      "take_3": { "name": "take_3" },
+      "take_4": { "name": "take_4" },
+      "edit_json": { "name": "Audio Edit JSON" },
+      "bypass": { "name": "bypass" }
+    },
+    "outputs": { "0": { "name": "AUDIO" } }
+  }
+}
