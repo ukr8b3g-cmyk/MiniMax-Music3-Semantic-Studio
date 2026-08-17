@@ -33,7 +33,7 @@ test('parameter edits clamp to the foundation control range', () => {
   assert.equal(effect.params.gain_db, -24);
 });
 
-test('reset replaces params but preserves effect identity and unknown fields', () => {
+test('reset restores known params while preserving future fields and params', () => {
   const effect = {
     id: 'fx-future',
     type: 'reverb',
@@ -45,7 +45,9 @@ test('reset replaces params but preserves effect identity and unknown fields', (
   assert.equal(effect.id, 'fx-future');
   assert.equal(effect.enabled, true);
   assert.deepEqual(effect.future, { keep: true });
-  assert.deepEqual(effect.params, defaultEffectParams('reverb'));
+  assert.equal(effect.params.future_param, 9);
+  const defaults = defaultEffectParams('reverb');
+  for (const [key, value] of Object.entries(defaults)) assert.deepEqual(effect.params[key], value);
 });
 
 test('rack reordering is deterministic and bounded', () => {
