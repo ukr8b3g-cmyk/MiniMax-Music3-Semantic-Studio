@@ -11,7 +11,9 @@ import { extractTimelineRange, pasteTimelineClipboard, removeTimelineRange } fro
 import { DraftPreviewRenderer } from "./audio_draft_preview.js";
 import { WaveformView } from "./audio_waveform.js";
 import { renderTrack, renderInspector, renderTrackEnvelope, renderMaster, renderTakes } from "./audio_panels.js";
+import { formatClock, parseClock, semanticDisplayValue, snapTime } from "./audio_time_controls.js";
 
+const V1_NODE_ID = "MiniMaxMusic3SemanticStudio";
 const WAVE_DISPLAY_KEY = "m3ss-layout:audio-wave-display";
 const WAVE_DISPLAY_MODES = new Set(["auto", "split", "overlay", "mono"]);
 const UNIFIED_STYLE_ID = "m3ss-v2-unified-style";
@@ -45,11 +47,53 @@ function summaryFromMeta(meta) {
   return `${meta.takes.length} take${meta.takes.length === 1 ? "" : "s"} · ${layout} · ${Number(meta.rendered?.duration || primary?.duration || 0).toFixed(1)} s · ${meta.bypass ? "Bypassed" : "Edited"}`;
 }
 
+function resolveSemanticReference(node) {
+  const graph = app.graph;
+  if (!graph) return { bpm: 0, meter: "", key: "", scale: "" };
+  const queue = [{ node, depth: 0 }];
+  const seen = new Set();
+  const found = [];
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current.node || current.depth > 12 || seen.has(current.node.id)) continue;
+    seen.add(current.node.id);
+    if (current.node !== node && nodeClass(current.node) === V1_NODE_ID) found.push(current.node);
+    for (const socket of current.node.inputs || []) {
+      if (socket?.link == null) continue;
+      const link = graph.links?.[socket.link];
+      const origin = link ? graph.getNodeById?.(link.origin_id) : null;
+      if (origin) queue.push({ node: origin, depth: current.depth + 1 });
+    }
+  }
+  const unique = [...new Map(found.map((item) => [item.id, item])).values()];
+  if (unique.length !== 1) return { bpm: 0, meter: "", key: "", scale: "" };
+  const widget = getNodeWidget(unique[0], "project_json");
+  if (!widget?.value) return { bpm: 0, meter: "", key: "", scale: "" };
+  try {
+    const project = JSON.parse(widget.value);
+    const global = project?.global || {};
+    return {
+      bpm: Number(global.bpm) > 0 ? Number(global.bpm) : 0,
+      meter: String(global.meter || "").trim(),
+      key: String(global.key || "").trim(),
+      scale: String(global.scale || "").trim(),
+    };
+  } catch {
+    return { bpm: 0, meter: "", key: "", scale: "" };
+  }
+}
+
+function semanticKeyLabel(reference) {
+  const values = [reference.key, reference.scale].filter((value) => String(value || "").trim());
+  return semanticDisplayValue(values.join(" · "));
+}
+
 function openEditor(node, compactSummary) {
   ensureStyles();
   ensureUnifiedStyles();
   const editWidget = getNodeWidget(node, "edit_json");
   const meta = node._m3ssV2Output;
+  const semanticReference = resolveSemanticReference(node);
   let cleanup = () => {};
   const shell = createStudioWindow({
     title: "Music3 Semantic Studio Audio Editor",
@@ -63,7 +107,7 @@ function openEditor(node, compactSummary) {
     minHeight: 620,
     onClose: () => cleanup(),
   });
-  shell.window.classList.add("m3ssv2-dialog", "m3ssv2-phase-b", "m3ssv2-unified");
+  shell.window.classList.add("m3ssv2-dialog", "m3ssv2-phase-b", "m3ssv2-unified", "m3ssv2-mockup-ui");
 
   if (!editWidget) {
     shell.content.appendChild(el("div", "m3ssv2-first-run", "edit_json widget was not found. Restart ComfyUI and reload the workflow."));
@@ -93,6 +137,8 @@ function openEditor(node, compactSummary) {
   let previewId = "draft";
   let activeInspector = "track";
   let toolMode = "select";
+  let snapMode = "off";
+  let applyingSelectionSnap = false;
   let viewInitialized = false;
   let waveformDisplayMode = readWaveDisplayMode();
   let sourceInfo = null;
@@ -104,7 +150,7 @@ function openEditor(node, compactSummary) {
   const future = [];
 
   const root = el("div", "m3ssv2-root");
-  const toolbar = el("div", "m3ssv2-toolbar");
+  const toolbar = el("div", "m3ssv2-toolbar m3ssv2-meta-toolbar");
   const workspace = el("div", "m3ssv2-workspace");
   const main = el("main", "m3ssv2-main");
   const paneSplitter = makeVerticalSplitter("m3ssv2-pane-splitter");
@@ -119,9 +165,6 @@ function openEditor(node, compactSummary) {
     { value: "rendered", label: "Rendered A · Last Queue" },
     ...(meta.takes || []).map((take) => ({ value: take.id, label: take.name || take.id })),
   ], previewId);
-  const play = button("▶");
-  const pause = button("Ⅱ");
-  const stop = button("■");
   const undo = button("Undo");
   const redo = button("Redo");
   const fit = button("Fit");
@@ -132,16 +175,43 @@ function openEditor(node, compactSummary) {
     { value: "overlay", label: "Stereo Overlay" },
     { value: "mono", label: "Mono Mix Preview" },
   ], waveformDisplayMode);
-  const selectTool = button("Select · F1");
-  const envelopeTool = button("Envelope · F2");
-  const time = el("span", "m3ssv2-time", "0:00.00");
   const trackInfo = el("span", "m3ssv2-track-info", "Audio layout loading…");
   const renderState = el("span", "m3ssv2-render-state dirty", "Draft preview loading…");
   toolbar.append(
-    field("Preview", preview), play, pause, stop, undo, redo, fit, field("Zoom", zoom),
-    field("Waveform", displayMode), selectTool, envelopeTool, time,
+    field("Preview", preview), undo, redo, fit, field("Zoom", zoom), field("Waveform", displayMode),
     el("span", "m3ssv2-wheel-hint", "Wheel: zoom · Shift+Wheel: pan"), trackInfo, renderState,
   );
+
+  const goStart = button("|◀", "m3ssv2-command-button");
+  goStart.title = "Go to Start · Home";
+  const play = button("▶", "m3ssv2-command-button");
+  play.title = "Play · Space";
+  const pause = button("Ⅱ", "m3ssv2-command-button");
+  pause.title = "Pause · Space";
+  const stop = button("■", "m3ssv2-command-button");
+  stop.title = "Stop";
+  const goEnd = button("▶|", "m3ssv2-command-button");
+  goEnd.title = "Go to End · End";
+  const selectTool = button("▸ Select", "m3ssv2-command-button");
+  selectTool.title = "Select Tool · F1";
+  const envelopeTool = button("⌁ Envelope", "m3ssv2-command-button");
+  envelopeTool.title = "Envelope Tool · F2";
+  const cut = button("✂ Cut", "m3ssv2-command-button"); cut.title = "Ctrl+X";
+  const copy = button("▣ Copy", "m3ssv2-command-button"); copy.title = "Ctrl+C";
+  const paste = button("▤ Paste", "m3ssv2-command-button"); paste.title = "Ctrl+V · paste at playhead";
+  const split = button("⋈ Split", "m3ssv2-command-button"); split.title = "Ctrl+I · split selected/under-playhead clip";
+  const del = button("⌫ Delete", "m3ssv2-command-button"); del.title = "Delete · ripple delete";
+  const silence = button("╫ Silence", "m3ssv2-command-button"); silence.title = "Ctrl+L · remove selection and leave a gap";
+
+  const commandDock = el("div", "m3ssv2-command-dock");
+  const transportGroup = el("div", "m3ssv2-command-group is-transport");
+  const toolGroup = el("div", "m3ssv2-command-group is-tools");
+  const editGroup = el("div", "m3ssv2-command-group is-edit");
+  transportGroup.append(goStart, play, pause, stop, goEnd);
+  toolGroup.append(selectTool, envelopeTool);
+  editGroup.append(cut, copy, paste, split, del, silence);
+  commandDock.append(transportGroup, toolGroup, editGroup);
+  main.appendChild(commandDock);
 
   const waveHead = el("div", "m3ssv2-wave-head");
   waveHead.append(
@@ -166,59 +236,101 @@ function openEditor(node, compactSummary) {
   const quickPan = input("range", 0, -1, 1, .01);
   quickPan.title = "Main Track pan";
   const quickPanValue = el("span", "m3ssv2-track-value", "C");
+
+  const peakStrip = el("section", "m3ssv2-peak-strip");
+  peakStrip.title = "Meters the currently playing Draft, Rendered or source preview.";
+  const peakTitle = el("strong", "m3ssv2-peak-title", "Preview Peak");
+  const peakChannels = el("div", "m3ssv2-peak-channels");
+  const makePeak = (label) => {
+    const channel = el("div", "m3ssv2-peak-channel");
+    const labelNode = el("span", "m3ssv2-peak-label", label);
+    const rail = el("div", "m3ssv2-peak-rail");
+    const bar = el("div", "m3ssv2-peak-bar");
+    rail.appendChild(bar);
+    const value = el("span", "m3ssv2-peak-value", "-∞ dBFS");
+    channel.append(labelNode, rail, value);
+    peakChannels.appendChild(channel);
+    return { channel, bar, value, label: labelNode };
+  };
+  const peakL = makePeak("L");
+  const peakR = makePeak("R");
+  peakStrip.append(peakTitle, peakChannels);
+
   trackStrip.append(
     trackName, channelBadge, trackButtons,
     el("span", "m3ssv2-track-mini-label", "Track Gain"), quickGain, quickGainValue,
     el("span", "m3ssv2-track-mini-label", "Track Pan"), quickPan, quickPanValue,
-    el("span", "m3ssv2-track-draft-label", "Draft controls"),
+    peakStrip,
   );
 
   const waveWrap = el("section", "m3ssv2-wave-wrap");
-  const peakStrip = el("aside", "m3ssv2-peak-strip");
-  peakStrip.title = "Meters the currently playing Draft, Rendered or source preview.";
-  peakStrip.appendChild(el("strong", "m3ssv2-peak-title", "Preview Peak"));
-  const makePeak = (label) => {
-    const row = el("div", "m3ssv2-peak-row");
-    const rail = el("div", "m3ssv2-peak-rail");
-    const bar = el("div", "m3ssv2-peak-bar");
-    rail.appendChild(bar);
-    const value = el("span", "m3ssv2-peak-value", "-∞");
-    row.append(el("span", "m3ssv2-peak-label", label), rail, value);
-    peakStrip.appendChild(row);
-    return { row, bar, value, label: row.querySelector(".m3ssv2-peak-label") };
-  };
-  const peakL = makePeak("L");
-  const peakR = makePeak("R");
-  waveArea.append(trackStrip, waveWrap, peakStrip);
+  waveArea.append(trackStrip, waveWrap);
   main.appendChild(waveArea);
 
-  const context = el("div", "m3ssv2-contextbar");
-  const cut = button("Cut"); cut.title = "Ctrl+X";
-  const copy = button("Copy"); copy.title = "Ctrl+C";
-  const paste = button("Paste"); paste.title = "Ctrl+V · paste at playhead";
-  const split = button("Split"); split.title = "Ctrl+I · split selected/under-playhead clip";
-  const del = button("Delete"); del.title = "Delete · ripple delete";
-  const silence = button("Silence"); silence.title = "Ctrl+L · remove selection and leave a gap";
+  const secondaryBar = el("div", "m3ssv2-contextbar m3ssv2-secondary-commands");
   const dup = button("Duplicate"); dup.title = "Ctrl+D";
   const reverse = button("Reverse");
   const muteClip = button("Mute Clip"); muteClip.title = "Shift+M";
   const cross = button("Crossfade Next");
   const useTake = button("Use Preview Take");
   const selectionText = el("span", "m3ssv2-selection-text", "No selection");
-  context.append(cut, copy, paste, split, del, silence, dup, reverse, muteClip, cross, useTake, selectionText);
-  main.appendChild(context);
+  secondaryBar.append(dup, reverse, muteClip, cross, useTake, selectionText);
+  main.appendChild(secondaryBar);
 
-  const selectionBar = el("div", "m3ssv2-selection-bar");
-  const selectionStart = input("number", 0, 0, 36000, .001);
-  const selectionEnd = input("number", 0, 0, 36000, .001);
-  const selectionLength = el("span", "m3ssv2-selection-length", "0.000 s");
-  selectionBar.append(
-    el("strong", "", "Selection"),
-    field("Start (s)", selectionStart),
-    field("End (s)", selectionEnd),
-    field("Length", selectionLength),
+  const timeDock = el("div", "m3ssv2-time-dock");
+  const positionPanel = el("section", "m3ssv2-time-panel m3ssv2-position-panel");
+  const positionTime = el("output", "m3ssv2-position-time", formatClock(0));
+  const positionUnits = el("div", "m3ssv2-position-units");
+  positionUnits.append(el("span", "", "HOURS"), el("span", "", "MINUTES"), el("span", "", "SECONDS"));
+  positionPanel.append(el("strong", "m3ssv2-time-panel-title", "POSITION"), positionTime, positionUnits);
+
+  const selectionPanel = el("section", "m3ssv2-time-panel m3ssv2-selection-panel");
+  const selectionGrid = el("div", "m3ssv2-selection-grid");
+  const selectionStart = input("text", formatClock(0));
+  const selectionEnd = input("text", formatClock(0));
+  const selectionLength = el("output", "m3ssv2-selection-length", formatClock(0));
+  const makeTimeField = (label, control) => {
+    const wrapper = el("label", "m3ssv2-time-field");
+    wrapper.append(el("span", "", label), control);
+    return wrapper;
+  };
+  selectionGrid.append(
+    makeTimeField("Start", selectionStart),
+    makeTimeField("End", selectionEnd),
+    makeTimeField("Length", selectionLength),
   );
-  main.appendChild(selectionBar);
+  selectionPanel.append(el("strong", "m3ssv2-time-panel-title", "SELECTION"), selectionGrid);
+
+  const referencePanel = el("section", "m3ssv2-time-panel m3ssv2-reference-panel");
+  const tempoValue = el("output", "m3ssv2-reference-value", semanticReference.bpm ? String(Math.round(semanticReference.bpm * 100) / 100) : "—");
+  const tempoUnit = el("span", "m3ssv2-reference-unit", "BPM");
+  const tempoWrap = el("div", "m3ssv2-reference-composite");
+  tempoWrap.append(tempoValue, tempoUnit);
+  const meterValue = el("output", "m3ssv2-reference-value", semanticDisplayValue(semanticReference.meter));
+  const keyValue = el("output", "m3ssv2-reference-value", semanticKeyLabel(semanticReference));
+  const snapSelect = select([
+    { value: "off", label: "Off" },
+    { value: "1/4", label: "1/4" },
+    { value: "1/8", label: "1/8" },
+    { value: "1/16", label: "1/16" },
+  ], snapMode);
+  snapSelect.disabled = !(semanticReference.bpm > 0);
+  snapSelect.title = semanticReference.bpm > 0
+    ? "Optional semantic beat snap. Default is Off because generated audio may not align exactly to the target BPM."
+    : "No unique upstream Semantic Studio BPM was found.";
+  const makeReferenceField = (label, control) => {
+    const wrapper = el("label", "m3ssv2-reference-field");
+    wrapper.append(el("span", "", label), control);
+    return wrapper;
+  };
+  referencePanel.append(
+    makeReferenceField("Tempo", tempoWrap),
+    makeReferenceField("Meter", meterValue),
+    makeReferenceField("Key", keyValue),
+    makeReferenceField("Snap", snapSelect),
+  );
+  timeDock.append(positionPanel, selectionPanel, referencePanel);
+  main.appendChild(timeDock);
 
   const contextMenu = el("div", "m3ssv2-context-menu");
   contextMenu.hidden = true;
@@ -226,6 +338,19 @@ function openEditor(node, compactSummary) {
 
   let wave = null;
   wave = new WaveformView(waveWrap, (nextSelection) => {
+    if (nextSelection && snapMode !== "off" && semanticReference.bpm > 0 && !applyingSelectionSnap) {
+      const snapped = {
+        start: snapTime(nextSelection.start, semanticReference.bpm, snapMode, wave.duration),
+        end: snapTime(nextSelection.end, semanticReference.bpm, snapMode, wave.duration),
+      };
+      if (snapped.end < snapped.start) [snapped.start, snapped.end] = [snapped.end, snapped.start];
+      if (Math.abs(snapped.start - nextSelection.start) > .0005 || Math.abs(snapped.end - nextSelection.end) > .0005) {
+        applyingSelectionSnap = true;
+        wave.setSelection(snapped);
+        applyingSelectionSnap = false;
+        return;
+      }
+    }
     selection = nextSelection;
     updateSelectionDisplay();
     updateCommandState();
@@ -279,7 +404,7 @@ function openEditor(node, compactSummary) {
   const resizeObserver = new ResizeObserver(() => {
     const rect = waveWrap.getBoundingClientRect();
     if (rect.height > 0) {
-      project.view.waveform_height = clamp(rect.height, 220, 900);
+      project.view.waveform_height = clamp(rect.height, 300, 900);
       wave.setHeight(project.view.waveform_height);
     }
   });
@@ -288,6 +413,7 @@ function openEditor(node, compactSummary) {
   const findClip = () => mainTrack(project).clips.find((clip) => clip.id === selectedId) || null;
   const hasSelection = () => !!selection && selection.end - selection.start >= .001 && previewId === "draft";
   const makeClipId = () => uid("clip");
+  const editPlayheadTime = () => snapTime(wave.currentTime(), semanticReference.bpm, snapMode, wave.duration);
 
   function begin() {
     history.push(snapshot(project));
@@ -328,7 +454,8 @@ function openEditor(node, compactSummary) {
     trackInfo.textContent = `${layout}${sampleRate ? ` · ${sampleRate} Hz` : ""} · ${modeLabels[resolved] || resolved}`;
     channelBadge.textContent = layout;
     peakL.label.textContent = channels >= 2 ? "L" : "M";
-    peakR.row.hidden = channels < 2;
+    peakR.channel.hidden = channels < 2;
+    peakChannels.classList.toggle("is-mono", channels < 2);
   }
 
   function setPeak(entry, db) {
@@ -336,7 +463,7 @@ function openEditor(node, compactSummary) {
     entry.bar.style.height = `${normalized * 100}%`;
     entry.bar.classList.toggle("is-warn", db > -12);
     entry.bar.classList.toggle("is-hot", db > -3);
-    entry.value.textContent = db <= -59.9 ? "-∞" : `${db.toFixed(1)}`;
+    entry.value.textContent = db <= -59.9 ? "-∞ dBFS" : `${db.toFixed(1)} dBFS`;
   }
 
   function samplePeakDb(channel) {
@@ -465,9 +592,9 @@ function openEditor(node, compactSummary) {
   function updateSelectionDisplay() {
     const start = selection?.start || 0;
     const end = selection?.end || 0;
-    selectionStart.value = start.toFixed(3);
-    selectionEnd.value = end.toFixed(3);
-    selectionLength.textContent = `${Math.max(0, end - start).toFixed(3)} s`;
+    selectionStart.value = formatClock(start);
+    selectionEnd.value = formatClock(end);
+    selectionLength.textContent = formatClock(Math.max(0, end - start));
     selectionText.textContent = selection
       ? `Selection ${fmtTime(start)}–${fmtTime(end)}`
       : internalClipboard?.clips?.length ? `Clipboard ${internalClipboard.clips.length} clip part(s)` : "No selection";
@@ -558,7 +685,7 @@ function openEditor(node, compactSummary) {
   function pasteCurrent() {
     if (!internalClipboard?.clips?.length || previewId !== "draft") return;
     commit(() => {
-      const pasted = pasteTimelineClipboard(mainTrack(project), internalClipboard, wave.currentTime(), { makeId: makeClipId });
+      const pasted = pasteTimelineClipboard(mainTrack(project), internalClipboard, editPlayheadTime(), { makeId: makeClipId });
       selectedId = pasted[0]?.id || selectedId;
     });
   }
@@ -577,9 +704,22 @@ function openEditor(node, compactSummary) {
   };
   selectTool.onclick = () => { toolMode = "select"; wave.setToolMode(toolMode); renderAll(); };
   envelopeTool.onclick = activateEnvelopeTool;
+  goStart.onclick = () => {
+    wave.pause();
+    wave.audio.currentTime = 0;
+    wave.setScrollSeconds(0);
+    wave.updatePlayhead();
+    positionTime.textContent = formatClock(0);
+  };
   play.onclick = () => wave.play();
   pause.onclick = () => { wave.pause(); updatePeakMeter(); };
-  stop.onclick = () => { wave.stop(); updatePeakMeter(); };
+  stop.onclick = () => { wave.stop(); updatePeakMeter(); positionTime.textContent = formatClock(0); };
+  goEnd.onclick = () => {
+    wave.pause();
+    wave.audio.currentTime = Math.max(0, wave.duration - .001);
+    wave.updatePlayhead();
+    positionTime.textContent = formatClock(wave.currentTime());
+  };
 
   undo.onclick = () => {
     if (!history.length) return;
@@ -595,7 +735,7 @@ function openEditor(node, compactSummary) {
   split.onclick = () => {
     if (previewId !== "draft") return;
     const track = mainTrack(project);
-    const playheadTime = wave.currentTime();
+    const playheadTime = editPlayheadTime();
     const selectedIndex = track.clips.findIndex((clip) => clip.id === selectedId);
     const target = selectedIndex >= 0 ? selectedIndex : track.clips.findIndex((clip) => playheadTime > clip.timeline_start && playheadTime < clipEnd(clip));
     if (target < 0) return;
@@ -680,16 +820,29 @@ function openEditor(node, compactSummary) {
   };
 
   selectionStart.onchange = () => {
-    const start = clamp(selectionStart.value, 0, wave.duration);
-    const rawEnd = selection?.end ?? Number(selectionEnd.value);
+    const parsed = parseClock(selectionStart.value);
+    if (parsed == null) return updateSelectionDisplay();
+    const start = snapTime(parsed, semanticReference.bpm, snapMode, wave.duration);
+    const rawEnd = selection?.end ?? parseClock(selectionEnd.value);
     const end = Number.isFinite(rawEnd) ? Math.max(start, rawEnd) : start;
     wave.setSelection({ start, end: clamp(end, start, wave.duration) });
   };
   selectionEnd.onchange = () => {
-    const end = clamp(selectionEnd.value, 0, wave.duration);
-    const rawStart = selection?.start ?? Number(selectionStart.value);
+    const parsed = parseClock(selectionEnd.value);
+    if (parsed == null) return updateSelectionDisplay();
+    const end = snapTime(parsed, semanticReference.bpm, snapMode, wave.duration);
+    const rawStart = selection?.start ?? parseClock(selectionStart.value);
     const start = Number.isFinite(rawStart) ? Math.min(end, rawStart) : end;
     wave.setSelection({ start: clamp(start, 0, end), end });
+  };
+  snapSelect.onchange = () => {
+    snapMode = snapSelect.value;
+    if (selection) {
+      wave.setSelection({
+        start: snapTime(selection.start, semanticReference.bpm, snapMode, wave.duration),
+        end: snapTime(selection.end, semanticReference.bpm, snapMode, wave.duration),
+      });
+    }
   };
 
   function menuItem(label, shortcut, action, disabled = false) {
@@ -769,6 +922,10 @@ function openEditor(node, compactSummary) {
       event.preventDefault(); selectTool.click();
     } else if (event.key === "F2") {
       event.preventDefault(); envelopeTool.click();
+    } else if (event.key === "Home") {
+      event.preventDefault(); goStart.click();
+    } else if (event.key === "End") {
+      event.preventDefault(); goEnd.click();
     } else if (mod && key === "z") {
       event.preventDefault(); event.shiftKey ? redo.click() : undo.click();
     } else if (mod && key === "y") {
@@ -809,7 +966,9 @@ function openEditor(node, compactSummary) {
 
   document.addEventListener("keydown", keys);
   const timer = setInterval(() => {
-    time.textContent = fmtTime(wave.currentTime());
+    positionTime.textContent = formatClock(wave.currentTime());
+    play.classList.toggle("is-active", !wave.audio.paused);
+    pause.classList.toggle("is-active", wave.audio.paused && wave.currentTime() > 0);
     updatePeakMeter();
   }, 80);
   cleanup = () => {
