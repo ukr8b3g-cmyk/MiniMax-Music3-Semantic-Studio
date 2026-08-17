@@ -6,6 +6,7 @@ const range = (key, label, minimum, maximum, step, unit, defaultValue) => ({
 });
 const choice = (key, label, values, defaultValue) => ({ key, label, kind: "select", values, defaultValue });
 const toggle = (key, label, defaultValue = false) => ({ key, label, kind: "boolean", defaultValue });
+const AUTO_ENABLE_TYPES = new Set(["gain", "compressor", "limiter", "eq3", "high_pass", "low_pass", "stereo_width"]);
 
 export const EFFECT_CATALOG = Object.freeze([
   {
@@ -122,7 +123,7 @@ export function createEffect(type, idFactory = null) {
   return {
     id: String(createId("effect")),
     type: definition.type,
-    enabled: false,
+    enabled: AUTO_ENABLE_TYPES.has(definition.type),
     params: defaultEffectParams(definition.type),
   };
 }
