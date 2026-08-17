@@ -13,6 +13,18 @@ Normal navigation contains only:
 
 The former Overview / Global / Arrangement / Vocal / Advanced / Prompt pages are folded into these two views and the Timeline Section Inspector.
 
+## Undo / Redo
+
+Semantic Studio keeps an editor-session project history with visible **Undo / Redo** buttons in the top bar.
+
+- `Ctrl/Cmd+Z` — Undo
+- `Ctrl/Cmd+Shift+Z` or `Ctrl/Cmd+Y` — Redo
+- text/slider bursts are coalesced so normal typing or continuous adjustments do not create one history entry per tiny input event
+- section add/delete/duplicate/reorder, Timeline duration/energy/instrument edits, Global/Main Vocal/Inspector fields, Prompt Import apply and Full Lyrics apply participate in project history
+- history is session-only and is not serialized into `project_json`
+
+Caption Draft and unapplied Full Lyrics Draft remain temporary authoring buffers; project history applies once those drafts are analyzed/applied back to structured project state.
+
 ## Timeline song settings
 
 The Timeline header exposes the high-frequency song-wide fields already stored in `project_json.global`:
@@ -25,6 +37,8 @@ The Timeline header exposes the high-frequency song-wide fields already stored i
 - Vocal / Instrumental mode
 
 `Main Vocal` is a visually differentiated expandable row containing song-wide lead/voice type, timbre/character, delivery, harmony and vocal-effects wording. New UI state defaults the accordion open; subsequent open/closed state is remembered locally.
+
+Harmony / backing and Vocal effects use editable preset-backed controls. The catalogs contain MiniMax-oriented anchor wording plus broadly compatible AI-music authoring phrases, while custom text remains valid. They are prompt-authoring suggestions rather than guaranteed model-side enums or real DSP effect switches.
 
 `More Settings` expands Working title, Subgenres / influences, Mood / direction and Production profile. Preset-backed expressive controls remain editable and imported/custom wording is not locked.
 
@@ -49,6 +63,10 @@ The selected section receives a low-opacity vertical highlight through all Timel
 - Shift + drag trades duration with the following section
 - semantic duration is normalized to 0.1 second steps
 - section type can be selected when adding a new section
+- the **+ Section** action displays the chosen type and uses that section type's color
+- a new section is inserted immediately after the currently selected section rather than always appended to the song end
+- Structure blocks can be dragged horizontally and dropped before/after another section to reorder the song
+- Inspector `↑ / ↓` remains available as a precise one-step reorder alternative
 
 ### Vocal Style
 
@@ -120,7 +138,7 @@ The normal external import default is Replace section structure. Merge detected 
 - public V1 node ID and `(CONDITIONING, seconds)` outputs are unchanged
 - `project_json.schema_version` remains 1
 - no new required project field is introduced
-- section colors, top-tab choice, accordion state, Caption Draft, Full Lyrics Draft and pane widths are presentation/session state only
+- Undo/Redo history, section colors, top-tab choice, accordion state, Caption Draft, Full Lyrics Draft and pane widths are presentation/session state only
 - existing `global`, `timeline.sections`, `section.instruments`, `section.vocal`, `lyrics` and `directives` fields remain the saved source of truth
 - Prompt Preview / normal Caption remains the authoritative compiler output
 - no Python runtime dependency is added
