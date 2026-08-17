@@ -1,82 +1,127 @@
-/* Phase B.2 — Audacity-style unified waveform editing surface. */
-.m3ssv2-unified .m3ssv2-main{display:flex;min-width:0;min-height:0;flex-direction:column;overflow:hidden}
-.m3ssv2-unified .m3ssv2-toolbar{padding:7px 9px;gap:6px}
-.m3ssv2-unified .m3ssv2-time{display:inline-block;width:78px;min-width:78px;text-align:center;white-space:nowrap;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
-.m3ssv2-unified .m3ssv2-wave-head{flex:0 0 auto;margin:6px 10px 0;padding:7px 10px;border-left:3px solid rgba(85,185,165,.78);border-radius:7px;background:linear-gradient(90deg,rgba(55,124,112,.16),rgba(12,20,31,.55));}
-.m3ssv2-unified .m3ssv2-wave-head strong{color:#e3edf4}.m3ssv2-unified .m3ssv2-wave-note{color:#8fa2b8}
-.m3ssv2-unified .m3ssv2-wave-area{display:grid;grid-template-columns:116px minmax(0,1fr) 88px;flex:1 1 auto;min-height:300px;max-height:none;margin:6px 10px 5px;border:1px solid rgba(255,255,255,.1);border-radius:8px;background:#0b0f18;overflow:hidden}
-.m3ssv2-unified .m3ssv2-wave-wrap{display:block;min-width:0;min-height:0;height:100%;padding:0;border-left:1px solid rgba(255,255,255,.07);border-right:1px solid rgba(255,255,255,.07)}
-.m3ssv2-unified .m3ssv2-wave-root,.m3ssv2-unified .m3ssv2-wave-scroll{width:100%;height:100%}
-.m3ssv2-unified .m3ssv2-wave-scroll{border:0;border-radius:0}
-.m3ssv2-unified .m3ssv2-wave-stage{min-height:100%}
-.m3ssv2-unified .m3ssv2-track-strip{display:flex;min-width:0;flex-direction:column;gap:6px;padding:10px 8px;background:linear-gradient(180deg,#111a27,#0f1722)}
-.m3ssv2-track-button-row{display:flex;gap:5px}.m3ssv2-unified .m3ssv2-track-mini-button{width:36px;height:28px}
-.m3ssv2-unified .m3ssv2-track-draft-label{margin-top:auto;padding-top:7px;border-top:1px solid rgba(255,255,255,.055);color:#65788f;font-size:8px;text-align:center;text-transform:uppercase;letter-spacing:.05em}
-.m3ssv2-unified .m3ssv2-track-strip input[type=range]{width:100%}
-.m3ssv2-unified .m3ssv2-track-value,.m3ssv2-unified .m3ssv2-peak-value{font-variant-numeric:tabular-nums}
-.m3ssv2-unified .m3ssv2-peak-strip{display:flex;min-width:0;flex-direction:column;gap:7px;padding:9px 7px;background:#0f1722}
-.m3ssv2-unified .m3ssv2-peak-row{display:grid;grid-template-columns:10px 14px 34px;align-items:end;justify-content:center;gap:4px;min-height:82px}
-.m3ssv2-unified .m3ssv2-peak-value{width:34px;text-align:right}
+/* Phase B.2 mockup-aligned unified waveform editor. */
+.m3ssv2-mockup-ui{--m3ssv2-green:#2c9f70;--m3ssv2-blue:#2e7fd6;--m3ssv2-purple:#7255bd;--m3ssv2-panel:#101823;--m3ssv2-panel-2:#0b121b;--m3ssv2-border:rgba(142,162,188,.18);background:#0b1119}
+.m3ssv2-mockup-ui .m3ssv2-root{background:linear-gradient(180deg,#0d151f,#0a1018)}
+.m3ssv2-mockup-ui .m3ssv2-main{display:flex;min-width:0;min-height:0;flex-direction:column;overflow:hidden}
+.m3ssv2-mockup-ui .m3ssv2-meta-toolbar{padding:6px 9px;gap:6px;border-bottom:1px solid rgba(255,255,255,.055);background:#0a111a}
+.m3ssv2-mockup-ui .m3ssv2-meta-toolbar .m3ssv2-button,.m3ssv2-mockup-ui .m3ssv2-meta-toolbar button{padding:6px 8px;font-size:10px}
+.m3ssv2-mockup-ui .m3ssv2-meta-toolbar .m3ssv2-field{gap:5px}.m3ssv2-mockup-ui .m3ssv2-meta-toolbar .m3ssv2-label{font-size:9px}
+.m3ssv2-mockup-ui .m3ssv2-render-state{margin-left:auto}
 
-.m3ssv2-unified .m3ssv2-contextbar{position:relative;bottom:auto;z-index:4;flex:0 0 auto;flex-wrap:wrap;margin:0 10px 6px;padding:7px 9px;border:1px solid rgba(85,185,165,.16);border-radius:7px;background:#0c151d}
-.m3ssv2-unified .m3ssv2-contextbar::before{content:"Waveform Edit";margin-right:3px;color:#72cdb8;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
-.m3ssv2-unified .m3ssv2-selection-text{margin-left:auto;min-width:190px;text-align:right;font-variant-numeric:tabular-nums}
-.m3ssv2-selection-bar{display:flex;align-items:center;gap:8px;flex:0 0 auto;margin:0 10px 8px;padding:7px 9px;border:1px solid rgba(255,255,255,.07);border-radius:7px;background:#0b121c}
-.m3ssv2-selection-bar>strong{margin-right:2px;color:#aebdce;font-size:10px;text-transform:uppercase;letter-spacing:.04em}
-.m3ssv2-selection-bar .m3ssv2-field{display:flex;align-items:center;gap:5px;margin:0}.m3ssv2-selection-bar .m3ssv2-label{font-size:9px}
-.m3ssv2-selection-bar input{width:94px;padding:5px 6px!important;font:10px ui-monospace,SFMono-Regular,Consolas,monospace!important;font-variant-numeric:tabular-nums}
-.m3ssv2-selection-length{display:inline-block;min-width:74px;color:#c4d0de;font:10px ui-monospace,SFMono-Regular,Consolas,monospace;font-variant-numeric:tabular-nums}
+/* Mockup top row: transport, tools and primary edit commands. */
+.m3ssv2-command-dock{display:flex;align-items:center;gap:8px;flex:0 0 auto;margin:7px 10px 2px;padding:7px;border:1px solid rgba(255,255,255,.075);border-radius:9px;background:linear-gradient(180deg,#111a26,#0d151f);box-shadow:0 6px 18px rgba(0,0,0,.18)}
+.m3ssv2-command-group{display:flex;align-items:center;gap:4px;padding:4px;border:1px solid rgba(255,255,255,.08);border-radius:7px;background:#0d151f}
+.m3ssv2-command-group.is-transport{border-color:rgba(44,159,112,.55);box-shadow:inset 0 0 0 1px rgba(44,159,112,.12)}
+.m3ssv2-command-group.is-tools{border-color:rgba(46,127,214,.58);box-shadow:inset 0 0 0 1px rgba(46,127,214,.12)}
+.m3ssv2-command-group.is-edit{flex:1;border-color:rgba(114,85,189,.55);box-shadow:inset 0 0 0 1px rgba(114,85,189,.11)}
+.m3ssv2-command-button{min-height:34px;padding:7px 10px!important;border-radius:6px!important;background:linear-gradient(180deg,#1c2735,#151e2b)!important;color:#eef4fb!important;font-size:11px!important;font-weight:650;white-space:nowrap}
+.is-transport .m3ssv2-command-button{min-width:42px;border-color:rgba(83,193,143,.24)!important}
+.is-tools .m3ssv2-command-button{border-color:rgba(89,151,229,.3)!important}
+.is-edit .m3ssv2-command-button{border-color:rgba(139,109,211,.26)!important}
+.m3ssv2-command-button:hover{filter:brightness(1.14)}
+.is-transport .m3ssv2-command-button.is-active{border-color:#52c88f!important;background:linear-gradient(180deg,#286b51,#1d4d3b)!important;color:#e8fff4!important}
+.is-tools .m3ssv2-command-button.is-active{border-color:#5aa5ff!important;background:linear-gradient(180deg,#246fc0,#195292)!important;color:#fff!important}
+.m3ssv2-command-button:disabled{opacity:.34;filter:saturate(.35)}
 
-/* Semantic section strip, clip boundaries and editable track envelope share one surface. */
-.m3ssv2-unified .m3ssv2-semantic-overlay{height:25px}
-.m3ssv2-wave-clips{position:absolute;z-index:4;top:25px;right:0;left:0;height:26px;pointer-events:none}
-.m3ssv2-wave-clip{position:absolute;top:2px;height:21px;min-width:3px;overflow:hidden;padding:3px 5px;border:1px solid rgba(93,206,185,.35);border-radius:3px;background:rgba(46,114,103,.13);color:#9fd8cd;text-align:left;text-overflow:ellipsis;white-space:nowrap;font-size:8px;cursor:pointer;pointer-events:auto}
-.m3ssv2-wave-clip:hover{background:rgba(65,155,137,.23);border-color:rgba(109,220,199,.65)}
-.m3ssv2-wave-clip.is-selected{border-color:#f6c86f;background:rgba(246,200,111,.14);box-shadow:inset 0 -2px rgba(246,200,111,.55);color:#ffe5a4}
-.m3ssv2-wave-clip.is-muted{opacity:.42;text-decoration:line-through}
-.m3ssv2-wave-selection{z-index:5}
-.m3ssv2-playhead{z-index:8}
-.m3ssv2-wave-envelope{z-index:7;display:none;pointer-events:none}
-.m3ssv2-wave-envelope.is-editing{pointer-events:auto}
-.m3ssv2-envelope-hit{fill:transparent;pointer-events:none;cursor:crosshair}
-.m3ssv2-wave-envelope.is-editing .m3ssv2-envelope-hit{pointer-events:all}
-.m3ssv2-envelope-zero{stroke:rgba(255,176,32,.32);stroke-width:1;stroke-dasharray:4 4;vector-effect:non-scaling-stroke;pointer-events:none}
-.m3ssv2-envelope-line{fill:none;stroke:#ffb020;stroke-width:2.25;vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 2px rgba(255,176,32,.45));pointer-events:none}
-.m3ssv2-envelope-point{fill:#ffd166;stroke:#fff2c8;stroke-width:1;vector-effect:non-scaling-stroke}
-.m3ssv2-envelope-point.is-user{pointer-events:none;cursor:grab}
-.m3ssv2-wave-envelope.is-editing .m3ssv2-envelope-point.is-user{pointer-events:all}
-.m3ssv2-envelope-point.is-user:hover{fill:#fff0a8;stroke:#fff}
-.m3ssv2-envelope-tooltip{position:absolute;z-index:12;min-width:108px;padding:4px 6px;border:1px solid rgba(255,208,102,.42);border-radius:5px;background:rgba(12,17,25,.94);color:#ffe4a0;font:9px ui-monospace,SFMono-Regular,Consolas,monospace;pointer-events:none;box-shadow:0 5px 16px rgba(0,0,0,.35)}
-.m3ssv2-envelope-tooltip[hidden]{display:none}
-.m3ssv2-wave-root[data-tool="envelope"] .m3ssv2-wave-scroll{cursor:crosshair}
-.m3ssv2-wave-root[data-tool="select"] .m3ssv2-wave-scroll{cursor:text}
+.m3ssv2-mockup-ui .m3ssv2-wave-head{flex:0 0 auto;margin:4px 10px 0;padding:5px 9px;border-left:3px solid rgba(85,185,165,.72);border-radius:6px;background:linear-gradient(90deg,rgba(55,124,112,.14),transparent)}
+.m3ssv2-mockup-ui .m3ssv2-wave-head strong{color:#e3edf4;font-size:11px}.m3ssv2-mockup-ui .m3ssv2-wave-note{color:#8396ad;font-size:9px}
 
-.m3ssv2-unified .m3ssv2-inspector-tabs{gap:5px;padding:7px}.m3ssv2-unified .m3ssv2-inspector-tab{font-size:10px;padding:7px 4px}
+/* Main surface: track controls and waveform only. Peak meters live inside track controls. */
+.m3ssv2-mockup-ui .m3ssv2-wave-area{display:grid;grid-template-columns:150px minmax(0,1fr);flex:1 1 auto;min-height:360px;max-height:none;margin:5px 10px;border:1px solid rgba(255,255,255,.11);border-radius:9px;background:#080d14;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.22)}
+.m3ssv2-mockup-ui .m3ssv2-wave-wrap{display:block;min-width:0;min-height:0;height:100%;padding:0;border-left:1px solid rgba(255,255,255,.08)}
+.m3ssv2-mockup-ui .m3ssv2-wave-root,.m3ssv2-mockup-ui .m3ssv2-wave-scroll{width:100%;height:100%}
+.m3ssv2-mockup-ui .m3ssv2-wave-scroll{border:0;border-radius:0;background:#080e16}
+.m3ssv2-mockup-ui .m3ssv2-wave-stage{min-height:100%;background:#080e16}
+.m3ssv2-mockup-ui .m3ssv2-track-strip{display:flex;min-width:0;flex-direction:column;gap:7px;padding:11px 10px;background:linear-gradient(180deg,#121c29,#0d1621)}
+.m3ssv2-mockup-ui .m3ssv2-track-name{font-size:13px;color:#edf4fb}.m3ssv2-mockup-ui .m3ssv2-channel-badge{align-self:flex-start}
+.m3ssv2-track-button-row{display:flex;gap:7px}.m3ssv2-mockup-ui .m3ssv2-track-mini-button{width:42px;height:34px;font-size:14px;font-weight:800}
+.m3ssv2-mockup-ui .m3ssv2-track-mini-button:first-child{border-color:rgba(226,89,99,.55);background:rgba(147,44,54,.2)}
+.m3ssv2-mockup-ui .m3ssv2-track-mini-button:last-child{border-color:rgba(232,184,59,.52);background:rgba(128,92,20,.18)}
+.m3ssv2-mockup-ui .m3ssv2-track-mini-button.is-active:first-child{background:#873641;color:#fff;border-color:#ec6873}
+.m3ssv2-mockup-ui .m3ssv2-track-mini-button.is-active:last-child{background:#70571b;color:#fff4b7;border-color:#f0c84c}
+.m3ssv2-mockup-ui .m3ssv2-track-strip input[type=range]{width:100%;accent-color:#6ba5ff}
+.m3ssv2-mockup-ui .m3ssv2-track-mini-label{font-size:9px;color:#899bb0}.m3ssv2-mockup-ui .m3ssv2-track-value{font-size:9px;color:#c2cfdd;text-align:right;font-variant-numeric:tabular-nums}
+
+/* Tall, readable, always side-by-side L/R meters. */
+.m3ssv2-mockup-ui .m3ssv2-peak-strip{display:flex;min-width:0;flex:1 1 auto;flex-direction:column;gap:6px;margin-top:4px;padding:8px 5px 4px;border-top:1px solid rgba(255,255,255,.07);background:transparent}
+.m3ssv2-mockup-ui .m3ssv2-peak-title{color:#afbdce;font-size:9px;text-align:center;letter-spacing:.03em}
+.m3ssv2-peak-channels{display:flex;align-items:flex-end;justify-content:center;gap:12px;flex:1;min-height:145px}
+.m3ssv2-peak-channels.is-mono{justify-content:center}
+.m3ssv2-peak-channel{display:grid;grid-template-rows:auto minmax(105px,1fr) auto;align-items:end;justify-items:center;gap:4px;min-width:48px;height:100%}
+.m3ssv2-mockup-ui .m3ssv2-peak-label{color:#d4deea;font-size:10px;font-weight:700}
+.m3ssv2-mockup-ui .m3ssv2-peak-rail{position:relative;width:24px;height:100%;min-height:105px;overflow:hidden;border:1px solid rgba(255,255,255,.14);border-radius:4px;background:linear-gradient(to top,#13231e 0 70%,#2a2414 70% 90%,#301519 90%);box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}
+.m3ssv2-mockup-ui .m3ssv2-peak-bar{position:absolute;right:2px;bottom:2px;left:2px;height:0;border-radius:2px 2px 0 0;background:linear-gradient(to top,#44c986,#66e5a3);transition:height .075s linear,background .075s linear}
+.m3ssv2-mockup-ui .m3ssv2-peak-bar.is-warn{background:linear-gradient(to top,#49cd87,#e2be4c)}.m3ssv2-mockup-ui .m3ssv2-peak-bar.is-hot{background:linear-gradient(to top,#49cd87,#e2be4c 75%,#e15d68)}
+.m3ssv2-mockup-ui .m3ssv2-peak-value{display:block!important;width:58px;color:#b8c6d6;font:8px ui-monospace,SFMono-Regular,Consolas,monospace;text-align:center;white-space:nowrap;font-variant-numeric:tabular-nums}
+
+/* Section strip and clip boundaries remain on the waveform. */
+.m3ssv2-mockup-ui .m3ssv2-semantic-overlay{height:29px}
+.m3ssv2-mockup-ui .m3ssv2-semantic-section{height:27px;padding:6px 7px;border:1px solid rgba(255,255,255,.14);border-radius:4px;background:rgba(85,112,174,.24);font-size:9px;text-align:center}
+.m3ssv2-mockup-ui .m3ssv2-semantic-section:nth-child(9n+1){background:rgba(42,91,122,.48);border-color:rgba(75,173,155,.62)}
+.m3ssv2-mockup-ui .m3ssv2-semantic-section:nth-child(9n+2){background:rgba(91,61,142,.52);border-color:rgba(142,104,207,.68)}
+.m3ssv2-mockup-ui .m3ssv2-semantic-section:nth-child(9n+3){background:rgba(134,48,52,.55);border-color:rgba(218,82,88,.72)}
+.m3ssv2-mockup-ui .m3ssv2-semantic-section:nth-child(9n+4){background:rgba(38,103,91,.5);border-color:rgba(69,177,152,.66)}
+.m3ssv2-mockup-ui .m3ssv2-semantic-section:nth-child(9n+5){background:rgba(78,57,125,.54);border-color:rgba(135,100,201,.68)}
+.m3ssv2-mockup-ui .m3ssv2-semantic-section:nth-child(9n+6){background:rgba(135,48,52,.55);border-color:rgba(218,82,88,.72)}
+.m3ssv2-mockup-ui .m3ssv2-semantic-section:nth-child(9n+7){background:rgba(53,68,84,.6);border-color:rgba(111,133,157,.68)}
+.m3ssv2-wave-clips{position:absolute;z-index:4;top:29px;right:0;left:0;height:25px;pointer-events:none}
+.m3ssv2-wave-clip{position:absolute;top:2px;height:20px;min-width:3px;overflow:hidden;padding:3px 5px;border:1px solid rgba(93,206,185,.32);border-radius:3px;background:rgba(46,114,103,.11);color:#9fd8cd;text-align:left;text-overflow:ellipsis;white-space:nowrap;font-size:8px;cursor:pointer;pointer-events:auto}
+.m3ssv2-wave-clip:hover{background:rgba(65,155,137,.22);border-color:rgba(109,220,199,.62)}
+.m3ssv2-wave-clip.is-selected{border-color:#f6c86f;background:rgba(246,200,111,.13);box-shadow:inset 0 -2px rgba(246,200,111,.55);color:#ffe5a4}
+.m3ssv2-wave-clip.is-muted{opacity:.4;text-decoration:line-through}
+.m3ssv2-mockup-ui .m3ssv2-wave-selection{z-index:5;top:54px;bottom:32%;border-color:#69a9ff;background:rgba(61,128,210,.16)}
+.m3ssv2-mockup-ui .m3ssv2-playhead{z-index:9;background:#f0b63d;box-shadow:0 0 5px rgba(240,182,61,.7)}
+
+/* A dedicated lower automation lane, while keeping one unified waveform surface. */
+.m3ssv2-mockup-ui .m3ssv2-wave-envelope{z-index:7;inset:auto 0 0 0;width:100%;height:32%;display:none;overflow:visible;border-top:1px solid rgba(160,121,230,.35);background:linear-gradient(180deg,rgba(58,43,82,.22),rgba(45,33,67,.43));pointer-events:none}
+.m3ssv2-mockup-ui .m3ssv2-wave-envelope.is-editing{pointer-events:auto}
+.m3ssv2-mockup-ui .m3ssv2-envelope-hit{fill:transparent;pointer-events:none;cursor:crosshair}.m3ssv2-mockup-ui .m3ssv2-wave-envelope.is-editing .m3ssv2-envelope-hit{pointer-events:all}
+.m3ssv2-mockup-ui .m3ssv2-envelope-zero{stroke:rgba(177,139,236,.3);stroke-width:1;stroke-dasharray:4 4;vector-effect:non-scaling-stroke;pointer-events:none}
+.m3ssv2-mockup-ui .m3ssv2-envelope-line{fill:none;stroke:#a978ed;stroke-width:2.3;vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 2px rgba(169,120,237,.52));pointer-events:none}
+.m3ssv2-mockup-ui .m3ssv2-envelope-point{fill:#a978ed;stroke:#e7d7ff;stroke-width:1;vector-effect:non-scaling-stroke}
+.m3ssv2-mockup-ui .m3ssv2-envelope-point.is-user{pointer-events:none;cursor:grab}.m3ssv2-mockup-ui .m3ssv2-wave-envelope.is-editing .m3ssv2-envelope-point.is-user{pointer-events:all}
+.m3ssv2-mockup-ui .m3ssv2-envelope-tooltip{position:absolute;z-index:12;min-width:108px;padding:4px 6px;border:1px solid rgba(190,156,244,.45);border-radius:5px;background:rgba(12,17,25,.95);color:#e1ceff;font:9px ui-monospace,SFMono-Regular,Consolas,monospace;pointer-events:none;box-shadow:0 5px 16px rgba(0,0,0,.35)}
+.m3ssv2-wave-root[data-tool="envelope"] .m3ssv2-wave-scroll{cursor:crosshair}.m3ssv2-wave-root[data-tool="select"] .m3ssv2-wave-scroll{cursor:text}
+
+/* Secondary clip operations stay accessible without competing with primary commands. */
+.m3ssv2-mockup-ui .m3ssv2-secondary-commands{position:relative;bottom:auto;z-index:4;flex:0 0 auto;flex-wrap:wrap;margin:0 10px 6px;padding:5px 8px;border:1px solid rgba(255,255,255,.07);border-radius:7px;background:#0b131d}
+.m3ssv2-mockup-ui .m3ssv2-secondary-commands::before{content:"Clip Options";margin-right:3px;color:#74879e;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.m3ssv2-mockup-ui .m3ssv2-secondary-commands button{padding:5px 7px;font-size:9px}.m3ssv2-mockup-ui .m3ssv2-selection-text{margin-left:auto;min-width:190px;text-align:right;font-variant-numeric:tabular-nums}
+
+/* Large Audacity-style Position, Selection and semantic reference strip. */
+.m3ssv2-time-dock{display:grid;grid-template-columns:minmax(240px,.9fr) minmax(420px,1.45fr) minmax(360px,1.05fr);gap:7px;flex:0 0 auto;margin:0 10px 8px}
+.m3ssv2-time-panel{min-width:0;padding:9px;border:1px solid rgba(77,188,132,.55);border-radius:8px;background:linear-gradient(180deg,#101923,#0c141d);box-shadow:inset 0 0 0 1px rgba(77,188,132,.08)}
+.m3ssv2-time-panel-title{display:block;margin-bottom:6px;color:#d9e4ee;font-size:10px;text-align:center;letter-spacing:.05em}
+.m3ssv2-position-time{display:block;width:100%;box-sizing:border-box;padding:7px 8px;border:1px solid rgba(255,255,255,.12);border-radius:6px;background:#17222f;color:#f3f7fb;font:26px ui-monospace,SFMono-Regular,Consolas,monospace;text-align:center;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.m3ssv2-position-units{display:grid;grid-template-columns:1fr 1fr 1.45fr;padding:3px 6px 0;color:#6e8095;font-size:7px;text-align:center;letter-spacing:.08em}
+.m3ssv2-selection-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px}
+.m3ssv2-time-field{display:grid;gap:4px;color:#a9b7c8;font-size:9px}.m3ssv2-time-field input,.m3ssv2-time-field output{display:block;width:100%;box-sizing:border-box;padding:8px 7px;border:1px solid rgba(255,255,255,.12);border-radius:6px;background:#17222f;color:#f0f4f9;font:14px ui-monospace,SFMono-Regular,Consolas,monospace;text-align:center;font-variant-numeric:tabular-nums}
+.m3ssv2-selection-length{min-width:0}
+.m3ssv2-reference-panel{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));align-items:end;gap:7px}
+.m3ssv2-reference-field{display:grid;gap:5px;color:#a9b7c8;font-size:9px;text-align:center}.m3ssv2-reference-field>output,.m3ssv2-reference-field>select,.m3ssv2-reference-composite{display:flex;align-items:center;justify-content:center;min-height:38px;box-sizing:border-box;padding:7px 6px;border:1px solid rgba(255,255,255,.12);border-radius:6px;background:#17222f;color:#f0f4f9;font:12px ui-monospace,SFMono-Regular,Consolas,monospace;font-variant-numeric:tabular-nums}
+.m3ssv2-reference-field>select{width:100%;text-align:center}.m3ssv2-reference-composite{gap:5px}.m3ssv2-reference-unit{color:#8da0b5;font-size:8px}
+
+.m3ssv2-mockup-ui .m3ssv2-inspector-tabs{gap:5px;padding:7px}.m3ssv2-mockup-ui .m3ssv2-inspector-tab{font-size:10px;padding:7px 4px}
 .m3ssv2-pan-control{display:flex;align-items:center;gap:7px}.m3ssv2-pan-control input{flex:1}.m3ssv2-track-panel-pan{min-width:72px;color:#9eacbf;font-size:10px;text-align:right}
-.m3ssv2-envelope-actions{display:flex;gap:7px;margin-bottom:10px}
-.m3ssv2-envelope-point-list{display:grid;gap:6px}.m3ssv2-envelope-point-row{display:grid;grid-template-columns:24px minmax(0,1fr) minmax(0,1fr) auto;gap:6px;align-items:end;padding:7px;border:1px solid rgba(255,255,255,.07);border-radius:7px;background:#101824}
-.m3ssv2-envelope-point-row .m3ssv2-field{display:grid;grid-template-columns:1fr;margin:0;gap:3px}.m3ssv2-envelope-index{align-self:center;color:#75879c;font:10px ui-monospace,monospace;text-align:center}
-.m3ssv2-button.danger{border-color:rgba(224,91,104,.35);color:#ff9da8}
+.m3ssv2-envelope-actions{display:flex;gap:7px;margin-bottom:10px}.m3ssv2-envelope-point-list{display:grid;gap:6px}.m3ssv2-envelope-point-row{display:grid;grid-template-columns:24px minmax(0,1fr) minmax(0,1fr) auto;gap:6px;align-items:end;padding:7px;border:1px solid rgba(255,255,255,.07);border-radius:7px;background:#101824}
+.m3ssv2-envelope-point-row .m3ssv2-field{display:grid;grid-template-columns:1fr;margin:0;gap:3px}.m3ssv2-envelope-index{align-self:center;color:#75879c;font:10px ui-monospace,monospace;text-align:center}.m3ssv2-button.danger{border-color:rgba(224,91,104,.35);color:#ff9da8}
 
-@media(max-width:1100px){
-  .m3ssv2-unified .m3ssv2-workspace{grid-template-columns:minmax(0,1fr) 7px minmax(290px,var(--m3ssv2-inspector-width))}
-  .m3ssv2-unified .m3ssv2-wave-area{grid-template-columns:96px minmax(0,1fr) 72px}
-  .m3ssv2-unified .m3ssv2-peak-value{display:none}.m3ssv2-unified .m3ssv2-peak-row{grid-template-columns:10px 14px}
-  .m3ssv2-unified .m3ssv2-wave-note{display:none}
+@media(max-width:1200px){
+  .m3ssv2-command-dock{flex-wrap:wrap}.m3ssv2-command-group.is-edit{flex-basis:100%}
+  .m3ssv2-time-dock{grid-template-columns:minmax(220px,.85fr) minmax(390px,1.4fr)}.m3ssv2-reference-panel{grid-column:1/-1}
 }
-@media(max-width:850px){
-  .m3ssv2-unified .m3ssv2-workspace{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) 260px}
-  .m3ssv2-unified .m3ssv2-pane-splitter{display:none}
-  .m3ssv2-unified .m3ssv2-wave-area{grid-template-columns:82px minmax(0,1fr) 54px;min-height:280px}
-  .m3ssv2-unified .m3ssv2-track-strip{padding:7px 5px}.m3ssv2-unified .m3ssv2-peak-strip{padding:7px 4px}
-  .m3ssv2-selection-bar{flex-wrap:wrap}
+@media(max-width:900px){
+  .m3ssv2-mockup-ui .m3ssv2-workspace{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) 260px}.m3ssv2-mockup-ui .m3ssv2-pane-splitter{display:none}
+  .m3ssv2-mockup-ui .m3ssv2-wave-area{grid-template-columns:138px minmax(0,1fr);min-height:340px}
+  .m3ssv2-time-dock{grid-template-columns:1fr}.m3ssv2-reference-panel{grid-column:auto}
 }
-@media(max-width:620px){
-  .m3ssv2-unified .m3ssv2-toolbar{gap:5px}.m3ssv2-unified .m3ssv2-toolbar .m3ssv2-field{display:none}
-  .m3ssv2-unified .m3ssv2-time{width:72px;min-width:72px;margin-left:auto}
-  .m3ssv2-unified .m3ssv2-wave-area{grid-template-columns:1fr;min-height:260px}
-  .m3ssv2-unified .m3ssv2-track-strip,.m3ssv2-unified .m3ssv2-peak-strip{display:none}
-  .m3ssv2-unified .m3ssv2-contextbar::before{width:100%}.m3ssv2-unified .m3ssv2-selection-text{width:100%;text-align:left}
-  .m3ssv2-selection-bar .m3ssv2-field{flex:1 1 130px}.m3ssv2-selection-bar input{width:100%}
-  .m3ssv2-envelope-point-row{grid-template-columns:20px 1fr}.m3ssv2-envelope-point-row .m3ssv2-button{grid-column:2}
+@media(max-width:700px){
+  .m3ssv2-mockup-ui .m3ssv2-meta-toolbar{gap:5px}.m3ssv2-mockup-ui .m3ssv2-meta-toolbar .m3ssv2-field{display:none}
+  .m3ssv2-command-group{flex-wrap:wrap}.m3ssv2-command-group.is-transport,.m3ssv2-command-group.is-tools{flex:1}.m3ssv2-command-group.is-edit{display:grid;grid-template-columns:repeat(3,1fr)}
+  .m3ssv2-mockup-ui .m3ssv2-wave-area{grid-template-columns:1fr;grid-template-rows:auto minmax(300px,1fr)}
+  .m3ssv2-mockup-ui .m3ssv2-track-strip{display:grid;grid-template-columns:auto auto minmax(120px,1fr) minmax(120px,1fr);align-items:center;gap:7px;padding:8px 10px}
+  .m3ssv2-mockup-ui .m3ssv2-track-strip>.m3ssv2-track-mini-label,.m3ssv2-mockup-ui .m3ssv2-track-strip>.m3ssv2-track-value{display:none}
+  .m3ssv2-mockup-ui .m3ssv2-track-strip>input[type=range]{width:100%}.m3ssv2-mockup-ui .m3ssv2-peak-strip{grid-column:1/-1;min-height:135px;margin-top:0;border-top:1px solid rgba(255,255,255,.07)}
+  .m3ssv2-peak-channels{min-height:110px}.m3ssv2-peak-channel{grid-template-rows:auto 90px auto;height:auto}.m3ssv2-mockup-ui .m3ssv2-peak-rail{height:90px;min-height:90px}
+  .m3ssv2-selection-grid,.m3ssv2-reference-panel{grid-template-columns:1fr 1fr}.m3ssv2-reference-panel .m3ssv2-reference-field:nth-child(3),.m3ssv2-reference-panel .m3ssv2-reference-field:nth-child(4){margin-top:2px}
+  .m3ssv2-mockup-ui .m3ssv2-selection-text{width:100%;text-align:left}
 }
