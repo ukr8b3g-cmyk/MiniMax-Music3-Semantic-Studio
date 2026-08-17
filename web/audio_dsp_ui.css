@@ -1,0 +1,6 @@
+.m3ssv2-dialog .m3ssv2-loop-button{min-width:70px!important}
+.m3ssv2-dialog .m3ssv2-loop-button.is-active{border-color:#4dcc91!important;background:linear-gradient(180deg,#286b51,#1d4d3b)!important;color:#effff7!important;box-shadow:inset 0 0 0 1px rgba(90,220,157,.18)!important}
+.m3ssv2-dialog .m3ssv2-wave-root.is-looping .m3ssv2-wave-selection{border-color:rgba(91,217,154,.72)!important;background:rgba(59,154,111,.16)!important}
+.m3ssv2-dialog .m3ssv2-key-reference-field{min-width:0}
+.m3ssv2-dialog .m3ssv2-key-reference-field output{display:block;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.25}
+.m3ssv2-dialog .m3ssv2-limiter-auto{margin-right:auto;border-color:rgba(84,174,230,.38)!important;color:#bfe7ff!important}
