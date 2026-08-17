@@ -8,13 +8,14 @@ import {
   selectInput, textarea, field,
 } from "./semantic_studio_core.js";
 import { editableCombo, chipEditor, textareaWithSuggestions } from "./semantic_controls.js";
-import { fitTimelineScale, renderSemanticTimeline, sectionPalette } from "./semantic_timeline.js";
+import { SemanticHistory } from "./semantic_history.js";
+import { fitTimelineScale, renderSemanticTimeline, reorderSections, sectionPalette } from "./semantic_timeline.js";
 import { openPromptImporter } from "./prompt_import.js";
 import { analyzePromptImport, applyPromptImport } from "./prompt_import_core.js";
 import {
   GENRE_PRESETS, INFLUENCE_PRESETS, MOOD_PRESETS, VOCAL_LEAD_PRESETS, VOCAL_TIMBRE_PRESETS,
-  VOCAL_DELIVERY_PRESETS, SECTION_VOCAL_PRESETS, INSTRUMENT_PRESETS, PRODUCTION_SUGGESTIONS,
-  KEY_PRESETS, SCALE_PRESETS,
+  VOCAL_DELIVERY_PRESETS, VOCAL_HARMONY_PRESETS, VOCAL_EFFECT_PRESETS, SECTION_VOCAL_PRESETS,
+  INSTRUMENT_PRESETS, PRODUCTION_SUGGESTIONS, KEY_PRESETS, SCALE_PRESETS,
 } from "./semantic_presets.js";
 
 const EXTENSION_NAME = "minimax.music3.semantic.studio";
@@ -102,7 +103,9 @@ function openStudio(node, compactSummary) {
   let fullLyricsDraft = compilePreview(project).lyrics;
   let fullLyricsDirty = false;
   let cleanupLyricsSplitters = () => {};
+  let cleanupKeyboard = () => {};
   let cleanup = () => {};
+  const history = new SemanticHistory({ limit: 120, coalesceMs: 700 });
 
   const shell = createStudioWindow({
     title: "Music3 Semantic Studio",
@@ -138,6 +141,7 @@ function openStudio(node, compactSummary) {
   });
   cleanup = () => {
     cleanupLyricsSplitters();
+    cleanupKeyboard();
     cleanupPaneSplitter();
   };
 
@@ -151,6 +155,19 @@ function openStudio(node, compactSummary) {
     topTabs.appendChild(item);
   }
 
+  const historyActions = el("div", "m3ss-history-actions");
+  historyActions.style.marginLeft = "auto";
+  historyActions.style.display = "flex";
+  historyActions.style.alignItems = "center";
+  historyActions.style.gap = "6px";
+  historyActions.style.paddingBottom = "6px";
+  const undoButton = button("Undo", "m3ss-button secondary");
+  const redoButton = button("Redo", "m3ss-button secondary");
+  undoButton.title = "Undo · Ctrl/Cmd+Z";
+  redoButton.title = "Redo · Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y";
+  historyActions.append(undoButton, redoButton);
+  topTabs.appendChild(historyActions);
+
   const durationStatus = el("div", "m3ss-duration-status");
   const actions = el("div", "m3ss-footer-actions");
   const reset = button("Reset", "m3ss-button secondary");
@@ -160,18 +177,80 @@ function openStudio(node, compactSummary) {
   footer.append(durationStatus, actions);
 
   const selected = () => project.timeline.sections.find((section) => section.id === selectedId) || project.timeline.sections[0] || null;
+  const snapshotState = () => ({
+    project: JSON.parse(JSON.stringify(project)),
+    selectedId,
+    lyricsExpandedId,
+  });
   const syncFullLyricsDraft = () => {
     if (!fullLyricsDirty) fullLyricsDraft = compilePreview(project).lyrics;
+  };
+  const updateHistoryButtons = () => {
+    undoButton.disabled = !history.canUndo;
+    redoButton.disabled = !history.canRedo;
   };
   const mark = () => {
     syncFullLyricsDraft();
     shell.setSubtitle(`Timeline / Lyrics · ${summarizeProject(project)}`);
     durationStatus.textContent = `${totalDuration(project).toFixed(1)} s · ${project.timeline.sections.length} sections · semantic timing/energy remain generation targets`;
+    updateHistoryButtons();
   };
-  const update = (fn) => { fn(); mark(); };
+  const beginHistory = (group = null) => {
+    history.capture(snapshotState(), group);
+    updateHistoryButtons();
+  };
+  const update = (fn, group = null) => { beginHistory(group); fn(); mark(); };
+  const commit = (fn) => { beginHistory(); fn(); mark(); };
   const refreshTimeline = () => { if (active === "timeline") renderTimelineView(); };
 
+  function restoreHistoryState(state) {
+    if (!state?.project) return;
+    project = normalizeProject(state.project);
+    selectedId = project.timeline.sections.some((section) => section.id === state.selectedId)
+      ? state.selectedId
+      : project.timeline.sections[0]?.id || null;
+    lyricsExpandedId = project.timeline.sections.some((section) => section.id === state.lyricsExpandedId)
+      ? state.lyricsExpandedId
+      : selectedId;
+    captionEditMode = false;
+    captionDraft = "";
+    fullLyricsDirty = false;
+    fullLyricsDraft = compilePreview(project).lyrics;
+    render();
+  }
+
+  function undoHistory() {
+    const previous = history.undo(snapshotState());
+    if (previous) restoreHistoryState(previous);
+    else updateHistoryButtons();
+  }
+
+  function redoHistory() {
+    const next = history.redo(snapshotState());
+    if (next) restoreHistoryState(next);
+    else updateHistoryButtons();
+  }
+
+  undoButton.onclick = undoHistory;
+  redoButton.onclick = redoHistory;
+
+  const onHistoryKeys = (event) => {
+    const mod = event.ctrlKey || event.metaKey;
+    if (!mod) return;
+    const key = event.key.toLowerCase();
+    if (key === "z") {
+      event.preventDefault();
+      event.shiftKey ? redoHistory() : undoHistory();
+    } else if (key === "y") {
+      event.preventDefault();
+      redoHistory();
+    }
+  };
+  document.addEventListener("keydown", onHistoryKeys);
+  cleanupKeyboard = () => document.removeEventListener("keydown", onHistoryKeys);
+
   function applyImportedProject(next) {
+    beginHistory();
     project = normalizeProject(next);
     selectedId = project.timeline.sections.find((section) => section.id === selectedId)?.id || project.timeline.sections[0]?.id || null;
     lyricsExpandedId = selectedId;
@@ -204,10 +283,13 @@ function openStudio(node, compactSummary) {
       vocal: safeType === "Instrumental" || safeType === "Solo" ? "instrumental" : "",
       directives: "",
     };
-    project.timeline.sections.push(section);
-    selectedId = section.id;
-    lyricsExpandedId = section.id;
-    mark();
+    commit(() => {
+      const selectedIndex = project.timeline.sections.findIndex((item) => item.id === selectedId);
+      const insertionIndex = selectedIndex >= 0 ? selectedIndex + 1 : project.timeline.sections.length;
+      project.timeline.sections.splice(insertionIndex, 0, section);
+      selectedId = section.id;
+      lyricsExpandedId = section.id;
+    });
     render();
   }
 
@@ -231,19 +313,17 @@ function openStudio(node, compactSummary) {
     if (!mainVocalOpen) return;
 
     const grid = el("div", "m3ss-main-vocal-grid");
-    const lead = editableCombo({ value: vocal.gender, options: VOCAL_LEAD_PRESETS, placeholder: "female vocal, warm male baritone, duet…", onInput: (value) => { vocal.gender = value; mark(); } });
-    const timbre = editableCombo({ value: vocal.timbre, options: VOCAL_TIMBRE_PRESETS, placeholder: "breathy and intimate, powerful and soulful…", onInput: (value) => { vocal.timbre = value; mark(); } });
-    const delivery = editableCombo({ value: vocal.delivery, options: VOCAL_DELIVERY_PRESETS, placeholder: "intimate phrasing, rhythmic intensity…", onInput: (value) => { vocal.delivery = value; mark(); } });
-    const harmony = textInput(vocal.harmony, "soft harmonies, duet responses…");
-    harmony.oninput = () => { vocal.harmony = harmony.value; mark(); };
-    const effects = textInput(vocal.effects, "room reverb, tape delay…");
-    effects.oninput = () => { vocal.effects = effects.value; mark(); };
+    const lead = editableCombo({ value: vocal.gender, options: VOCAL_LEAD_PRESETS, placeholder: "female vocal, warm male baritone, duet…", onInput: (value) => update(() => { vocal.gender = value; }, "main-vocal:lead") });
+    const timbre = editableCombo({ value: vocal.timbre, options: VOCAL_TIMBRE_PRESETS, placeholder: "breathy and intimate, powerful and soulful…", onInput: (value) => update(() => { vocal.timbre = value; }, "main-vocal:timbre") });
+    const delivery = editableCombo({ value: vocal.delivery, options: VOCAL_DELIVERY_PRESETS, placeholder: "intimate phrasing, rhythmic intensity…", onInput: (value) => update(() => { vocal.delivery = value; }, "main-vocal:delivery") });
+    const harmony = editableCombo({ value: vocal.harmony, options: VOCAL_HARMONY_PRESETS, placeholder: "layered chorus harmonies, murmured doubles…", onInput: (value) => update(() => { vocal.harmony = value; }, "main-vocal:harmony") });
+    const effects = editableCombo({ value: vocal.effects, options: VOCAL_EFFECT_PRESETS, placeholder: "moderate reverb, tape delay, spring reverb…", onInput: (value) => update(() => { vocal.effects = value; }, "main-vocal:effects") });
     grid.append(
       field("Lead / voice type", lead),
       field("Timbre / character", timbre),
       field("Delivery", delivery),
-      field("Harmony / backing", harmony),
-      field("Vocal effects", effects),
+      field("Harmony / backing", harmony, "Curated prompt wording; custom text remains valid."),
+      field("Vocal effects", effects, "Prompt guidance, not guaranteed DSP processing."),
     );
     panel.appendChild(grid);
   }
@@ -255,22 +335,22 @@ function openStudio(node, compactSummary) {
 
     const genre = editableCombo({
       value: global.genre, options: GENRE_PRESETS, placeholder: "Genre / style…",
-      onInput: (value) => { global.genre = value; mark(); },
+      onInput: (value) => update(() => { global.genre = value; }, "global:genre"),
     });
     const bpm = numberInput(global.bpm || 120, 20, 400, 1);
-    bpm.oninput = () => { global.bpm = Math.round(clamp(bpm.value, 20, 400)); mark(); };
+    bpm.oninput = () => update(() => { global.bpm = Math.round(clamp(bpm.value, 20, 400)); }, "global:bpm");
     const key = editableCombo({
       value: global.key, options: KEY_PRESETS, placeholder: "Key…",
-      onInput: (value) => { global.key = value; mark(); },
+      onInput: (value) => update(() => { global.key = value; }, "global:key"),
     });
     const scale = editableCombo({
       value: global.scale, options: SCALE_PRESETS, placeholder: "Scale / mode…",
-      onInput: (value) => { global.scale = value; mark(); },
+      onInput: (value) => update(() => { global.scale = value; }, "global:scale"),
     });
     const meter = selectInput(METERS.includes(global.meter) ? METERS : [...METERS, global.meter], global.meter || "4/4");
-    meter.onchange = () => { global.meter = meter.value; mark(); };
+    meter.onchange = () => update(() => { global.meter = meter.value; });
     const mode = selectInput([{ value: "vocal", label: "Vocal" }, { value: "instrumental", label: "Instrumental" }], global.vocal?.mode || "vocal");
-    mode.onchange = () => { global.vocal.mode = mode.value; mark(); renderTimelineView(); };
+    mode.onchange = () => { update(() => { global.vocal.mode = mode.value; }); renderTimelineView(); };
     const more = button(`${moreSettingsOpen ? "▴" : "▾"} More Settings`, "m3ss-button secondary m3ss-more-settings-button");
     more.onclick = () => {
       moreSettingsOpen = !moreSettingsOpen;
@@ -288,18 +368,18 @@ function openStudio(node, compactSummary) {
     if (moreSettingsOpen) {
       const extra = el("div", "m3ss-song-settings-more");
       const title = textInput(global.title, "Optional project title");
-      title.oninput = () => { global.title = title.value; mark(); };
+      title.oninput = () => update(() => { global.title = title.value; }, "global:title");
       const influences = chipEditor({
         values: global.subgenres || [], suggestions: INFLUENCE_PRESETS, placeholder: "Add influence / subgenre…",
-        onChange: (values) => { global.subgenres = values; mark(); },
+        onChange: (values) => update(() => { global.subgenres = values; }, "global:influences"),
       });
       const mood = chipEditor({
         values: parseList(global.mood), suggestions: MOOD_PRESETS, placeholder: "Add mood / direction…",
-        onChange: (values) => { global.mood = values.join(", "); mark(); },
+        onChange: (values) => update(() => { global.mood = values.join(", "); }, "global:mood"),
       });
       const production = textareaWithSuggestions({
         value: global.production, placeholder: "Production, room, texture, mix character…", rows: 3,
-        suggestions: PRODUCTION_SUGGESTIONS, onInput: (value) => { global.production = value; mark(); },
+        suggestions: PRODUCTION_SUGGESTIONS, onInput: (value) => update(() => { global.production = value; }, "global:production"),
       });
       extra.append(
         field("Working title", title, "Project-only; not injected into the caption."),
@@ -322,12 +402,24 @@ function openStudio(node, compactSummary) {
     const headText = el("div");
     headText.append(
       el("h3", "m3ss-view-title", "Song Timeline"),
-      el("p", "m3ss-view-note", "Structure, Energy, lyric summary and Section Vocal Style stay visible; Instruments opens below when needed."),
+      el("p", "m3ss-view-note", "Drag Structure blocks to reorder. Section edges edit duration; Energy and Instrument changes are fully undoable."),
     );
     const controls = el("div", "m3ss-timeline-controls");
     const addType = selectInput(SECTION_TYPES, "Verse");
     addType.className = "m3ss-add-section-type";
-    const add = button("+ Section", "m3ss-button secondary");
+    const add = button("+ Verse", "m3ss-button");
+    add.title = "Add the selected section type after the currently selected section";
+    const syncAddButton = () => {
+      const palette = sectionPalette(addType.value);
+      add.textContent = `+ ${addType.value}`;
+      add.style.borderColor = palette.border;
+      add.style.background = `linear-gradient(180deg, color-mix(in srgb, ${palette.fill} 82%, #fff 8%), ${palette.fill})`;
+      add.style.color = "#fff";
+      add.style.boxShadow = `inset 0 0 0 1px color-mix(in srgb, ${palette.accent} 28%, transparent)`;
+      add.style.fontWeight = "700";
+    };
+    addType.onchange = syncAddButton;
+    syncAddButton();
     add.onclick = () => addSection(addType.value);
     const fit = button("Fit", "m3ss-button secondary");
     const zoom = document.createElement("input");
@@ -359,11 +451,21 @@ function openStudio(node, compactSummary) {
         }
         render();
       },
+      onChangeBegin: () => beginHistory(),
       onChange: () => {
         project = normalizeProject(project);
         mark();
         renderTimelineView();
         renderInspector();
+      },
+      onReorder: (fromIndex, insertionIndex) => {
+        const moved = project.timeline.sections[fromIndex];
+        if (!moved) return;
+        commit(() => {
+          reorderSections(project.timeline.sections, fromIndex, insertionIndex);
+          selectedId = moved.id;
+        });
+        render();
       },
     });
 
@@ -456,6 +558,7 @@ function openStudio(node, compactSummary) {
         vocal: { values: {}, present: [] },
         sections: analysis.sections.map((section) => ({ ...section, present: ["lyrics"] })),
       };
+      beginHistory();
       project = applyPromptImport(project, lyricsOnly, "merge");
       selectedId = project.timeline.sections.find((section) => section.id === selectedId)?.id || project.timeline.sections[0]?.id || null;
       lyricsExpandedId = selectedId;
@@ -498,8 +601,7 @@ function openStudio(node, compactSummary) {
         area.classList.add("m3ss-lyrics-auto-textarea");
         area.dataset.minHeight = empty ? "58" : "82";
         area.oninput = () => {
-          section.lyrics = area.value;
-          mark();
+          update(() => { section.lyrics = area.value; }, `section-lyrics:${section.id}`);
           if (!fullLyricsDirty && fullLyricsArea) fullLyricsArea.value = fullLyricsDraft;
           autoSizeTextarea(area);
         };
@@ -590,11 +692,11 @@ function openStudio(node, compactSummary) {
     const energyValue = el("span", "m3ss-energy-value", `${Math.round(section.energy * 100)}%`);
     const vocal = editableCombo({
       value: section.vocal, options: SECTION_VOCAL_PRESETS, placeholder: "soft, breathy, powerful… or custom",
-      onInput: (value) => { update(() => { section.vocal = value; }); refreshTimeline(); },
+      onInput: (value) => { update(() => { section.vocal = value; }, `section-vocal:${section.id}`); refreshTimeline(); },
     });
     const instruments = chipEditor({
       values: section.instruments || [], suggestions: INSTRUMENT_PRESETS, placeholder: "Add instrument / texture…",
-      onChange: (values) => { update(() => { section.instruments = values; }); refreshTimeline(); },
+      onChange: (values) => { update(() => { section.instruments = values; }, `section-instruments:${section.id}`); refreshTimeline(); },
     });
     const lyrics = textarea(section.lyrics, "Section lyrics", 4);
     const directive = textarea(section.directives, "Arrangement directive", 5);
@@ -614,15 +716,15 @@ function openStudio(node, compactSummary) {
       });
       render();
     };
-    label.oninput = () => { update(() => { section.label = label.value; }); refreshTimeline(); };
+    label.oninput = () => { update(() => { section.label = label.value; }, `section-label:${section.id}`); refreshTimeline(); };
     duration.oninput = () => {
-      update(() => { section.duration = snapSemanticDuration(duration.value); });
+      update(() => { section.duration = snapSemanticDuration(duration.value); }, `section-duration:${section.id}`);
       duration.value = Number(section.duration).toFixed(1);
       refreshTimeline();
     };
-    energy.oninput = () => { update(() => { section.energy = Number(energy.value) / 100; energyValue.textContent = `${energy.value}%`; }); refreshTimeline(); };
-    lyrics.oninput = () => { update(() => { section.lyrics = lyrics.value; }); refreshTimeline(); };
-    directive.oninput = () => { update(() => { section.directives = directive.value; }); };
+    energy.oninput = () => { update(() => { section.energy = Number(energy.value) / 100; energyValue.textContent = `${energy.value}%`; }, `section-energy:${section.id}`); refreshTimeline(); };
+    lyrics.oninput = () => { update(() => { section.lyrics = lyrics.value; }, `section-lyrics:${section.id}`); refreshTimeline(); };
+    directive.oninput = () => { update(() => { section.directives = directive.value; }, `section-directive:${section.id}`); };
 
     const move = el("div", "m3ss-inspector-actions");
     const up = button("↑", "m3ss-icon-button");
@@ -632,31 +734,41 @@ function openStudio(node, compactSummary) {
     const index = project.timeline.sections.indexOf(section);
     up.disabled = index <= 0;
     down.disabled = index >= project.timeline.sections.length - 1;
+    up.title = "Move section left";
+    down.title = "Move section right";
     up.onclick = () => {
       if (index <= 0) return;
-      [project.timeline.sections[index - 1], project.timeline.sections[index]] = [project.timeline.sections[index], project.timeline.sections[index - 1]];
-      mark(); render();
+      commit(() => {
+        [project.timeline.sections[index - 1], project.timeline.sections[index]] = [project.timeline.sections[index], project.timeline.sections[index - 1]];
+      });
+      render();
     };
     down.onclick = () => {
       if (index >= project.timeline.sections.length - 1) return;
-      [project.timeline.sections[index + 1], project.timeline.sections[index]] = [project.timeline.sections[index], project.timeline.sections[index + 1]];
-      mark(); render();
+      commit(() => {
+        [project.timeline.sections[index + 1], project.timeline.sections[index]] = [project.timeline.sections[index], project.timeline.sections[index + 1]];
+      });
+      render();
     };
     duplicate.onclick = () => {
       if (project.timeline.sections.length >= 32) return alert("V1 supports up to 32 sections.");
-      const copy = JSON.parse(JSON.stringify(section));
-      copy.id = uid(section.type.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "section");
-      copy.label = `${section.label || section.type} Copy`;
-      project.timeline.sections.splice(index + 1, 0, copy);
-      selectedId = copy.id;
-      mark(); render();
+      commit(() => {
+        const copy = JSON.parse(JSON.stringify(section));
+        copy.id = uid(section.type.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "section");
+        copy.label = `${section.label || section.type} Copy`;
+        project.timeline.sections.splice(index + 1, 0, copy);
+        selectedId = copy.id;
+      });
+      render();
     };
     remove.onclick = () => {
       if (project.timeline.sections.length <= 1) return alert("At least one section is required.");
-      project.timeline.sections.splice(index, 1);
-      selectedId = project.timeline.sections[Math.max(0, index - 1)]?.id || null;
-      if (lyricsExpandedId === section.id) lyricsExpandedId = selectedId;
-      mark(); render();
+      commit(() => {
+        project.timeline.sections.splice(index, 1);
+        selectedId = project.timeline.sections[Math.max(0, index - 1)]?.id || null;
+        if (lyricsExpandedId === section.id) lyricsExpandedId = selectedId;
+      });
+      render();
     };
     move.append(up, down, duplicate, remove);
 
@@ -688,16 +800,18 @@ function openStudio(node, compactSummary) {
 
   reset.onclick = () => {
     if (!confirm("Reset this editor session to V1 defaults? The node is unchanged until Save to Node.")) return;
-    const keep = project.project_id;
-    project = factoryProject();
-    project.project_id = keep || uid("project");
-    selectedId = project.timeline.sections[0]?.id || null;
-    lyricsExpandedId = selectedId;
-    captionEditMode = false;
-    captionDraft = "";
-    fullLyricsDirty = false;
-    fullLyricsDraft = compilePreview(project).lyrics;
-    active = "timeline";
+    commit(() => {
+      const keep = project.project_id;
+      project = factoryProject();
+      project.project_id = keep || uid("project");
+      selectedId = project.timeline.sections[0]?.id || null;
+      lyricsExpandedId = selectedId;
+      captionEditMode = false;
+      captionDraft = "";
+      fullLyricsDirty = false;
+      fullLyricsDraft = compilePreview(project).lyrics;
+      active = "timeline";
+    });
     render();
   };
   cancel.onclick = () => shell.close();
