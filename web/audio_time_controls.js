@@ -1,7 +1,7 @@
 import "./audio_mockup_style_fix.js";
 
 if (typeof document !== "undefined") {
-  void import("./audio_waveform_mockup_patch.js");
+  await import("./audio_waveform_mockup_patch.js");
 }
 
 export const SNAP_MODES = ["off", "1/4", "1/8", "1/16"];
