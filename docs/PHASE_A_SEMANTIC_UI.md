@@ -1,145 +1,141 @@
-# Semantic Studio — Timeline / Lyrics UI
+# Semantic Studio — Timeline / Lyrics / Generation UI
 
 Status: implemented in frontend; ComfyUI visual/integration verification pending.
 
-The V1 Semantic Studio is organized around two horizontal views without changing the public node contract or adding V2.1 audio effects.
+The V1 Semantic Studio uses three horizontal authoring views without changing the public node contract, `project_json.schema_version`, MiniMax Music3 backend, KSampler, or V2.1 DSP/effects.
 
 ## Navigation
 
-Normal navigation contains only:
+Normal navigation contains:
 
-- Timeline (default)
-- Lyrics
+- **Timeline** (default)
+- **Lyrics**
+- **Generation**
 
-The former Overview / Global / Arrangement / Vocal / Advanced / Prompt pages are folded into these two views and the Timeline Section Inspector.
+The tabs use explicit bordered/background states rather than text-only navigation. Undo / Redo is grouped on the left with distinct accents.
+
+Both Semantic Studio and the Audio Editor open maximized by default. Restore returns to the remembered normal window size.
 
 ## Undo / Redo
 
-Semantic Studio keeps an editor-session project history with visible **Undo / Redo** buttons in the top bar.
+Semantic Studio keeps editor-session history with visible **Undo / Redo** controls.
 
 - `Ctrl/Cmd+Z` — Undo
 - `Ctrl/Cmd+Shift+Z` or `Ctrl/Cmd+Y` — Redo
-- text/slider bursts are coalesced so normal typing or continuous adjustments do not create one history entry per tiny input event
-- section add/delete/duplicate/reorder, Timeline duration/energy/instrument edits, Global/Main Vocal/Inspector fields, Prompt Import apply and Full Lyrics apply participate in project history
+- text/slider bursts are coalesced
+- section add/delete/duplicate/reorder, duration/energy/instrument edits, Global/Main Vocal/Inspector edits, Prompt Import apply, Full Lyrics apply, and Generation-tab edits participate in history
 - history is session-only and is not serialized into `project_json`
 
-Caption Draft and unapplied Full Lyrics Draft remain temporary authoring buffers; project history applies once those drafts are analyzed/applied back to structured project state.
+## Timeline
 
-## Timeline song settings
+Timeline keeps the existing song-wide fields and semantic structure.
 
-The Timeline header exposes the high-frequency song-wide fields already stored in `project_json.global`:
+Song Settings exposes:
 
 - Genre
 - BPM
 - Key
 - Scale / Mode
+- Effective Key (derived display such as `D minor`; it does not rewrite the stored Key/Scale)
 - Meter
 - Vocal / Instrumental mode
 
-`Main Vocal` is a visually differentiated expandable row containing song-wide lead/voice type, timbre/character, delivery, harmony and vocal-effects wording. New UI state defaults the accordion open; subsequent open/closed state is remembered locally.
+`Main Vocal` remains a visually differentiated accordion and defaults open for new UI state.
 
-Harmony / backing and Vocal effects use editable preset-backed controls. The catalogs contain MiniMax-oriented anchor wording plus broadly compatible AI-music authoring phrases, while custom text remains valid. They are prompt-authoring suggestions rather than guaranteed model-side enums or real DSP effect switches.
+`More Settings` contains Working title, Subgenres / influences, Mood / direction and Production profile.
 
-`More Settings` expands Working title, Subgenres / influences, Mood / direction and Production profile. Preset-backed expressive controls remain editable and imported/custom wording is not locked.
+### Song Timeline accordion
 
-## Timeline rows
+The complete timeline editor is wrapped in a **Song Timeline** accordion. New UI state defaults open and the open/closed state is remembered locally.
 
-Timeline order:
+Timeline row order remains:
 
 1. Structure
 2. Energy
 3. Lyrics summary
 4. Vocal Style
-5. Instruments (collapsible)
+5. Instruments
 
-Section type determines UI color only. Color is not added to `project_json`.
-
-The selected section receives a low-opacity vertical highlight through all Timeline rows.
-
-### Structure
-
-- width represents section `duration`
-- right-edge drag changes duration
-- Shift + drag trades duration with the following section
-- semantic duration is normalized to 0.1 second steps
-- section type can be selected when adding a new section
-- the **+ Section** action displays the chosen type and uses that section type's color
-- a new section is inserted immediately after the currently selected section rather than always appended to the song end
-- Structure blocks can be dragged horizontally and dropped before/after another section to reorder the song
-- Inspector `↑ / ↓` remains available as a precise one-step reorder alternative
-
-### Vocal Style
-
-Timeline Vocal Style displays the existing per-section `section.vocal` semantic wording. It is intentionally distinct from the song-wide Main Vocal character.
-
-Long common values use compact display aliases only, for example:
-
-- `soft half-sung half-spoken` -> `Soft / Half-spoken`
-- `soft lead with murmured doubles` -> `Soft + Doubles`
-- `hushed hums` -> `Hushed`
-- `instrumental` -> `Inst.`
-
-The underlying project wording is not rewritten by these display aliases. Detailed editing remains available in the Section Inspector.
+Structure blocks can be reordered by drag/drop or Inspector arrows. New sections are inserted after the current selection. Duration edges, Energy points and Instrument cells remain directly editable and participate in Undo / Redo.
 
 ### Instruments
 
-Instrument lanes are derived directly from existing `section.instruments[]` values. There is no stem/separation model behind this view.
+Instrument lanes still represent `section.instruments[]`; they are semantic generation guidance, not separated audio stems.
 
-- Instruments is the bottom Timeline group
-- a visible `▸ / ▾` affordance indicates collapse/expand state
+- group is collapsible
 - each unique instrument becomes one lane when expanded
-- an active cell means that instrument is present in that section
-- clicking a cell adds/removes the instrument from `section.instruments[]`
-- custom instruments added in the Inspector automatically appear as lanes
-- the collapsed state shows compact per-section instrument counts
+- active cells add/remove the instrument for that section
+- active states use a thicker rounded colored lane for better visibility
+- underlying saved values remain unchanged
 
-## Lyrics view
+## Lyrics
 
-On wide windows Lyrics uses three columns:
+Lyrics remains a three-pane authoring view on wide windows:
 
 1. Caption
 2. Full Lyrics
 3. Section Lyrics
 
-The two vertical dividers are draggable. Caption and Full Lyrics pane widths are remembered in local UI storage, and double-clicking either divider restores its default width. On smaller windows the splitters disappear and the panes stack vertically.
+Pane dividers remain draggable and remembered. Caption stays the authoritative compiled preview unless switched into temporary Draft Editing. Normal Prompt Import defaults to Replace section structure; Merge remains available.
 
-### Caption
+## Generation
 
-Caption is the authoritative compiler output in normal mode and is read-only.
+Generation is the dedicated UI for the existing MiniMax Music3 autoregressive generation widgets:
 
-`Edit` switches the same field into a temporary Draft mode. Draft text is not authoritative project state. `Analyze & Import` opens the existing deterministic Analyze -> Import Preview -> Apply workflow prefilled with the edited Caption and current Lyrics. Caption Draft uses Merge by default because it begins from the current project.
+- **Music Seed (AR)** → existing node `seed`
+- **Duration Limit** → existing node `max_duration`
+- **Music CFG (AR)** → existing node `cfg_scale`
+- **Music Top-K** → existing node `top_k`
 
-`Import Prompt` remains available from the Caption panel. Normal external Prompt Import defaults to Replace section structure, while Merge remains selectable.
+These values are not duplicated into `project_json`. The Generation tab reads the existing node widgets when opened and writes them back when **Save to Node** is used.
 
-### Full Lyrics
+The naming intentionally distinguishes them from KSampler controls:
 
-Full Lyrics is an editable complete tagged representation using canonical section tags such as `[Intro]`, `[Verse]`, `[Chorus]` and `[Instrumental]`.
+- Music Seed (AR) affects MiniMax Music3's autoregressive music/token generation stage.
+- KSampler Seed creates diffusion latent noise later in the graph.
+- Music CFG (AR) guides the MiniMax autoregressive token stage.
+- KSampler CFG guides diffusion later in the graph.
+- Music Top-K has no KSampler counterpart.
 
-`Apply to Sections` uses the existing Prompt Import parser and merge engine, scoped so matching sections update only their Lyrics. Timing, energy, instruments, vocal style and existing labels are preserved for matching sections. New supported tagged sections may be appended using normal import defaults.
+### Duration synchronization
 
-### Section Lyrics
+Generation displays both **Timeline Total** and **Duration Limit**.
 
-Section Lyrics is a one-section-at-a-time accordion:
+`Auto Sync with Timeline` defaults on and is remembered as local UI state. When enabled, Duration Limit follows the semantic section-duration total. When disabled, the user can set an independent AR generation ceiling. Duration Limit remains a maximum; MiniMax Music3 may stop before that limit.
 
-- every row always shows `▸ / ▾`
-- empty sections remain compact
-- empty/Instrumental sections show `No lyrics`
-- textareas start small and grow with content until a bounded internal scroll height
-- editing a Section updates the derived Full Lyrics display when the Full Lyrics draft is not independently dirty
+The compact graph node hides the routine AR widgets while keeping them alive as the actual serialized ComfyUI widgets; Generation is only a clearer editing surface for those same values.
 
-## Prompt Import
+## English / Japanese UI
 
-Prompt parsing remains deterministic and local. No connected LLM, network service or model runtime is needed for Analyze / Preview / Apply.
+The extension supports English and Japanese UI chrome.
 
-The normal external import default is Replace section structure. Merge detected fields remains available for incremental edits.
+- `Comfy.Locale = ja...` → Japanese labels
+- all other locales → English fallback
+- custom-node `locales/en/nodeDefs.json` and `locales/ja/nodeDefs.json` provide node-definition labels/tooltips
+- Studio / Audio Editor custom frontend surfaces use the current ComfyUI locale through the extension-facing settings API
+- prompt values, preset values and data written to MiniMax/project JSON are **not translated**
+
+Japanese translation is therefore a presentation layer only; it does not change prompt semantics or saved schemas.
+
+## Audio Editor visual consistency
+
+The Audio Editor keeps the Unified Waveform architecture and schema 2. This UI-polish pass only clarifies competing highlights:
+
+- playhead uses a thin cyan line
+- selected clip uses violet emphasis
+- waveform selection uses blue/cyan emphasis
+- gain envelope remains orange/amber
+
+No V2.1 DSP effects are introduced by this pass.
 
 ## Data / compatibility
 
-- public V1 node ID and `(CONDITIONING, seconds)` outputs are unchanged
+- V1 node ID `MiniMaxMusic3SemanticStudio` unchanged
+- V1 outputs `(CONDITIONING, seconds)` unchanged
 - `project_json.schema_version` remains 1
-- no new required project field is introduced
-- Undo/Redo history, section colors, top-tab choice, accordion state, Caption Draft, Full Lyrics Draft and pane widths are presentation/session state only
-- existing `global`, `timeline.sections`, `section.instruments`, `section.vocal`, `lyrics` and `directives` fields remain the saved source of truth
-- Prompt Preview / normal Caption remains the authoritative compiler output
-- no Python runtime dependency is added
-- no V2.1 DSP/effects are included
+- V2 Audio Editor remains a separate `AUDIO -> AUDIO` node
+- Generation uses the existing node widgets rather than new project fields
+- unknown project fields remain preserved by the existing normalization path
+- no Python runtime dependency added
+- no ComfyUI core, KSampler, MiniMax built-in node, VAE, or sampler patch
+- no V2.1 DSP/effects included
