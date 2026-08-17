@@ -27,7 +27,10 @@
 .m3ssv2-track-height-handle::before{content:"";position:absolute;top:4px;right:0;left:0;height:1px;background:rgba(139,158,184,.22)}
 .m3ssv2-track-height-handle::after{content:"";position:absolute;top:2px;left:50%;width:44px;height:5px;transform:translateX(-50%);border-radius:99px;background:rgba(129,151,180,.22)}
 .m3ssv2-track-height-handle:hover::after,.m3ssv2-track-height-handle.is-dragging::after{background:rgba(109,151,255,.58)}
-.m3ssv2-mockup-ui .m3ssv2-wave-area.has-manual-track-height{flex:0 0 auto!important;min-height:180px!important;max-height:none!important}
+.m3ssv2-mockup-ui .m3ssv2-wave-area.has-manual-track-height{flex:0 0 auto!important;min-height:260px!important;max-height:none!important}
+.m3ssv2-mockup-ui .m3ssv2-wave-area.has-manual-track-height .m3ssv2-peak-channels{min-height:64px}
+.m3ssv2-mockup-ui .m3ssv2-wave-area.has-manual-track-height .m3ssv2-peak-channel{grid-template-rows:auto minmax(54px,1fr) auto;min-width:42px}
+.m3ssv2-mockup-ui .m3ssv2-wave-area.has-manual-track-height .m3ssv2-peak-rail{min-height:54px}
 
 /* Empty editor: Audacity-like blank working surface rather than a single message. */
 .m3ssv2-empty-editor .m3ssv2-root{min-height:0}
