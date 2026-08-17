@@ -1,0 +1,56 @@
+/* Semantic Studio final authoring polish: tabs, generation, timeline accordion. */
+.m3ss-final-polish .m3ss-top-tabs{
+  display:flex;align-items:center;gap:8px;padding:8px 10px 7px;border-bottom:1px solid rgba(255,255,255,.08);
+  background:linear-gradient(180deg,rgba(20,28,40,.96),rgba(14,20,30,.96));
+}
+.m3ss-final-polish .m3ss-top-tab{
+  min-width:112px;padding:9px 18px;border:1px solid rgba(112,151,180,.28);border-radius:9px;
+  background:#111a26;color:#9fb0c2;font-size:13px;font-weight:750;letter-spacing:.015em;box-shadow:inset 0 1px rgba(255,255,255,.025);
+}
+.m3ss-final-polish .m3ss-top-tab:hover{border-color:rgba(106,196,181,.48);color:#d5e7e5;background:#14222d}
+.m3ss-final-polish .m3ss-top-tab.is-active{border-color:rgba(91,207,188,.7);background:linear-gradient(180deg,#18352f,#122923);color:#91ead9;box-shadow:inset 0 -2px rgba(91,207,188,.65),0 0 0 1px rgba(91,207,188,.08)}
+.m3ss-final-polish .m3ss-top-tab[data-view="lyrics"].is-active{border-color:rgba(82,179,220,.72);background:linear-gradient(180deg,#173044,#122535);color:#91d9f4;box-shadow:inset 0 -2px rgba(82,179,220,.7)}
+.m3ss-final-polish .m3ss-top-tab[data-view="generation"].is-active{border-color:rgba(184,139,222,.72);background:linear-gradient(180deg,#302244,#241a35);color:#d6b1f2;box-shadow:inset 0 -2px rgba(184,139,222,.72)}
+.m3ss-final-polish .m3ss-history-actions{display:flex!important;align-items:center!important;gap:6px!important;margin:0 7px 0 0!important;padding:0 9px 0 0!important;border-right:1px solid rgba(255,255,255,.08)}
+.m3ss-final-polish .m3ss-history-actions .m3ss-button{font-weight:700}
+.m3ss-final-polish .m3ss-history-undo{border-color:rgba(77,155,235,.4)!important;background:rgba(43,91,145,.22)!important;color:#9bc8f6!important}
+.m3ss-final-polish .m3ss-history-redo{border-color:rgba(174,112,222,.4)!important;background:rgba(105,62,142,.23)!important;color:#d2a8ef!important}
+.m3ss-final-polish .m3ss-history-actions .m3ss-button:disabled{border-color:rgba(255,255,255,.08)!important;background:#111722!important;color:#4d5a69!important;opacity:.72}
+
+.m3ss-effective-key{display:flex;align-items:center;gap:7px;min-height:31px;padding:5px 9px;border:1px solid rgba(94,188,171,.22);border-radius:7px;background:rgba(27,72,65,.15);color:#a5c8c1;font-size:10px;white-space:nowrap}
+.m3ss-effective-key strong{color:#d4ebe6;font-size:12px;font-weight:750}
+
+.m3ss-timeline-accordion{margin-top:6px;border:1px solid rgba(75,166,194,.18);border-radius:9px;background:rgba(10,17,26,.52);overflow:hidden}
+.m3ss-timeline-accordion-toggle{display:flex;width:100%;align-items:center;gap:9px;padding:9px 12px;border:0;border-bottom:1px solid transparent;background:linear-gradient(90deg,rgba(39,113,130,.25),rgba(22,43,57,.14));color:#b8dce5;text-align:left;font-size:13px;font-weight:800;cursor:pointer}
+.m3ss-timeline-accordion-toggle.is-open{border-bottom-color:rgba(75,166,194,.16)}
+.m3ss-timeline-accordion-toggle:hover{background:linear-gradient(90deg,rgba(47,132,151,.3),rgba(24,49,64,.2))}
+.m3ss-timeline-accordion-arrow{width:15px;color:#70cbda;font-size:13px;text-align:center}
+.m3ss-timeline-accordion-summary{margin-left:auto;color:#70899a;font-size:9px;font-weight:500;letter-spacing:.02em}
+.m3ss-timeline-accordion-body{padding:0 0 4px}
+.m3ss-timeline-accordion-body .m3ss-center-head{margin-top:0;border-top:0}
+
+/* Keep the whole cell clickable but make the actual arrangement state read as a musical lane. */
+.m3ss-final-polish .m3ss-tl-instrument-cell{background:rgba(255,255,255,.012)!important;border-color:rgba(255,255,255,.035)!important}
+.m3ss-final-polish .m3ss-tl-instrument-cell::after{content:"";position:absolute;left:5px;right:5px;top:50%;height:5px;transform:translateY(-50%);border-radius:999px;background:rgba(92,111,128,.13);pointer-events:none}
+.m3ss-final-polish .m3ss-tl-instrument-cell.is-active::after{background:var(--m3ss-section-accent);box-shadow:0 0 7px color-mix(in srgb,var(--m3ss-section-accent) 40%,transparent)}
+.m3ss-final-polish .m3ss-tl-instrument-cell.is-active{background:color-mix(in srgb,var(--m3ss-section-fill) 18%,transparent)!important}
+
+.m3ss-generation-view{display:grid;align-content:start;gap:14px;padding:12px 14px 18px;overflow:auto}
+.m3ss-generation-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:13px 15px;border:1px solid rgba(181,132,220,.22);border-radius:10px;background:linear-gradient(105deg,rgba(76,46,104,.28),rgba(19,25,36,.72))}
+.m3ss-generation-head h3{margin:0 0 4px;color:#e4cef4;font-size:16px}.m3ss-generation-head p{max-width:760px;margin:0;color:#93a1b3;font-size:10px;line-height:1.55}
+.m3ss-generation-grid{display:grid;grid-template-columns:repeat(2,minmax(230px,1fr));gap:11px}
+.m3ss-generation-card{padding:13px;border:1px solid rgba(255,255,255,.085);border-radius:9px;background:#101823}
+.m3ss-generation-card.is-duration{grid-column:1/-1;border-color:rgba(90,180,164,.23);background:linear-gradient(110deg,rgba(25,74,65,.18),#101823 55%)}
+.m3ss-generation-card h4{margin:0 0 8px;color:#c5d1df;font-size:11px}.m3ss-generation-card .m3ss-field{margin:0}
+.m3ss-generation-card input[type=number]{width:100%;font-variant-numeric:tabular-nums}
+.m3ss-generation-value-row{display:flex;align-items:flex-end;gap:9px}.m3ss-generation-value-row .m3ss-field{flex:1}
+.m3ss-generation-timeline-total{min-width:145px;padding:7px 9px;border:1px solid rgba(255,255,255,.06);border-radius:7px;background:#0c131e;color:#8396a9;font-size:9px}
+.m3ss-generation-timeline-total strong{display:block;margin-top:2px;color:#c9e4df;font:700 13px ui-monospace,SFMono-Regular,Consolas,monospace}
+.m3ss-generation-auto{display:flex;align-items:center;gap:7px;margin-top:9px;color:#a8b7c6;font-size:10px;cursor:pointer}.m3ss-generation-auto input{accent-color:#64cbbb}
+.m3ss-generation-note{padding:11px 13px;border-left:3px solid rgba(181,132,220,.6);border-radius:7px;background:rgba(70,48,92,.16);color:#9da9ba;font-size:10px;line-height:1.6}
+.m3ss-generation-note strong{color:#d7c0e9}
+
+.m3ss-final-polish .m3ss-workspace.is-generation-view{grid-template-columns:minmax(0,1fr)}
+.m3ss-final-polish .m3ss-workspace.is-generation-view .m3ss-pane-splitter,.m3ss-final-polish .m3ss-workspace.is-generation-view .m3ss-inspector{display:none}
+
+@container (max-width:900px){.m3ss-generation-grid{grid-template-columns:1fr}}
