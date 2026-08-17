@@ -31,6 +31,7 @@ const JA = {
   "Cancel": "キャンセル",
   "No source audio is loaded yet.": "まだソース音声が読み込まれていません。",
   "Audio-dependent editing becomes available after the first Queue.": "最初のQueue後に音声編集機能が利用できます。",
+  "Drag to resize track height · double-click to reset": "ドラッグでトラックの高さを変更 · ダブルクリックでリセット",
 };
 
 const tr = (text) => currentUiLocale() === "ja" ? (JA[text] || text) : text;
@@ -77,13 +78,16 @@ function installEmptyTrackResize(main, waveArea) {
   const handle = el("div", "m3ssv2-track-height-handle");
   handle.setAttribute("role", "separator");
   handle.setAttribute("aria-orientation", "horizontal");
+  handle.setAttribute("aria-valuemin", "260");
+  handle.setAttribute("aria-valuemax", "760");
+  handle.title = tr("Drag to resize track height · double-click to reset");
   handle.tabIndex = 0;
   waveArea.after(handle);
   const defaultHeight = 430;
 
   const setHeight = (value, persist = true) => {
     const maximum = Math.max(260, Math.min(760, main.clientHeight - 150 || 760));
-    const next = Math.max(220, Math.min(maximum, Number(value) || defaultHeight));
+    const next = Math.max(260, Math.min(maximum, Number(value) || defaultHeight));
     waveArea.classList.add("has-manual-track-height");
     waveArea.style.height = `${next}px`;
     waveArea.style.flexBasis = `${next}px`;
