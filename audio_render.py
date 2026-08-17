@@ -8,8 +8,10 @@ import torch
 
 try:
     from .audio_edit_project import SourceInfo, normalize_edit_project, project_timeline_duration
+    from .audio_effects_dsp import apply_effect_chain
 except ImportError:  # Allows pure-module tests outside ComfyUI package loading.
     from audio_edit_project import SourceInfo, normalize_edit_project, project_timeline_duration
+    from audio_effects_dsp import apply_effect_chain
 
 
 @dataclass(frozen=True)
@@ -102,7 +104,6 @@ def collect_sources(
                 f"{info.name} is incompatible with Take 1: " + ", ".join(mismatches) + "."
             )
 
-    # Render on the primary device/dtype so explicitly connected takes can originate elsewhere.
     primary_waveform = sources["take-1"]["waveform"]
     for source_id, source in sources.items():
         if source_id == "take-1":
@@ -145,13 +146,6 @@ def _envelope_amplitude(
     *,
     zero_anchors: bool,
 ) -> torch.Tensor | None:
-    """Build a dB-linear envelope.
-
-    Schema-1 clip envelopes keep implicit 0 dB anchors for compatibility.
-    Track envelopes hold the first and last user point outside their range and
-    remain neutral when no points exist.
-    """
-
     if not points or num_samples <= 0:
         return None
 
@@ -229,7 +223,6 @@ def _render_clip(
 
     rendered *= _db_to_amplitude(clip["gain_db"], device=rendered.device, dtype=rendered.dtype)
 
-    # Legacy clip envelope remains valid after schema-1 migration.
     envelope = _envelope_amplitude(
         rendered.shape[-1],
         sample_rate,
@@ -262,21 +255,6 @@ def _render_clip(
         ).view(1, 1, -1)
 
     return _apply_pan_balance(rendered, clip["pan"])
-
-
-def _enabled_effects(effects: Any) -> list[dict[str, Any]]:
-    return [
-        effect
-        for effect in (effects if isinstance(effects, list) else [])
-        if isinstance(effect, dict) and effect.get("enabled", True)
-    ]
-
-
-def _ensure_effects_supported(owner: str, effects: Any) -> None:
-    active = _enabled_effects(effects)
-    if active:
-        names = ", ".join(str(effect.get("type") or effect.get("id") or "unknown") for effect in active)
-        raise ValueError(f"{owner} has enabled effects ({names}), but this build has not enabled the V2.1 DSP renderer yet.")
 
 
 def _render_track(
@@ -313,8 +291,12 @@ def _render_track(
         track_mix *= track_envelope.view(1, 1, -1)
     track_mix *= _db_to_amplitude(track.get("gain_db", 0.0), device=track_mix.device, dtype=track_mix.dtype)
     track_mix = _apply_pan_balance(track_mix, track.get("pan", 0.0))
-    _ensure_effects_supported(f"Track {track.get('name') or track.get('id')}", track.get("effects", []))
-    return track_mix
+    return apply_effect_chain(
+        track_mix,
+        sample_rate,
+        track.get("effects", []),
+        owner=f"Track {track.get('name') or track.get('id')}",
+    )
 
 
 def _apply_channel_mode(waveform: torch.Tensor, mode: str) -> torch.Tensor:
@@ -371,13 +353,12 @@ def render_audio_edit(
         mixed += _render_track(track, sources, sample_rate, output_shape)
 
     master = project["master"]
-    _ensure_effects_supported("Master", master.get("effects", []))
+    mixed = apply_effect_chain(mixed, sample_rate, master.get("effects", []), owner="Master")
     mixed = _apply_channel_mode(mixed, master["channel_mode"])
     mixed *= _db_to_amplitude(master["gain_db"], device=mixed.device, dtype=mixed.dtype)
     if master["normalize"]["enabled"]:
         mixed = _normalize_peak(mixed, master["normalize"]["target_peak_dbfs"])
 
-    # Keep valid floating AUDIO without silently hard-clipping creative gain choices.
     mixed = torch.nan_to_num(mixed, nan=0.0, posinf=1.0, neginf=-1.0)
     result_audio = {"waveform": mixed, "sample_rate": sample_rate}
     return RenderResult(audio=result_audio, project=project, sources=infos)
