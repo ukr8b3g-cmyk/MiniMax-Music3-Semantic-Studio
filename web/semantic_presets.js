@@ -4,6 +4,9 @@
 // conveniences and are not model-side enums. Section-vocal wording also includes
 // broadly compatible music-generation phrasing (for example whisper/belting/husky)
 // without claiming those terms are fixed MiniMax enums.
+// Harmony/effects include MiniMax-documented anchors such as duet harmonies,
+// layered backing vocals/ad-libs and moderate reverb, plus broadly compatible
+// ACE-Step/HeartMuLa/Suno-style authoring phrases. They remain free-form hints.
 
 export const GENRE_GROUPS = {
   "Pop & Dance": ["Pop", "Dance Pop", "Electropop", "Synth-pop", "Dream Pop", "K-pop", "J-pop", "C-pop", "City Pop", "House", "Future Bass", "EDM"],
@@ -41,6 +44,52 @@ export const VOCAL_DELIVERY_PRESETS = [
   "intimate phrasing", "breathy delivery", "rhythmic intensity", "smooth jazz inflections",
   "gospel inflections", "ad-libs and melodic scats", "shifting between whispers and screams",
   "half-sung half-spoken", "laid-back behind-the-beat phrasing",
+];
+
+export const VOCAL_HARMONY_PRESETS = [
+  "no backing vocals",
+  "sparse backing harmonies",
+  "soft backing harmonies",
+  "layered chorus harmonies",
+  "extensive layered backing vocals",
+  "stacked unison vocals",
+  "close two-part harmony",
+  "three-part harmony",
+  "octave doubles",
+  "murmured doubles",
+  "whispered doubles",
+  "male and female duet harmonies",
+  "call-and-response backing vocals",
+  "ad-libs and response vocals",
+  "wordless ooh and aah harmonies",
+  "group / choir layers",
+  "gospel choir backing",
+  "wide stereo backing vocals",
+  "chorus-only harmonies",
+  "outro choir swell",
+];
+
+export const VOCAL_EFFECT_PRESETS = [
+  "dry close-mic vocal",
+  "subtle room reverb",
+  "moderate reverb for a spacious feel",
+  "warm plate reverb",
+  "spring reverb",
+  "lush hall reverb",
+  "short slapback delay",
+  "warm tape delay",
+  "stereo delay throws",
+  "warm tape delay and spring reverb",
+  "subtle vocal doubling",
+  "wide doubled vocal",
+  "light chorus on backing vocals",
+  "gentle tape saturation",
+  "lo-fi filtered vocal",
+  "telephone-style filtered vocal",
+  "dreamy reverb and delay wash",
+  "tight modern vocal processing",
+  "light pitch-correction character",
+  "vocoder-like electronic texture",
 ];
 
 export const SECTION_VOCAL_PRESETS = [
