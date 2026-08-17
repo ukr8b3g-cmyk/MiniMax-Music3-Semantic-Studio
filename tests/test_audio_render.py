@@ -185,8 +185,26 @@ def test_equal_power_fade_endpoints():
     assert rendered[-1] == pytest.approx(1.0, abs=1e-6)
 
 
+def test_supported_v21b_track_and_master_effects_render():
+    source = audio([0.25, 0.25, 0.25, 0.25], sample_rate=4)
+    edit = project_with_clips(
+        [clip(source_out=1)],
+        track={"effects": [{
+            "id": "gain", "type": "gain", "enabled": True,
+            "params": {"gain_db": 6.020599913},
+        }]},
+        master={"effects": [{
+            "id": "limiter", "type": "limiter", "enabled": True,
+            "params": {"input_gain_db": 6.020599913, "ceiling_db": -6.020599913, "release_ms": 100, "lookahead_ms": 1},
+        }]},
+    )
+    rendered = render_audio_edit(source, edit).audio["waveform"]
+    assert float(rendered.abs().max()) <= 0.50001
+    assert float(rendered.abs().max()) > 0.49
+
+
 def test_enabled_future_effect_fails_loudly_until_dsp_is_available():
     source = audio([1, 1], sample_rate=2)
     edit = project_with_clips([clip(source_out=1)], track={"effects": [{"id": "fx", "type": "reverb", "enabled": True, "params": {}}]})
-    with pytest.raises(ValueError, match="enabled effects"):
+    with pytest.raises(ValueError, match="unsupported effect"):
         render_audio_edit(source, edit)
