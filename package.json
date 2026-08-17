@@ -8,7 +8,7 @@
     "test:timeline": "node --test tests/js/semantic_timeline.test.mjs",
     "test:controls": "node --test tests/js/semantic_controls.test.mjs",
     "test:audio": "node --test tests/js/audio_edit_commands.test.mjs tests/js/audio_draft_core.test.mjs",
-    "test:semantic": "node --test tests/js/prompt_import_core.test.mjs tests/js/semantic_presets.test.mjs tests/js/semantic_timeline.test.mjs tests/js/semantic_controls.test.mjs",
+    "test:semantic": "node --test tests/js/prompt_import_core.test.mjs tests/js/semantic_presets.test.mjs tests/js/semantic_timeline.test.mjs tests/js/semantic_controls.test.mjs tests/js/semantic_history.test.mjs",
     "test:ui": "playwright test",
     "test:ui:headed": "playwright test --headed"
   },
