@@ -180,11 +180,11 @@ export function renderEffectsRack(container, project, commit, state = createEffe
   const owner = effectOwner(project, state.owner);
   const effects = owner?.effects || [];
   const rackHead = el("div", "m3ssv2-effects-rack-head");
-  rackHead.appendChild(el("strong", "", ownerTitle(project, state.owner)));
   const add = button(tr("+ Add Effect"), "m3ssv2-button m3ssv2-fx-add");
+  add.title = ownerTitle(project, state.owner);
+  add.setAttribute("aria-expanded", state.addOpen ? "true" : "false");
   add.onclick = () => { state.addOpen = !state.addOpen; rerender(); };
   rackHead.appendChild(add);
-  root.appendChild(rackHead);
 
   if (state.addOpen) {
     const menu = el("div", "m3ssv2-fx-add-menu");
@@ -209,8 +209,9 @@ export function renderEffectsRack(container, project, commit, state = createEffe
       group.appendChild(items);
       menu.appendChild(group);
     }
-    root.appendChild(menu);
+    rackHead.appendChild(menu);
   }
+  root.appendChild(rackHead);
 
   const list = el("div", "m3ssv2-effects-list");
   if (!effects.length) list.appendChild(el("div", "m3ssv2-empty m3ssv2-fx-empty", tr("No effects yet.")));
@@ -239,6 +240,7 @@ export function renderEffectsRack(container, project, commit, state = createEffe
     const cardHead = el("div", "m3ssv2-fx-card-head");
     const power = button(effect.enabled ? "●" : "○", `m3ssv2-fx-power${effect.enabled ? " is-on" : ""}`);
     power.title = tr(effect.enabled ? "On" : "Off");
+    power.setAttribute("aria-pressed", effect.enabled ? "true" : "false");
     power.onclick = () => {
       commit(() => { effect.enabled = !effect.enabled; });
       rerender();
