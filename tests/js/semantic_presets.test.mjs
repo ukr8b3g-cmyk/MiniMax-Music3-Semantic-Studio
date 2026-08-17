@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   GENRE_PRESETS, INSTRUMENT_PRESETS, BPM_PRESETS, VOCAL_TIMBRE_PRESETS, KEY_PRESETS, SECTION_VOCAL_PRESETS,
+  VOCAL_HARMONY_PRESETS, VOCAL_EFFECT_PRESETS,
 } from '../../web/semantic_presets.js';
 
 function uniqueCaseInsensitive(values) {
@@ -23,6 +24,17 @@ test('section vocal suggestions include expressive editable wording', () => {
   assert.equal(uniqueCaseInsensitive(SECTION_VOCAL_PRESETS), true);
   for (const value of ['whispered', 'belting', 'husky / rough', 'ethereal', 'powerful and soulful']) {
     assert.ok(SECTION_VOCAL_PRESETS.includes(value));
+  }
+});
+
+test('harmony and vocal-effect suggestions stay unique and include MiniMax anchors', () => {
+  assert.equal(uniqueCaseInsensitive(VOCAL_HARMONY_PRESETS), true);
+  assert.equal(uniqueCaseInsensitive(VOCAL_EFFECT_PRESETS), true);
+  for (const value of ['layered chorus harmonies', 'stacked unison vocals', 'ad-libs and response vocals']) {
+    assert.ok(VOCAL_HARMONY_PRESETS.includes(value));
+  }
+  for (const value of ['moderate reverb for a spacious feel', 'warm tape delay', 'spring reverb']) {
+    assert.ok(VOCAL_EFFECT_PRESETS.includes(value));
   }
 });
 
