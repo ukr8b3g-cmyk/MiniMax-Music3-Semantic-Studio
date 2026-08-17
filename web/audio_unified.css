@@ -8,7 +8,7 @@
 .m3ssv2-mockup-ui .m3ssv2-render-state{margin-left:auto}
 
 /* Mockup top row: transport, tools and primary edit commands. */
-.m3ssv2-command-dock{display:flex;align-items:center;gap:8px;flex:0 0 auto;margin:7px 10px 2px;padding:7px;border:1px solid rgba(255,255,255,.075);border-radius:9px;background:linear-gradient(180deg,#111a26,#0d151f);box-shadow:0 6px 18px rgba(0,0,0,.18)}
+.m3ssv2-command-dock{order:1;display:flex;align-items:center;gap:8px;flex:0 0 auto;margin:7px 10px 2px;padding:7px;border:1px solid rgba(255,255,255,.075);border-radius:9px;background:linear-gradient(180deg,#111a26,#0d151f);box-shadow:0 6px 18px rgba(0,0,0,.18)}
 .m3ssv2-command-group{display:flex;align-items:center;gap:4px;padding:4px;border:1px solid rgba(255,255,255,.08);border-radius:7px;background:#0d151f}
 .m3ssv2-command-group.is-transport{border-color:rgba(44,159,112,.55);box-shadow:inset 0 0 0 1px rgba(44,159,112,.12)}
 .m3ssv2-command-group.is-tools{border-color:rgba(46,127,214,.58);box-shadow:inset 0 0 0 1px rgba(46,127,214,.12)}
@@ -22,11 +22,11 @@
 .is-tools .m3ssv2-command-button.is-active{border-color:#5aa5ff!important;background:linear-gradient(180deg,#246fc0,#195292)!important;color:#fff!important}
 .m3ssv2-command-button:disabled{opacity:.34;filter:saturate(.35)}
 
-.m3ssv2-mockup-ui .m3ssv2-wave-head{flex:0 0 auto;margin:4px 10px 0;padding:5px 9px;border-left:3px solid rgba(85,185,165,.72);border-radius:6px;background:linear-gradient(90deg,rgba(55,124,112,.14),transparent)}
+.m3ssv2-mockup-ui .m3ssv2-wave-head{order:2;flex:0 0 auto;margin:4px 10px 0;padding:5px 9px;border-left:3px solid rgba(85,185,165,.72);border-radius:6px;background:linear-gradient(90deg,rgba(55,124,112,.14),transparent)}
 .m3ssv2-mockup-ui .m3ssv2-wave-head strong{color:#e3edf4;font-size:11px}.m3ssv2-mockup-ui .m3ssv2-wave-note{color:#8396ad;font-size:9px}
 
 /* Main surface: track controls and waveform only. Peak meters live inside track controls. */
-.m3ssv2-mockup-ui .m3ssv2-wave-area{display:grid;grid-template-columns:150px minmax(0,1fr);flex:1 1 auto;min-height:360px;max-height:none;margin:5px 10px;border:1px solid rgba(255,255,255,.11);border-radius:9px;background:#080d14;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.22)}
+.m3ssv2-mockup-ui .m3ssv2-wave-area{order:3;display:grid;grid-template-columns:150px minmax(0,1fr);flex:1 1 auto;min-height:360px;max-height:none;margin:5px 10px;border:1px solid rgba(255,255,255,.11);border-radius:9px;background:#080d14;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.22)}
 .m3ssv2-mockup-ui .m3ssv2-wave-wrap{display:block;min-width:0;min-height:0;height:100%;padding:0;border-left:1px solid rgba(255,255,255,.08)}
 .m3ssv2-mockup-ui .m3ssv2-wave-root,.m3ssv2-mockup-ui .m3ssv2-wave-scroll{width:100%;height:100%}
 .m3ssv2-mockup-ui .m3ssv2-wave-scroll{border:0;border-radius:0;background:#080e16}
@@ -83,12 +83,12 @@
 .m3ssv2-wave-root[data-tool="envelope"] .m3ssv2-wave-scroll{cursor:crosshair}.m3ssv2-wave-root[data-tool="select"] .m3ssv2-wave-scroll{cursor:text}
 
 /* Secondary clip operations stay accessible without competing with primary commands. */
-.m3ssv2-mockup-ui .m3ssv2-secondary-commands{position:relative;bottom:auto;z-index:4;flex:0 0 auto;flex-wrap:wrap;margin:0 10px 6px;padding:5px 8px;border:1px solid rgba(255,255,255,.07);border-radius:7px;background:#0b131d}
+.m3ssv2-mockup-ui .m3ssv2-secondary-commands{order:4;position:relative;bottom:auto;z-index:4;flex:0 0 auto;flex-wrap:wrap;margin:0 10px 6px;padding:5px 8px;border:1px solid rgba(255,255,255,.07);border-radius:7px;background:#0b131d}
 .m3ssv2-mockup-ui .m3ssv2-secondary-commands::before{content:"Clip Options";margin-right:3px;color:#74879e;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
 .m3ssv2-mockup-ui .m3ssv2-secondary-commands button{padding:5px 7px;font-size:9px}.m3ssv2-mockup-ui .m3ssv2-selection-text{margin-left:auto;min-width:190px;text-align:right;font-variant-numeric:tabular-nums}
 
 /* Large Audacity-style Position, Selection and semantic reference strip. */
-.m3ssv2-time-dock{display:grid;grid-template-columns:minmax(240px,.9fr) minmax(420px,1.45fr) minmax(360px,1.05fr);gap:7px;flex:0 0 auto;margin:0 10px 8px}
+.m3ssv2-time-dock{order:5;display:grid;grid-template-columns:minmax(240px,.9fr) minmax(420px,1.45fr) minmax(360px,1.05fr);gap:7px;flex:0 0 auto;margin:0 10px 8px}
 .m3ssv2-time-panel{min-width:0;padding:9px;border:1px solid rgba(77,188,132,.55);border-radius:8px;background:linear-gradient(180deg,#101923,#0c141d);box-shadow:inset 0 0 0 1px rgba(77,188,132,.08)}
 .m3ssv2-time-panel-title{display:block;margin-bottom:6px;color:#d9e4ee;font-size:10px;text-align:center;letter-spacing:.05em}
 .m3ssv2-position-time{display:block;width:100%;box-sizing:border-box;padding:7px 8px;border:1px solid rgba(255,255,255,.12);border-radius:6px;background:#17222f;color:#f3f7fb;font:26px ui-monospace,SFMono-Regular,Consolas,monospace;text-align:center;font-variant-numeric:tabular-nums;letter-spacing:.02em}
