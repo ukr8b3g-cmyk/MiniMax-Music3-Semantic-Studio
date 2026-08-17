@@ -1,4 +1,5 @@
 const STORAGE_PREFIX = "m3ss-layout";
+const SESSION_DEFAULT_KEYS = new Set(["semantic-song-timeline-open"]);
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, Number(value) || min));
@@ -10,6 +11,7 @@ function storageKey(key) {
 
 export function readLayoutNumber(key, fallback) {
   if (!key) return fallback;
+  if (SESSION_DEFAULT_KEYS.has(key)) return fallback;
   try {
     const value = Number(localStorage.getItem(storageKey(key)));
     return Number.isFinite(value) ? value : fallback;
@@ -19,7 +21,7 @@ export function readLayoutNumber(key, fallback) {
 }
 
 export function writeLayoutNumber(key, value) {
-  if (!key) return;
+  if (!key || SESSION_DEFAULT_KEYS.has(key)) return;
   try {
     localStorage.setItem(storageKey(key), String(Math.round(Number(value) || 0)));
   } catch {
