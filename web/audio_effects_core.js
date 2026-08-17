@@ -32,6 +32,7 @@ export const EFFECT_CATALOG = Object.freeze([
     label: "Limiter",
     category: "Dynamics",
     params: [
+      range("input_gain_db", "Input Gain", 0, 24, .1, "dB", 0),
       range("ceiling_db", "Ceiling", -20, 0, .1, "dB", -1),
       range("release_ms", "Release", 10, 1000, 5, "ms", 100),
       range("lookahead_ms", "Lookahead", 0, 10, .1, "ms", 1),
