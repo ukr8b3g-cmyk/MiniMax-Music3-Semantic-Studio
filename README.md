@@ -4,7 +4,8 @@
 
 Current status:
 
-- **V1 / Semantic Studio — two-view Timeline / Lyrics UI implemented**
+- **V1 / Semantic Studio — Timeline / Lyrics / Generation UI implemented**
+- **English / Japanese UI — ComfyUI locale-aware labels implemented; other locales fall back to English**
 - **V2 / Phase B.2 — unified waveform editor, schema 2 track automation, and browser Draft Preview implemented; ComfyUI integration verification pending**
 - **V2.1 — Effects planned; not implemented yet**
 
@@ -38,24 +39,23 @@ Load Diffusion Model -----------------------------------------> KSampler model
 Conditioning Zero Out ----------------------------------------> KSampler negative
 ```
 
-Click **Open Semantic Studio** to open the Timeline-first authoring UI.
+Click **Open Semantic Studio** to open the Timeline-first authoring UI. Semantic Studio and the Audio Editor open maximized by default and can be restored to the remembered normal size.
 
 V1 is semantic: BPM, key, exact section timing, energy, vocal treatment, and instrumentation are generation targets rather than strict symbolic guarantees.
 
-### Semantic Studio — Timeline / Lyrics
+### Semantic Studio — Timeline / Lyrics / Generation
 
-![Phase A Semantic Studio](docs/images/semantic-studio-phase-a.webp)
+The main views are explicit horizontal tabs:
 
-The normal navigation is reduced to two horizontal tabs:
-
-- **Timeline** — primary song-design workspace
+- **Timeline** — song design, structure, energy, vocal style and instrument guidance
 - **Lyrics** — Caption, complete tagged Lyrics, and per-section Lyrics editing
+- **Generation** — the existing MiniMax Music3 autoregressive generation controls
 
-The Timeline header exposes Genre, BPM, Key, Scale / Mode, Meter, and Vocal / Instrumental mode. `Main Vocal` contains the song-wide lead/voice type, timbre, delivery, harmony, and vocal-effects wording. `More Settings` contains title, subgenres/influences, mood/direction, and production profile.
+The Timeline header exposes Genre, BPM, Key, Scale / Mode, **Effective Key** (for example `D minor`), Meter, and Vocal / Instrumental mode. Key and Scale remain stored separately; Effective Key is display-only.
 
-Preset-backed expressive fields remain editable and searchable. Imported/custom wording is never locked to the local preset catalog.
+`Main Vocal` contains the song-wide lead/voice type, timbre, delivery, harmony, and vocal-effects wording. `More Settings` contains title, subgenres/influences, mood/direction, and production profile. Preset-backed expressive fields remain editable and searchable; imported/custom wording is not locked to the local catalog.
 
-Timeline order:
+The complete Song Timeline is an accordion that defaults open. Timeline order remains:
 
 1. Structure
 2. Energy
@@ -63,19 +63,63 @@ Timeline order:
 4. Vocal Style
 5. Instruments
 
-Section duration uses 0.1-second semantic snapping. Section edges can be dragged; Shift+drag shares time with the following section. Energy points are vertically draggable. Instruments are semantic arrangement lanes derived from `section.instruments[]`, not audio stems.
+Structure sections can be added after the current selection, resized, and reordered by drag/drop or Inspector arrows. Instrument lanes are semantic `section.instruments[]` guidance rather than stems; active lanes use a thicker rounded colored indicator for visibility.
+
+Undo / Redo is available for structured project editing:
+
+```text
+Ctrl/Cmd+Z             Undo
+Ctrl/Cmd+Shift+Z       Redo
+Ctrl/Cmd+Y             Redo
+```
 
 The Lyrics workspace contains:
 
-1. **Caption** — authoritative compiler Caption in read-only mode; `Edit` creates a temporary Draft that must pass Analyze -> Import Preview -> Apply.
-2. **Full Lyrics** — editable tagged Lyrics; `Apply to Sections` updates matching section Lyrics while preserving timing, energy, instruments, and vocal style.
+1. **Caption** — authoritative compiler Caption; `Edit` creates a temporary Draft that must pass Analyze -> Import Preview -> Apply.
+2. **Full Lyrics** — editable tagged Lyrics; `Apply to Sections` updates matching section Lyrics while preserving semantic fields.
 3. **Section Lyrics** — compact per-section accordion.
+
+### Generation tab
+
+Generation edits the **same existing ComfyUI node widgets**; it does not duplicate these values into `project_json`:
+
+- `seed` -> **Music Seed (AR)**
+- `max_duration` -> **Duration Limit**
+- `cfg_scale` -> **Music CFG (AR)**
+- `top_k` -> **Music Top-K**
+
+These are MiniMax Music3 autoregressive-stage controls and are separate from KSampler controls later in the graph:
+
+```text
+Music Seed (AR)  -> autoregressive music/token randomness
+KSampler Seed    -> diffusion latent noise
+
+Music CFG (AR)   -> autoregressive token guidance
+KSampler CFG     -> diffusion guidance
+```
+
+Neither pair overrides the other; the stages are separate and both are used.
+
+Generation shows **Timeline Total** beside **Duration Limit**. `Auto Sync with Timeline` defaults on and keeps the AR duration ceiling synchronized with the semantic section total. It can be disabled for an independent manual ceiling. MiniMax Music3 may end the song earlier than the ceiling.
+
+The routine AR widgets are hidden on the compact graph node while remaining the actual serialized ComfyUI widgets used by execution.
 
 See [`docs/PHASE_A_SEMANTIC_UI.md`](docs/PHASE_A_SEMANTIC_UI.md).
 
+## English / Japanese UI
+
+The extension follows ComfyUI's locale setting for its user-interface chrome:
+
+- Japanese (`ja...`) -> Japanese node/Studio/Audio Editor labels
+- English and all other locales -> English fallback
+
+Node-definition translation files are under `locales/en` and `locales/ja`. Custom Studio/Audio Editor windows read the current ComfyUI locale as well.
+
+**Prompt values, preset values, `project_json`, and text sent to MiniMax are not translated.** Localization changes UI presentation only.
+
 ## Prompt Import
 
-External LLM output can be pasted into **Import Prompt** and processed locally:
+External LLM output can be pasted into **Import Prompt** inside Semantic Studio and processed locally:
 
 ```text
 Import Prompt
@@ -124,14 +168,15 @@ The browser Draft Preview is immediate authoring feedback. The Python/PyTorch re
 
 ### Unified waveform surface
 
-The separate visible Main Comp lane has been removed from the normal UI. One waveform is the primary editing surface:
+One waveform is the primary editing surface:
 
 - drag to select a range
 - click to seek
-- Cut / Copy / Paste / Split / Delete / Silence operate on the waveform selection and playhead
-- thin clip blocks at the top expose non-destructive clip boundaries and source assignments
-- the waveform grows vertically with the editor window instead of staying fixed at 220 px
-- Selection Start / End / Length can be edited numerically
+- Cut / Copy / Paste / Split / Delete / Silence operate on the waveform selection/playhead
+- thin clip blocks expose non-destructive clip boundaries/source assignments
+- waveform height follows the editor window
+- Position and Selection time readouts support precise editing
+- semantic Tempo / Meter / Key reference and optional Snap are available when one upstream Semantic Studio is resolvable
 
 Tool modes:
 
@@ -140,37 +185,13 @@ F1  Select
 F2  Envelope
 ```
 
+The final visual separation uses different roles/colors: thin cyan playhead, violet selected clip, blue/cyan selection, and orange/amber gain envelope.
+
 ### Draft Preview
 
-`Draft · Current Edits` renders the current `edit_json` in the browser from decoded Take 1–4 source previews. It reflects current edits without a Queue round trip:
+`Draft · Current Edits` renders current `edit_json` locally from decoded Take previews and reflects edits without a Queue round trip, including clip edits, Track Mute/Solo/Gain/Pan, Track Gain Envelope, and supported Master processing.
 
-- Cut / Paste / Split and gaps
-- clip reverse, gain, pan, mute, fades, and legacy clip envelopes
-- Main Track Mute / Solo / Gain / Pan
-- Main Track Gain Envelope
-- master channel mode, gain, and peak normalization
-
-`Rendered A · Last Queue` remains available for A/B comparison. Draft Preview is encoded for browser playback and is not the authoritative output; **Save Edits -> Queue** runs the Python renderer against the original connected AUDIO tensors.
-
-### Main Track controls and envelope
-
-The left track strip is now track-level rather than selected-clip-level:
-
-- Mute
-- Solo
-- Track Gain
-- Track Pan
-
-The orange Gain Envelope spans the complete track timeline. It is not constrained to one clip.
-
-- choose **Envelope / F2**
-- click the waveform to add a point
-- drag a point to change time/gain
-- right-click or double-click a point to delete it
-- hover shows time and dB
-- Select / F1 prevents selection and envelope gestures from conflicting
-
-Legacy schema-1 clip envelopes remain render-compatible but new automation is authored at track level.
+`Rendered A · Last Queue` remains available for A/B comparison. Draft Preview is not authoritative; **Save Edits -> Queue** runs the Python renderer against the original connected AUDIO tensors.
 
 ### Editing commands
 
@@ -207,11 +228,13 @@ Ctrl/Cmd+Y       Redo
 Ctrl/Cmd+S       Save Edits
 Ctrl/Cmd+0       Fit
 Space            Play / Pause
+Home             Go to start
+End              Go to end
 ```
 
 ### V2 schema 2
 
-`edit_json.edit_schema_version` is now **2**. Existing schema-1 projects are migrated automatically and retain their clip ranges, gain, pan, mute, reverse, fades, and clip-envelope data.
+`edit_json.edit_schema_version` is **2**. Existing schema-1 projects migrate automatically and retain clip ranges, gain, pan, mute, reverse, fades, and legacy clip-envelope data.
 
 Schema 2 adds neutral-by-default track state:
 
@@ -244,10 +267,6 @@ Planned V2.1 work:
 - stereo width
 - spectrogram / advanced analysis
 
-## V3 direction
-
-V3 remains experimental and may add time-varying semantic conditioning, conditioning morph tracks, and smart region regeneration/comping. Any model-side behavior must remain opt-in and separate from stable V1/V2 contracts.
-
 ## Development checks
 
 ```bash
@@ -257,6 +276,8 @@ node --check web/semantic_studio.js
 node --check web/semantic_timeline.js
 node --check web/semantic_controls.js
 node --check web/prompt_import.js
+node --check web/ui_i18n.js
+node --check web/studio_shell.js
 node --check web/audio_editor.js
 node --check web/audio_editor_core.js
 node --check web/audio_edit_commands.js
