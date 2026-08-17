@@ -11,6 +11,9 @@ if (typeof document !== "undefined" && !document.getElementById(STYLE_ID)) {
     .is-edit .m3ssv2-command-button {
       border-color: rgba(139, 109, 211, .26) !important;
     }
+    .m3ssv2-mockup-ui .m3ssv2-wave-selection {
+      top: 76px;
+    }
   `;
   document.head.appendChild(style);
 }
