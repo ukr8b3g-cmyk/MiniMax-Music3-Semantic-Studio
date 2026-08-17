@@ -1,4 +1,5 @@
 import { renderDraftProject } from "./audio_draft_core.js";
+import { bindWaveformDisplayBuffer } from "./audio_buffer_pair.js";
 
 function writeAscii(view, offset, text) {
   for (let index = 0; index < text.length; index++) view.setUint8(offset + index, text.charCodeAt(index));
@@ -46,6 +47,27 @@ function audioBufferToSource(buffer) {
   };
 }
 
+function createAudioBuffer(context, rendered) {
+  const buffer = context.createBuffer(rendered.channels.length, rendered.numSamples, rendered.sampleRate);
+  rendered.channels.forEach((channel, index) => buffer.copyToChannel(channel, index));
+  return buffer;
+}
+
+/**
+ * Waveform display should remain a stable edit reference while Track Envelope
+ * changes the audible Draft Preview. All other edit state is preserved.
+ */
+export function makeWaveformDisplayProject(project) {
+  const tracks = Array.isArray(project?.tracks) ? project.tracks : [];
+  let changed = false;
+  const nextTracks = tracks.map((track) => {
+    if (!Array.isArray(track?.gain_envelope) || !track.gain_envelope.length) return track;
+    changed = true;
+    return { ...track, gain_envelope: [] };
+  });
+  return changed ? { ...project, tracks: nextTracks } : project;
+}
+
 export class DraftPreviewRenderer {
   constructor(meta, urlForEntry) {
     this.meta = meta;
@@ -89,10 +111,18 @@ export class DraftPreviewRenderer {
   async render(project) {
     const sources = await this.ensureSources();
     const rendered = renderDraftProject(project, sources);
-    const buffer = this.context.createBuffer(rendered.channels.length, rendered.numSamples, rendered.sampleRate);
-    rendered.channels.forEach((channel, index) => buffer.copyToChannel(channel, index));
+    const playbackBuffer = createAudioBuffer(this.context, rendered);
+
+    const displayProject = makeWaveformDisplayProject(project);
+    let displayBuffer = playbackBuffer;
+    if (displayProject !== project) {
+      const displayRendered = renderDraftProject(displayProject, sources);
+      displayBuffer = createAudioBuffer(this.context, displayRendered);
+    }
+    bindWaveformDisplayBuffer(playbackBuffer, displayBuffer);
+
     const url = URL.createObjectURL(encodeWav16(rendered));
-    return { buffer, url, rendered };
+    return { buffer: playbackBuffer, displayBuffer, url, rendered };
   }
 
   acceptUrl(url) {
