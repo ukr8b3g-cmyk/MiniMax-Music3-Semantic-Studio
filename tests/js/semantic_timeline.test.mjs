@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   collectInstrumentRows,
   fitTimelineScale,
+  reorderSections,
   resizeSectionDurations,
   sectionHasInstrument,
   sectionPalette,
@@ -32,6 +33,18 @@ test('preserve-total resize respects minimum next duration', () => {
   const result = resizeSectionDurations(sections, 0, 30, true);
   assert.equal(result.next, 0.5);
   assert.equal(result.current, 20.5);
+});
+
+test('section reorder uses insertion positions and preserves section objects', () => {
+  const sections = [{ id: 'intro' }, { id: 'verse' }, { id: 'chorus' }, { id: 'outro' }];
+  const moved = sections[3];
+  const index = reorderSections(sections, 3, 1);
+  assert.equal(index, 1);
+  assert.deepEqual(sections.map((section) => section.id), ['intro', 'outro', 'verse', 'chorus']);
+  assert.equal(sections[1], moved);
+
+  reorderSections(sections, 0, sections.length);
+  assert.deepEqual(sections.map((section) => section.id), ['outro', 'verse', 'chorus', 'intro']);
 });
 
 test('fit scale maps to the minimum relative zoom', () => {
