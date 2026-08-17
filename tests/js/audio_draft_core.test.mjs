@@ -74,15 +74,22 @@ test('draft fades match backend endpoint direction', () => {
   assert.ok(Math.abs(rendered.channels[0][3] - 0) < 1e-6);
 });
 
-test('disabled V2.1 effects are neutral while enabled effects fail explicitly', () => {
-  const input = { 'take-1': source([[1, 1, 1, 1]]) };
-  const disabled = project({ effects: [{ id: 'fx', type: 'gain', enabled: false, params: { gain_db: 3 } }] });
-  const rendered = renderDraftProject(disabled, input);
-  assert.deepEqual([...rendered.channels[0]], [1, 1, 1, 1]);
+test('V2.1-B supported effects render while disabled/future effects keep safe behavior', () => {
+  const input = { 'take-1': source([[.25, .25, .25, .25]]) };
+  const disabled = project({ effects: [{ id: 'fx', type: 'gain', enabled: false, params: { gain_db: 12 } }] });
+  assert.deepEqual([...renderDraftProject(disabled, input).channels[0]], [.25, .25, .25, .25]);
 
-  const enabledTrack = project({ effects: [{ id: 'fx', type: 'gain', enabled: true, params: { gain_db: 3 } }] });
-  assert.throws(() => renderDraftProject(enabledTrack, input), /enabled V2\.1 effects/);
+  const enabledTrack = project({ effects: [{ id: 'fx', type: 'gain', enabled: true, params: { gain_db: 6.020599913 } }] });
+  const gained = renderDraftProject(enabledTrack, input);
+  assert.ok([...gained.channels[0]].every((value) => Math.abs(value - .5) < 1e-5));
 
-  const enabledMaster = project({}, { effects: [{ id: 'fx-master', type: 'limiter', enabled: true, params: {} }] });
-  assert.throws(() => renderDraftProject(enabledMaster, input), /enabled V2\.1 effects/);
+  const enabledMaster = project({}, { effects: [{
+    id: 'fx-master', type: 'limiter', enabled: true,
+    params: { input_gain_db: 12, ceiling_db: -6.020599913, release_ms: 100, lookahead_ms: 1 },
+  }] });
+  const limited = renderDraftProject(enabledMaster, input);
+  assert.ok(Math.max(...[...limited.channels[0]].map(Math.abs)) <= .50001);
+
+  const future = project({ effects: [{ id: 'fx-future', type: 'reverb', enabled: true, params: {} }] });
+  assert.throws(() => renderDraftProject(future, input), /unsupported effect/);
 });
