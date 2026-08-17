@@ -2,10 +2,42 @@
 .m3ssv2-mockup-ui .m3ssv2-playhead{
   width:1px!important;background:#58d4ea!important;box-shadow:0 0 0 1px rgba(88,212,234,.16),0 0 8px rgba(88,212,234,.32)!important;
 }
-.m3ssv2-mockup-ui .m3ssv2-wave-clip.is-selected{
-  border-color:#9e7ee8!important;background:rgba(116,83,179,.16)!important;box-shadow:inset 0 -2px rgba(158,126,232,.62)!important;color:#dfd2ff!important;
+.m3ssv2-mockup-ui .m3ssv2-wave-selection{
+  top:42px!important;bottom:20px!important;border-color:rgba(75,181,213,.5)!important;background:rgba(60,148,184,.18)!important;
 }
-.m3ssv2-mockup-ui .m3ssv2-wave-selection{border-color:rgba(75,181,213,.5)!important;background:rgba(60,148,184,.18)!important}
-.m3ssv2-mockup-ui .m3ssv2-envelope-line{stroke:#ff9f1c!important}
-.m3ssv2-mockup-ui .m3ssv2-envelope-zero{stroke:rgba(255,159,28,.3)!important}
-.m3ssv2-mockup-ui .m3ssv2-envelope-point{fill:#ffc15e!important;stroke:#fff0c7!important}
+
+/* Keep one semantic section strip. Internal clip state becomes a thin boundary lane instead of a second colored bar. */
+.m3ssv2-mockup-ui .m3ssv2-wave-clips{
+  top:29px!important;right:0!important;left:0!important;height:11px!important;z-index:4!important;pointer-events:none!important;
+}
+.m3ssv2-mockup-ui .m3ssv2-wave-clip{
+  top:0!important;height:10px!important;min-width:2px!important;padding:0!important;border:0!important;border-left:1px solid rgba(122,157,183,.55)!important;border-radius:0!important;background:transparent!important;color:transparent!important;box-shadow:inset 0 -1px rgba(122,157,183,.18)!important;pointer-events:auto!important;
+}
+.m3ssv2-mockup-ui .m3ssv2-wave-clip span{display:none!important}
+.m3ssv2-mockup-ui .m3ssv2-wave-clip:hover{
+  border-left-color:#76d2c0!important;background:rgba(66,157,139,.07)!important;box-shadow:inset 0 -2px rgba(118,210,192,.34)!important;
+}
+.m3ssv2-mockup-ui .m3ssv2-wave-clip.is-selected{
+  border-left:2px solid #9e7ee8!important;background:rgba(116,83,179,.08)!important;box-shadow:inset 0 -2px rgba(158,126,232,.72)!important;color:transparent!important;
+}
+.m3ssv2-mockup-ui .m3ssv2-wave-clip.is-muted{opacity:.45!important}
+
+/* Track Envelope overlays the waveform; it no longer owns a separate lower 32% lane. */
+.m3ssv2-mockup-ui .m3ssv2-wave-envelope{
+  inset:0!important;width:100%!important;height:100%!important;overflow:visible!important;border:0!important;background:transparent!important;pointer-events:none!important;
+}
+.m3ssv2-mockup-ui .m3ssv2-wave-envelope.is-editing{pointer-events:auto!important}
+.m3ssv2-mockup-ui .m3ssv2-envelope-hit{fill:transparent!important;pointer-events:none!important;cursor:crosshair!important}
+.m3ssv2-mockup-ui .m3ssv2-wave-envelope.is-editing .m3ssv2-envelope-hit{pointer-events:all!important}
+.m3ssv2-mockup-ui .m3ssv2-envelope-zero{
+  stroke:rgba(255,159,28,.34)!important;stroke-width:1!important;stroke-dasharray:5 5!important;vector-effect:non-scaling-stroke!important;
+}
+.m3ssv2-mockup-ui .m3ssv2-envelope-line{
+  fill:none!important;stroke:#ff9f1c!important;stroke-width:2.3!important;vector-effect:non-scaling-stroke!important;filter:drop-shadow(0 0 2px rgba(255,159,28,.48))!important;pointer-events:none!important;
+}
+.m3ssv2-mockup-ui .m3ssv2-envelope-point{
+  fill:#ffc15e!important;stroke:#fff0c7!important;stroke-width:1!important;vector-effect:non-scaling-stroke!important;
+}
+.m3ssv2-mockup-ui .m3ssv2-envelope-point.is-user{pointer-events:none!important;cursor:grab!important}
+.m3ssv2-mockup-ui .m3ssv2-wave-envelope.is-editing .m3ssv2-envelope-point.is-user{pointer-events:all!important}
+.m3ssv2-mockup-ui .m3ssv2-envelope-point.is-user:focus{outline:none;filter:drop-shadow(0 0 4px rgba(255,193,94,.95))}
