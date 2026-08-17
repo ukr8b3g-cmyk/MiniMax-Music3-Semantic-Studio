@@ -1,6 +1,6 @@
 # Phase 2 / V2 Audio Editing Specification
 
-Status: **schema 2 unified waveform editor implemented; ComfyUI integration verification pending**.
+Status: **schema 2 unified waveform editor and V2.1-A Effects Rack foundation implemented; ComfyUI integration verification pending**.
 
 V2 is a deterministic non-destructive AUDIO companion node after MiniMax Music3 decode. It remains external to ComfyUI core and does not modify MiniMax Music3, KSampler, latent, or VAE code.
 
@@ -54,6 +54,8 @@ web/audio_draft_core.js      deterministic Float32 Draft renderer
 web/audio_draft_preview.js   source decode, AudioBuffer and WAV adapter
 web/audio_waveform.js        waveform, tools, selection, clips, track envelope
 web/audio_panels.js          Track / Clip / Envelope / Master / Takes panels
+web/audio_effects_core.js    V2.1 effect catalog, defaults and rack mutations
+web/audio_effects.js         compact Track/Master Effects Rack UI
 web/audio_unified.css        unified waveform presentation
 ```
 
@@ -176,15 +178,38 @@ After tracks:
 
 Current Python and Draft implementations match this order for implemented features.
 
-## 8. Effects boundary
+## 8. V2.1 Effects boundary
 
 Schema 2 reserves `tracks[].effects[]` and `master.effects[]`:
 
 ```json
-{"id": "fx-1", "type": "compressor", "enabled": true, "params": {}}
+{"id": "fx-1", "type": "compressor", "enabled": false, "params": {}}
 ```
 
-The current build does not execute V2.1 effects. Enabled effects raise a clear error rather than being silently ignored. Disabled/empty effects remain round-trippable.
+V2.1-A implements the Effects Rack authoring foundation without changing the schema version:
+
+- a dedicated Effects inspector tab
+- separate Main Track and Master racks
+- `+ Add Effect` grouped by category
+- effect ON/OFF state
+- compact collapsed cards with one expanded editor at a time
+- numeric input plus slider for continuous parameters
+- reset, delete, move up/down and drag reorder
+- unknown effect objects remain round-trippable
+- new effects are created disabled so existing Draft/Queue rendering continues to work
+
+The initial authoring catalog is:
+
+- Gain / Amplify
+- Compressor
+- Limiter
+- EQ (3-Band)
+- High-Pass Filter
+- Low-Pass Filter
+- Stereo Width
+- Reverb
+
+V2.1-A does **not** execute these effects. Enabled effects still raise a clear error in Browser Draft and Python/PyTorch rendering rather than being silently ignored. V2.1-B will implement DSP and Draft/backend parity for the supported types.
 
 ## 9. Verification
 
@@ -199,6 +224,7 @@ Pure-module validation covers:
 - overlap summing, channel modes, normalization
 - internal clipboard and ripple automation transforms
 - browser Draft renderer parity for track controls, clips, fades, and envelope
+- V2.1 effect defaults, parameter clamping, reset, owner separation and rack ordering
 
 Still required in ComfyUI:
 
@@ -206,5 +232,7 @@ Still required in ComfyUI:
 - source decode -> editor open
 - Draft playback after Mute/Envelope/Cut
 - Save Edits -> Queue -> Rendered A comparison
+- Effects tab open/add/edit/reorder/delete and Save Edits round-trip
+- explicit enabled-effect error before V2.1-B DSP exists
 - Take 2 comping
 - long-duration performance and memory observation
