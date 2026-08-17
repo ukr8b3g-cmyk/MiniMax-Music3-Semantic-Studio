@@ -49,6 +49,7 @@ export function createStudioWindow({
   minHeight = 520,
   maximizeLabel = "Maximize",
   restoreLabel = "Restore",
+  startMaximized = false,
   onClose = null,
   onResize = null,
 } = {}) {
@@ -169,7 +170,8 @@ export function createStudioWindow({
 
   function mount(parent = document.body) {
     parent.appendChild(overlay);
-    onResize?.(windowEl.getBoundingClientRect(), { maximized });
+    if (startMaximized) setMaximized(true);
+    else onResize?.(windowEl.getBoundingClientRect(), { maximized });
     return api;
   }
 
