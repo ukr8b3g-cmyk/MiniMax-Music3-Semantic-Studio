@@ -17,15 +17,16 @@
 - The current V2 edit format is `edit_schema_version=2`. Continue accepting and deterministically migrating schema 1. Preserve legacy clip state, unknown fields, and explicit source-take references.
 - V2 source AUDIO is immutable. The Python/PyTorch backend renderer must derive authoritative output only from connected AUDIO input(s) plus versioned `edit_json`.
 - Browser Draft Preview may mirror current edits for immediate audition, but it is never authoritative and must not replace Save Edits -> Queue rendering.
-- Keep Browser Draft and Python render order aligned: clip processing -> track automation/controls -> track mix -> master processing. Add parity tests for changes that affect both paths.
-- V2 core must not add Python runtime dependencies. Use PyTorch and ComfyUI audio/UI helpers for the backend renderer. Optional V2.1 DSP dependencies must be feature-detected and must not prevent the core editor from loading.
+- Keep Browser Draft and Python render order aligned: clip processing -> track automation/controls -> track effects -> track mix -> master effects -> master processing. Add parity tests for changes that affect both paths.
+- V2 core must not add Python runtime dependencies. Use PyTorch and ComfyUI audio/UI helpers for the backend renderer. Optional V2.1 DSP imports must be feature-detected and must not prevent the core editor from loading.
 - Do not use runtime CDN assets in V2. The frontend uses native Canvas, HTMLAudioElement, Web Audio APIs, and local modules.
 - V2 takes must be explicit graph inputs; do not silently persist automatic generation history as hidden files.
 - Follow `docs/V2_SPEC.md` for V2 node IDs, schema migration, render order, Draft Preview boundaries, and acceptance criteria.
 - Treat `web/studio_shell.js` / `web/studio_shell.css` as the shared window foundation for both editors. Do not fork maximize/restore/resize behavior into separate V1/V2 implementations.
 - Keep persisted raw JSON widgets hidden in normal node UI. Project data remains serialized; compact summaries and Open Editor buttons are presentation only.
-- Keep Semantic Studio state/compiler helpers separate from the ComfyUI controller (`semantic_studio_core.js` vs `semantic_studio.js`). Keep Audio Editor schema/helpers, edit commands, Draft renderer, waveform, panels, and controller separated by module.
+- Keep Semantic Studio state/compiler helpers separate from the ComfyUI controller (`semantic_studio_core.js` vs `semantic_studio.js`). Keep Audio Editor schema/helpers, edit commands, Draft renderer, waveform, panels, effects DSP, and controller separated by module.
 - Keep prompt parsing/merge logic in `prompt_import_core.js`; the dialog/controller must not duplicate parser rules.
-- Track/master `effects[]` are reserved for V2.1. Until DSP exists, enabled unsupported effects must fail explicitly rather than being silently ignored.
+- V2.1-B supported effects are Gain, High-Pass, Low-Pass, 3-Band EQ, Compressor, Limiter, and Stereo Width. Supported effects must render in both Browser Draft and Python/PyTorch. Reverb and unknown future effects remain fail-closed until their DSP phase is implemented.
+- Selection-loop playback is session-only audition state. Do not serialize it into `edit_json` unless a future schema change explicitly requires persistent loop regions.
 - Playwright is a development-only dependency. UI smoke tests must not become a runtime requirement for the ComfyUI custom node.
 - Before committing Python changes, run `python -m pytest` and `python -m compileall -q .`. Before committing frontend changes, run `node --check` on all changed frontend modules. Run `npm run test:audio` for V2 schema/render/Draft changes and `npm run test:semantic` for Prompt Import / semantic preset changes. When Playwright and a browser binary are available, also run `npm run test:ui`.
