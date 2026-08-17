@@ -58,6 +58,19 @@ export function resizeSectionDurations(sections, index, requestedDuration, prese
   return { current: nextDuration, next: adjustedNext };
 }
 
+export function reorderSections(sections, fromIndex, insertionIndex) {
+  if (!Array.isArray(sections) || !sections.length) return -1;
+  const from = Number(fromIndex);
+  let insertion = Number(insertionIndex);
+  if (!Number.isInteger(from) || from < 0 || from >= sections.length || !Number.isFinite(insertion)) return -1;
+  insertion = Math.max(0, Math.min(sections.length, Math.round(insertion)));
+  const [moved] = sections.splice(from, 1);
+  if (from < insertion) insertion -= 1;
+  insertion = Math.max(0, Math.min(sections.length, insertion));
+  sections.splice(insertion, 0, moved);
+  return insertion;
+}
+
 export function collectInstrumentRows(sections = []) {
   const result = [], seen = new Set();
   for (const section of sections) {
@@ -141,7 +154,9 @@ export function renderSemanticTimeline(container, project, selectedId, {
   showInstruments = true,
   onToggleInstruments = null,
   onSelect = null,
+  onChangeBegin = null,
   onChange = null,
+  onReorder = null,
 } = {}) {
   container.replaceChildren();
   const sections = project?.timeline?.sections || [];
@@ -187,11 +202,48 @@ export function renderSemanticTimeline(container, project, selectedId, {
   }
 
   const structure = makeRow(stage, "m3ss-tl-structure-row"), lyrics = makeRow(stage, "m3ss-tl-detail-row m3ss-tl-lyrics-row"), structureBlocks = [];
+  const clearDropMarks = () => {
+    for (const entry of structureBlocks) {
+      entry.block.style.boxShadow = "";
+      entry.block.style.opacity = "";
+    }
+  };
   for (const item of geometry) {
     const block = placeBlock(structure, item, total, "m3ss-tl-section-block", item.section.label || item.section.type, item.section.id === selectedId);
     const badge = el("span", "m3ss-tl-duration-badge", `${item.duration.toFixed(1)}s`), resize = el("span", "m3ss-tl-duration-handle");
     resize.title = "Drag to change duration · Shift+drag keeps total length by adjusting the next section";
-    block.append(badge, resize); block.onclick = () => onSelect?.(item.section.id); structureBlocks.push({ block, badge, resize, item });
+    block.append(badge, resize);
+    block.onclick = () => onSelect?.(item.section.id);
+    block.draggable = true;
+    block.style.cursor = "grab";
+    block.title = `${item.section.label || item.section.type} · drag to reorder`;
+    block.addEventListener("dragstart", (event) => {
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", String(item.index));
+      }
+      block.style.opacity = ".55";
+    });
+    block.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      const rect = block.getBoundingClientRect();
+      const after = event.clientX >= rect.left + rect.width / 2;
+      block.dataset.dropAfter = after ? "1" : "0";
+      block.style.boxShadow = after
+        ? `inset -3px 0 0 var(--m3ss-section-accent)`
+        : `inset 3px 0 0 var(--m3ss-section-accent)`;
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+    });
+    block.addEventListener("dragleave", () => { block.style.boxShadow = ""; });
+    block.addEventListener("drop", (event) => {
+      event.preventDefault();
+      const from = Number(event.dataTransfer?.getData("text/plain"));
+      const insertion = item.index + (block.dataset.dropAfter === "1" ? 1 : 0);
+      clearDropMarks();
+      if (Number.isInteger(from) && from !== item.index && from !== insertion) onReorder?.(from, insertion);
+    });
+    block.addEventListener("dragend", clearDropMarks);
+    structureBlocks.push({ block, badge, resize, item });
     const lyric = placeBlock(lyrics, item, total, "m3ss-tl-detail-block", summary(item.section.lyrics, 62), item.section.id === selectedId);
     lyric.onclick = () => onSelect?.(item.section.id); lyric.title = `${item.section.label || item.section.type} · ${lyric.textContent}`;
   }
@@ -200,9 +252,10 @@ export function renderSemanticTimeline(container, project, selectedId, {
     resize.addEventListener("pointerdown", (event) => {
       event.preventDefault(); event.stopPropagation();
       const startX = event.clientX, original = snapSemanticDuration(item.section.duration ?? MIN_DURATION), nextSection = sections[index + 1] || null, originalNext = nextSection ? snapSemanticDuration(nextSection.duration ?? MIN_DURATION) : null;
-      let moved = false; resize.setPointerCapture?.(event.pointerId);
+      let moved = false, began = false; resize.setPointerCapture?.(event.pointerId);
       const move = (moveEvent) => {
         const dx = moveEvent.clientX - startX; if (!moved && Math.abs(dx) < 2) return; moved = true;
+        if (!began) { began = true; onChangeBegin?.({ kind: "duration", section: item.section, index }); }
         const requested = snapSemanticDuration(original + dx * secondsPerPixel), preserve = !!moveEvent.shiftKey && !!nextSection;
         if (nextSection) nextSection.duration = originalNext; item.section.duration = original;
         const result = resizeSectionDurations(sections, index, requested, preserve);
@@ -231,8 +284,13 @@ export function renderSemanticTimeline(container, project, selectedId, {
     point.setAttribute("class", `m3ss-tl-energy-point${item.section.id === selectedId ? " is-selected" : ""}`); point.setAttribute("cx", xFor(item)); point.setAttribute("cy", yFor(item.section.energy)); point.setAttribute("r", "6"); point.setAttribute("tabindex", "0"); point.style.setProperty("--m3ss-section-accent", palette.accent);
     value.setAttribute("class", "m3ss-tl-energy-text"); value.setAttribute("x", xFor(item) + 8); value.setAttribute("y", yFor(item.section.energy) - 7); value.textContent = `${Math.round(clamp(item.section.energy, 0, 1) * 100)}%`; svg.append(point, value);
     point.addEventListener("pointerdown", (event) => {
-      event.preventDefault(); event.stopPropagation(); onSelect?.(item.section.id, { render: false }); point.setPointerCapture?.(event.pointerId); let moved = false;
-      const move = (moveEvent) => { moved = true; const rect = svg.getBoundingClientRect(), y = clamp((moveEvent.clientY - rect.top) / Math.max(rect.height, 1) * 88, 12, 78), energy = clamp((72 - y) / 56, 0, 1); item.section.energy = energy; point.setAttribute("cy", yFor(energy)); value.setAttribute("y", yFor(energy) - 7); value.textContent = `${Math.round(energy * 100)}%`; updateEnergyLine(); };
+      event.preventDefault(); event.stopPropagation(); onSelect?.(item.section.id, { render: false }); point.setPointerCapture?.(event.pointerId); let moved = false, began = false;
+      const move = (moveEvent) => {
+        if (!began) { began = true; onChangeBegin?.({ kind: "energy", section: item.section, index: item.index }); }
+        moved = true;
+        const rect = svg.getBoundingClientRect(), y = clamp((moveEvent.clientY - rect.top) / Math.max(rect.height, 1) * 88, 12, 78), energy = clamp((72 - y) / 56, 0, 1);
+        item.section.energy = energy; point.setAttribute("cy", yFor(energy)); value.setAttribute("y", yFor(energy) - 7); value.textContent = `${Math.round(energy * 100)}%`; updateEnergyLine();
+      };
       const up = (upEvent) => { point.releasePointerCapture?.(upEvent.pointerId); point.removeEventListener("pointermove", move); point.removeEventListener("pointerup", up); point.removeEventListener("pointercancel", up); if (moved) onChange?.({ kind: "energy", section: item.section, index: item.index }); };
       point.addEventListener("pointermove", move); point.addEventListener("pointerup", up); point.addEventListener("pointercancel", up);
     });
@@ -261,7 +319,12 @@ export function renderSemanticTimeline(container, project, selectedId, {
         for (const item of geometry) {
           const active = sectionHasInstrument(item.section, instrument), cell = placeBlock(row, item, total, `m3ss-tl-instrument-cell${active ? " is-active" : ""}`, "", item.section.id === selectedId);
           cell.title = `${item.section.label || item.section.type} · ${instrument}: ${active ? "On" : "Off"}`; cell.setAttribute("aria-pressed", active ? "true" : "false");
-          cell.onclick = () => { onSelect?.(item.section.id, { render: false }); toggleSectionInstrument(item.section, instrument); onChange?.({ kind: "instrument", section: item.section, instrument }); };
+          cell.onclick = () => {
+            onSelect?.(item.section.id, { render: false });
+            onChangeBegin?.({ kind: "instrument", section: item.section, instrument });
+            toggleSectionInstrument(item.section, instrument);
+            onChange?.({ kind: "instrument", section: item.section, instrument });
+          };
         }
       }
     }
