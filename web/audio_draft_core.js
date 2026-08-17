@@ -1,3 +1,5 @@
+import { applyEffectChain } from "./audio_effects_dsp.js";
+
 const EPS = 1e-9;
 
 export const dbToAmplitude = (db) => Math.pow(10, Number(db || 0) / 20);
@@ -17,7 +19,6 @@ function normalizedEnvelopePoints(points, duration, zeroAnchors) {
   return [...map.values()].sort((a, b) => a.time - b.time);
 }
 
-/** Build a sample-accurate dB-linear amplitude curve. */
 export function buildEnvelopeAmplitude(length, sampleRate, points, { zeroAnchors = false } = {}) {
   if (!(length > 0) || !Array.isArray(points) || !points.length) return null;
   const duration = length / sampleRate;
@@ -87,25 +88,12 @@ function assertSourceCompatibility(sources) {
   return { primary, sampleRate, channelCount: channels };
 }
 
-function activeEffects(effects) {
-  return (Array.isArray(effects) ? effects : []).filter((effect) => effect && effect.enabled !== false);
-}
-
-function assertEffectsDisabled(owner, effects) {
-  const enabled = activeEffects(effects);
-  if (enabled.length) throw new Error(`${owner} has enabled V2.1 effects that Draft Preview cannot render yet.`);
-}
-
 function timelineDuration(project) {
   let duration = 0;
   for (const track of project?.tracks || []) for (const clip of track?.clips || []) duration = Math.max(duration, clipEnd(clip));
   return Math.max(duration, 1 / 48000);
 }
 
-/**
- * Deterministic browser Draft renderer. `sources` is a map of
- * `{sampleRate, channels: Float32Array[]}`. The result mirrors Python render order.
- */
 export function renderDraftProject(project, sources) {
   const { sampleRate, channelCount } = assertSourceCompatibility(sources);
   const duration = timelineDuration(project);
@@ -116,7 +104,6 @@ export function renderDraftProject(project, sources) {
 
   for (const track of tracks) {
     if (track?.muted || (anySolo && !track?.solo)) continue;
-    assertEffectsDisabled(`Track ${track?.name || track?.id || ""}`, track?.effects);
     const trackMix = Array.from({ length: channelCount }, () => new Float32Array(outputSamples));
 
     for (const clip of track?.clips || []) {
@@ -165,18 +152,22 @@ export function renderDraftProject(project, sources) {
     for (let index = 0; index < outputSamples; index++) {
       const gain = trackGain * (trackEnvelope ? trackEnvelope[index] : 1);
       if (channelCount === 1) {
-        mixed[0][index] += trackMix[0][index] * gain;
+        trackMix[0][index] *= gain;
       } else {
         const [left, right] = applyPan(trackMix[0][index] * gain, trackMix[1][index] * gain, pan);
-        mixed[0][index] += left;
-        mixed[1][index] += right;
+        trackMix[0][index] = left;
+        trackMix[1][index] = right;
       }
+    }
+
+    const effectedTrack = applyEffectChain(trackMix, sampleRate, track?.effects, `Track ${track?.name || track?.id || ""}`);
+    for (let channel = 0; channel < effectedTrack.length; channel++) {
+      for (let index = 0; index < outputSamples; index++) mixed[channel][index] += effectedTrack[channel][index];
     }
   }
 
   const master = project?.master || {};
-  assertEffectsDisabled("Master", master.effects);
-  let channels = mixed;
+  let channels = applyEffectChain(mixed, sampleRate, master.effects, "Master");
   const mode = master.channel_mode || "preserve";
   if (mode === "mono") {
     const mono = new Float32Array(outputSamples);
