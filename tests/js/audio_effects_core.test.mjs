@@ -10,11 +10,11 @@ import {
   setEffectParam,
 } from '../../web/audio_effects_core.js';
 
-test('known effects are created disabled with deterministic defaults', () => {
+test('implemented effects are created enabled with deterministic defaults', () => {
   const effect = createEffect('compressor', () => 'fx-test');
   assert.equal(effect.id, 'fx-test');
   assert.equal(effect.type, 'compressor');
-  assert.equal(effect.enabled, false);
+  assert.equal(effect.enabled, true);
   assert.deepEqual(effect.params, {
     threshold_db: -18,
     ratio: 4,
@@ -23,6 +23,11 @@ test('known effects are created disabled with deterministic defaults', () => {
     makeup_db: 0,
   });
   assert.equal(effectDefinition('compressor')?.category, 'Dynamics');
+});
+
+test('not-yet-implemented reverb remains off when newly added', () => {
+  const effect = createEffect('reverb', () => 'fx-reverb');
+  assert.equal(effect.enabled, false);
 });
 
 test('parameter edits clamp to the foundation control range', () => {
