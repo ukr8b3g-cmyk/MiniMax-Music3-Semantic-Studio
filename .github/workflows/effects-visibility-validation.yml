@@ -1,0 +1,25 @@
+name: Effects visibility validation
+
+on:
+  push:
+    branches:
+      - effects-visibility-polish
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Frontend syntax checks
+        run: |
+          node --check web/audio_effects_core.js
+          node --check web/audio_effects.js
+      - name: Audio JS tests
+        run: npm run test:audio
