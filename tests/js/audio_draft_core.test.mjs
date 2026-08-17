@@ -73,3 +73,16 @@ test('draft fades match backend endpoint direction', () => {
   assert.ok(Math.abs(rendered.channels[0][2] - 1) < 1e-6);
   assert.ok(Math.abs(rendered.channels[0][3] - 0) < 1e-6);
 });
+
+test('disabled V2.1 effects are neutral while enabled effects fail explicitly', () => {
+  const input = { 'take-1': source([[1, 1, 1, 1]]) };
+  const disabled = project({ effects: [{ id: 'fx', type: 'gain', enabled: false, params: { gain_db: 3 } }] });
+  const rendered = renderDraftProject(disabled, input);
+  assert.deepEqual([...rendered.channels[0]], [1, 1, 1, 1]);
+
+  const enabledTrack = project({ effects: [{ id: 'fx', type: 'gain', enabled: true, params: { gain_db: 3 } }] });
+  assert.throws(() => renderDraftProject(enabledTrack, input), /enabled V2\.1 effects/);
+
+  const enabledMaster = project({}, { effects: [{ id: 'fx-master', type: 'limiter', enabled: true, params: {} }] });
+  assert.throws(() => renderDraftProject(enabledMaster, input), /enabled V2\.1 effects/);
+});
