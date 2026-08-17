@@ -6,8 +6,8 @@ Current status:
 
 - **V1 / Semantic Studio — Timeline / Lyrics / Generation UI implemented**
 - **English / Japanese UI — ComfyUI locale-aware labels implemented; other locales fall back to English**
-- **V2 / Phase B.2 — unified waveform editor, schema 2 track automation, and browser Draft Preview implemented; ComfyUI integration verification pending**
-- **V2.1-A — Effects Rack authoring foundation implemented; DSP processing remains pending for V2.1-B**
+- **V2 / Phase B.2 — unified waveform editor, schema 2 track automation, browser Draft Preview, empty-editor mode, and simplified Effects/Edit/Mixer workspace implemented**
+- **V2.1-B — basic Track/Master DSP and selection-loop audition implemented; ComfyUI integration verification pending**
 
 Neither V1 nor V2 patches ComfyUI core, MiniMax Music3 model code, KSampler, or VAE code.
 
@@ -18,7 +18,7 @@ cd ComfyUI/custom_nodes
 git clone https://github.com/ukr8b3g-cmyk/MiniMax-Music3-Semantic-Studio.git
 ```
 
-Restart ComfyUI after install/update. V1 and the current V2 core add no extra Python runtime dependencies.
+Restart ComfyUI after install/update. V1 and the current V2 core add no custom-node Python runtime dependencies.
 
 ## V1 — semantic generation design
 
@@ -87,6 +87,7 @@ Generation edits the **same existing ComfyUI node widgets**; it does not duplica
 - `max_duration` -> **Duration Limit**
 - `cfg_scale` -> **Music CFG (AR)**
 - `top_k` -> **Music Top-K**
+- the linked ComfyUI value-control widget -> **Seed Behavior (AR)**
 
 These are MiniMax Music3 autoregressive-stage controls and are separate from KSampler controls later in the graph:
 
@@ -102,7 +103,7 @@ Neither pair overrides the other; the stages are separate and both are used.
 
 Generation shows **Timeline Total** beside **Duration Limit**. `Auto Sync with Timeline` defaults on and keeps the AR duration ceiling synchronized with the semantic section total. It can be disabled for an independent manual ceiling. MiniMax Music3 may end the song earlier than the ceiling.
 
-The routine AR widgets are hidden on the compact graph node while remaining the actual serialized ComfyUI widgets used by execution.
+The routine AR widgets and Seed Behavior control are hidden on the compact graph node while remaining the actual ComfyUI widgets used by execution.
 
 See [`docs/PHASE_A_SEMANTIC_UI.md`](docs/PHASE_A_SEMANTIC_UI.md).
 
@@ -155,7 +156,11 @@ Music3 Semantic Studio Audio Editor
 Preview Audio / Save Audio (Advanced)
 ```
 
-### First use
+### First use / empty editor
+
+The editor itself can open before source AUDIO has been queued. In that state it shows the normal empty waveform workspace, semantic structure reference when available, and disabled audio-dependent controls.
+
+For actual editing:
 
 1. Connect decoded AUDIO to V2.
 2. Queue once to create immutable source-take previews and the last queued Rendered A reference.
@@ -173,10 +178,20 @@ One waveform is the primary editing surface:
 - drag to select a range
 - click to seek
 - Cut / Copy / Paste / Split / Delete / Silence operate on the waveform selection/playhead
-- thin clip blocks expose non-destructive clip boundaries/source assignments
-- waveform height follows the editor window
+- selection Loop audition repeats the selected range without changing `edit_json`
+- thin clip boundaries expose non-destructive clip/source assignments
+- track height can be resized vertically and reset; stereo L/R resize together
 - Position and Selection time readouts support precise editing
 - semantic Tempo / Meter / Key reference and optional Snap are available when one upstream Semantic Studio is resolvable
+- long Key text is compacted in the reference card; hover shows the full semantic value
+
+The right workspace is deliberately compact:
+
+```text
+Effects | Edit | Mixer | Sources*
+```
+
+`Sources` appears only when Take 2–4 are actually connected. `Edit` follows the current Clip/Envelope editing context; `Mixer` combines Track and Master controls.
 
 Tool modes:
 
@@ -185,11 +200,11 @@ F1  Select
 F2  Envelope
 ```
 
-The final visual separation uses different roles/colors: thin cyan playhead, violet selected clip, blue/cyan selection, and orange/amber gain envelope.
+The final visual separation uses different roles/colors: thin cyan playhead, violet selected clip, blue/cyan selection, and orange/amber gain envelope. When selection Loop is active, the loop range receives its own green highlight.
 
 ### Draft Preview
 
-`Draft · Current Edits` renders current `edit_json` locally from decoded Take previews and reflects edits without a Queue round trip, including clip edits, Track Mute/Solo/Gain/Pan, Track Gain Envelope, and supported Master processing.
+`Draft · Current Edits` renders current `edit_json` locally from decoded Take previews and reflects edits without a Queue round trip, including clip edits, Track Mute/Solo/Gain/Pan, Track Gain Envelope, supported V2.1-B effects, Master processing, and channel/normalization settings.
 
 `Rendered A · Last Queue` remains available for A/B comparison. Draft Preview is not authoritative; **Save Edits -> Queue** runs the Python renderer against the original connected AUDIO tensors.
 
@@ -202,8 +217,9 @@ The final visual separation uses different roles/colors: thin cyan playhead, vio
 - Cut & Leave Gap
 - clip Mute and track Mute
 - equal-power Crossfade Next helper
+- selection Loop audition
 - Undo / Redo
-- explicit Take 1–4 comping
+- explicit Take 1–4 comping when additional Takes are connected
 - stereo L/R split, overlay, and mono-mix display
 - Preview Peak meter
 
@@ -228,6 +244,7 @@ Ctrl/Cmd+Y       Redo
 Ctrl/Cmd+S       Save Edits
 Ctrl/Cmd+0       Fit
 Space            Play / Pause
+Shift+Space      Toggle selected-range Loop
 Home             Go to start
 End              Go to end
 ```
@@ -250,18 +267,17 @@ Schema 2 adds neutral-by-default track state:
 }
 ```
 
-The backend render order is clip processing -> track automation/controls -> track mix -> master processing. Source AUDIO remains immutable.
+The backend render order is clip processing -> track automation/controls -> track effects -> track mix -> master effects -> master processing. Source AUDIO remains immutable.
 
 See [`docs/PHASE_B_AUDIO_EDITOR.md`](docs/PHASE_B_AUDIO_EDITOR.md) and [`docs/V2_SPEC.md`](docs/V2_SPEC.md).
 
 ## V2.1 Effects
 
-V2.1-A adds a compact **Effects** inspector and uses the existing schema-2 track/master `effects[]` arrays. Track and Master racks are separate. New effects are added disabled, and each effect card can be collapsed so only one parameter editor needs to occupy vertical space at a time.
+The compact **Effects** workspace uses the existing schema-2 track/master `effects[]` arrays. Track and Master racks are separate. Effects can be collapsed so only one detailed parameter editor needs to occupy vertical space at a time.
 
 The Effects Rack supports:
 
 - `+ Add Effect` grouped by Level / Dynamics / EQ & Filter / Stereo / Space
-- Gain / Amplify, Compressor, Limiter, 3-Band EQ, High-Pass, Low-Pass, Stereo Width, and Reverb authoring cards
 - numeric input plus slider for continuous parameters
 - ON/OFF state
 - reset and delete
@@ -270,9 +286,23 @@ The Effects Rack supports:
 - separate Track and Master effect chains
 - preservation of unknown effect objects
 
-V2.1-A is the authoring foundation only. DSP execution is **not** enabled yet. An enabled unsupported effect still fails explicitly in Browser Draft and Python/PyTorch rendering instead of being silently ignored. V2.1-B will add the actual DSP implementations and Draft/backend parity.
+### V2.1-B basic DSP
 
-Later V2.1 work includes pitch shift / time stretch and advanced analysis after the basic DSP set is stable.
+The following effects now execute in both Browser Draft and authoritative Python/PyTorch rendering:
+
+- **Gain / Amplify**
+- **Compressor**
+- **Limiter**
+- **EQ (3-Band)**
+- **High-Pass Filter**
+- **Low-Pass Filter**
+- **Stereo Width**
+
+Limiter includes `Input Gain` plus an **Auto Level / オートレベル** convenience action. Auto Level measures the current preview peak while the Limiter is off and sets Input Gain toward the selected ceiling; manual adjustment remains available.
+
+**Reverb remains V2.1-C.** It is still visible in the authoring catalog, but enabling it in the current build fails explicitly instead of being silently ignored. Unknown future effect types fail the same way.
+
+Later V2.1 work includes Reverb / Delay, pitch shift / time stretch, and advanced analysis after the basic DSP set is stable.
 
 ## Development checks
 
@@ -293,8 +323,11 @@ node --check web/audio_draft_preview.js
 node --check web/audio_waveform.js
 node --check web/audio_panels.js
 node --check web/audio_effects_core.js
+node --check web/audio_effects_dsp.js
 node --check web/audio_effects.js
+node --check web/audio_playback_loop.js
 node --check web/zz_audio_effects_foundation.js
+node --check web/zz_audio_dsp_ui.js
 npm run test:semantic
 npm run test:audio
 ```
