@@ -1,0 +1,53 @@
+name: V2.1-C validation and fast-forward
+
+on:
+  push:
+    branches:
+      - v2.1c-spatial-dsp
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify V2.1-C implementation is present
+        run: |
+          grep -q '"reverb"' audio_effects_dsp.py
+          grep -q '"delay"' audio_effects_dsp.py
+          grep -q 'effect_chain_tail_samples' audio_effects_dsp.py
+          grep -q 'effectChainTailSamples' web/audio_effects_dsp.js
+          grep -q 'Stereo Delay' web/audio_effects_core.js
+      - name: Install test dependencies
+        run: python -m pip install --upgrade pip pytest torch
+      - name: Python tests
+        run: python -m pytest
+      - name: Python compile check
+        run: python -m compileall -q .
+      - name: Frontend syntax checks
+        run: |
+          node --check web/audio_effects_core.js
+          node --check web/audio_effects.js
+          node --check web/audio_effects_dsp.js
+          node --check web/audio_draft_core.js
+      - name: Audio JS tests
+        run: npm run test:audio
+      - name: Remove temporary workflow and publish
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/v21c-validation.yml
+          git commit -m "Remove temporary V2.1-C validation workflow"
+          git push origin HEAD:main
+          git push origin HEAD:v2.1c-spatial-dsp
