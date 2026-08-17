@@ -171,6 +171,13 @@ const JA = {
   "Warnings": "警告",
   "No analysis yet.": "まだ解析されていません。",
   "Analyze before applying.": "適用前に解析してください。",
+  "These controls belong to MiniMax Music3's autoregressive music-conditioning/token stage. They are separate from the KSampler noise Seed and diffusion CFG.": "これらはMiniMax Music3の自己回帰（AR）音楽コンディショニング / トークン生成段階の設定です。KSamplerのノイズシードや拡散CFGとは別です。",
+  "AR-stage randomness. This is not the KSampler noise seed.": "AR段階のランダム性を制御します。KSamplerのノイズシードとは別です。",
+  "Guidance used while MiniMax Music3 selects autoregressive music tokens; separate from KSampler CFG.": "MiniMax Music3が自己回帰音楽トークンを選ぶ際のガイダンスです。KSampler CFGとは別です。",
+  "Restricts AR token candidates. It has no KSampler counterpart.": "ARトークン候補を絞り込みます。KSampler側に対応項目はありません。",
+  "Maximum AR generation duration; the model may end earlier.": "AR生成の最大時間です。モデルがこれより早く曲を終了する場合があります。",
+  "Why two Seeds / CFGs? ": "なぜSeed / CFGが2種類あるのか？ ",
+  "Music Seed/CFG here operate before diffusion, while KSampler Seed creates latent noise and KSampler CFG guides diffusion. Both stages are used; neither overrides the other.": "ここにあるMusic Seed / CFGは拡散処理より前に動作します。KSampler SeedはLatentノイズを作り、KSampler CFGは拡散処理をガイドします。両方の段階が使われ、どちらかがもう一方を上書きするものではありません。",
 };
 
 const PLACEHOLDERS_JA = {
@@ -246,3 +253,19 @@ export function installUiLocalization(root) {
   observer.observe(root, { childList: true, subtree: true });
   return () => observer.disconnect();
 }
+
+// Custom button widgets are created by frontend extensions rather than backend node definitions,
+// so nodeDefs.json cannot translate them. Register a tiny post-create bridge for those buttons.
+app.registerExtension({
+  name: "minimax.music3.semantic.studio.locale-buttons",
+  async nodeCreated(node) {
+    setTimeout(() => {
+      for (const widget of node?.widgets || []) {
+        if (widget?.name === "Open Audio Editor" || widget?.name === "Open Semantic Studio") {
+          widget.label = tr(widget.name);
+          node.setDirtyCanvas?.(true, true);
+        }
+      }
+    }, 0);
+  },
+});
