@@ -219,9 +219,7 @@ export function renderEffectsRack(container, project, commit, state = createEffe
     const definition = effectDefinition(effect.type);
     const expanded = state.expandedId === effect.id;
     const card = el("article", `m3ssv2-fx-card${expanded ? " is-expanded" : ""}${effect.enabled ? " is-enabled" : ""}`);
-    card.draggable = true;
     card.dataset.effectId = effect.id;
-    card.ondragstart = () => { state.dragId = effect.id; };
     card.ondragover = (event) => event.preventDefault();
     card.ondrop = (event) => {
       event.preventDefault();
@@ -247,6 +245,13 @@ export function renderEffectsRack(container, project, commit, state = createEffe
     };
     const grab = el("span", "m3ssv2-fx-grab", "⋮⋮");
     grab.title = "Drag to reorder";
+    grab.draggable = true;
+    grab.ondragstart = (event) => {
+      state.dragId = effect.id;
+      event.dataTransfer?.setData?.("text/plain", effect.id);
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+    };
+    grab.ondragend = () => { state.dragId = null; };
     const name = button(definition ? tr(definition.label) : `${tr("Unknown effect")}: ${effect.type || "—"}`, "m3ssv2-fx-name");
     name.onclick = () => { state.expandedId = expanded ? null : effect.id; rerender(); };
     const badge = el("span", "m3ssv2-fx-pending", tr("DSP pending"));
