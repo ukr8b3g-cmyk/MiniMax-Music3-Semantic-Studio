@@ -130,7 +130,10 @@ export function resetEffectParams(effect) {
   if (!effect || typeof effect !== "object") return effect;
   const definition = effectDefinition(effect.type);
   if (!definition) return effect;
-  effect.params = defaultEffectParams(effect.type);
+  const existing = effect.params && typeof effect.params === "object" ? clone(effect.params) : {};
+  const knownKeys = new Set(definition.params.map((param) => param.key));
+  const unknown = Object.fromEntries(Object.entries(existing).filter(([key]) => !knownKeys.has(key)));
+  effect.params = { ...unknown, ...defaultEffectParams(effect.type) };
   return effect;
 }
 
@@ -148,8 +151,7 @@ export function setEffectParam(effect, key, rawValue) {
     value = param.values.includes(candidate) ? candidate : param.defaultValue;
   } else {
     value = clamp(rawValue, param.minimum, param.maximum);
-    if (param.step >= 1) value = Math.round(value / param.step) * param.step;
-    else value = Math.round(value / param.step) * param.step;
+    value = Math.round(value / param.step) * param.step;
     value = Number(value.toFixed(6));
   }
   effect.params[key] = value;
