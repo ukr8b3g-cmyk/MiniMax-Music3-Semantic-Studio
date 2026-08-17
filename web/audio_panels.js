@@ -5,6 +5,15 @@ function change(control, event, commit, fn) {
   return control;
 }
 
+function rememberEffectsContext(container, patch) {
+  if (!container) return;
+  const current = container._m3ssEffectsContext && typeof container._m3ssEffectsContext === "object"
+    ? container._m3ssEffectsContext
+    : {};
+  Object.assign(current, patch);
+  container._m3ssEffectsContext = current;
+}
+
 function panText(value) {
   const pan = Number(value) || 0;
   if (Math.abs(pan) < .01) return "Center";
@@ -12,6 +21,7 @@ function panText(value) {
 }
 
 export function renderTrack(container, track, commit, onToolEnvelope) {
+  rememberEffectsContext(container, { track, commit });
   container.replaceChildren();
   if (!track) {
     container.appendChild(el("div", "m3ssv2-empty", "No editable track is available."));
@@ -49,6 +59,7 @@ export function renderTrack(container, track, commit, onToolEnvelope) {
 }
 
 export function renderInspector(container, clip, meta, commit) {
+  rememberEffectsContext(container, { commit });
   container.replaceChildren();
   if (!clip) {
     container.appendChild(el("div", "m3ssv2-empty", "Select a clip boundary on the waveform to edit advanced clip properties."));
@@ -106,6 +117,7 @@ export function renderInspector(container, clip, meta, commit) {
 }
 
 export function renderTrackEnvelope(container, track, duration, commit, onToolEnvelope) {
+  rememberEffectsContext(container, { track, commit });
   container.replaceChildren();
   if (!track) {
     container.appendChild(el("div", "m3ssv2-empty", "No editable track is available."));
@@ -151,6 +163,7 @@ export function renderTrackEnvelope(container, track, duration, commit, onToolEn
 }
 
 export function renderMaster(container, project, commit) {
+  rememberEffectsContext(container, { project, track: project?.tracks?.[0] || null, commit });
   container.replaceChildren();
   const master = project.master;
   const grid = el("div", "m3ssv2-grid m3ssv2-grid-2");
