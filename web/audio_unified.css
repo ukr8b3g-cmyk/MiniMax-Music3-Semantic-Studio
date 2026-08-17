@@ -1,5 +1,5 @@
 /* Phase B.2 mockup-aligned unified waveform editor. */
-.m3ssv2-mockup-ui{--m3ssv2-green:#2c9f70;--m3ssv2-blue:#2e7fd6;--m3ssv2-purple:#7255bd;--m3ssv2-panel:#101823;--m3ssv2-panel-2:#0b121b;--m3ssv2-border:rgba(142,162,188,.18);background:#0b1119}
+.m3ssv2-mockup-ui{--m3ssv2-green:#2c9f70;--m3ssv2-blue:#2e7fd6;--m3ssv2-purple:#7255bd;--m3ssv2-panel:#101823;--m3sssv2-panel-2:#0b121b;--m3ssv2-border:rgba(142,162,188,.18);background:#0b1119}
 .m3ssv2-mockup-ui .m3ssv2-root{background:linear-gradient(180deg,#0d151f,#0a1018)}
 .m3ssv2-mockup-ui .m3ssv2-main{display:flex;min-width:0;min-height:0;flex-direction:column;overflow:hidden}
 .m3ssv2-mockup-ui .m3ssv2-meta-toolbar{padding:6px 9px;gap:6px;border-bottom:1px solid rgba(255,255,255,.055);background:#0a111a}
@@ -11,16 +11,16 @@
 .m3ssv2-command-dock{order:1;display:flex;align-items:center;gap:8px;flex:0 0 auto;margin:7px 10px 2px;padding:7px;border:1px solid rgba(255,255,255,.075);border-radius:9px;background:linear-gradient(180deg,#111a26,#0d151f);box-shadow:0 6px 18px rgba(0,0,0,.18)}
 .m3ssv2-command-group{display:flex;align-items:center;gap:4px;padding:4px;border:1px solid rgba(255,255,255,.08);border-radius:7px;background:#0d151f}
 .m3ssv2-command-group.is-transport{border-color:rgba(44,159,112,.55);box-shadow:inset 0 0 0 1px rgba(44,159,112,.12)}
-.m3ssv2-command-group.is-tools{border-color:rgba(46,127,214,.58);box-shadow:inset 0 0 0 1px rgba(46,127,214,.12)}
+.m3sv2-command-group.is-tools{border-color:rgba(46,127,214,.58);box-shadow:inset 0 0 0 1px rgba(46,127,214,.12)}
 .m3ssv2-command-group.is-edit{flex:1;border-color:rgba(114,85,189,.55);box-shadow:inset 0 0 0 1px rgba(114,85,189,.11)}
-.m3ssv2-command-button{min-height:34px;padding:7px 10px!important;border-radius:6px!important;background:linear-gradient(180deg,#1c2735,#151e2b)!important;color:#eef4fb!important;font-size:11px!important;font-weight:650;white-space:nowrap}
+.m3ssv2-command-button{min-height:34px;border:1px solid rgba(255,255,255,.14)!important;cursor:pointer;padding:7px 10px!important;border-radius:6px!important;background:linear-gradient(180deg,#1c2735,#151e2b)!important;color:#eef4fb!important;font-size:11px!important;font-weight:650;white-space:nowrap}
 .is-transport .m3ssv2-command-button{min-width:42px;border-color:rgba(83,193,143,.24)!important}
 .is-tools .m3ssv2-command-button{border-color:rgba(89,151,229,.3)!important}
-.is-edit .m3ssv2-command-button{border-color:rgba(139,109,211,.26)!important}
+.is-edit .m3sv2-command-button{border-color:rgba(139,109,211,.27)!important}
 .m3ssv2-command-button:hover{filter:brightness(1.14)}
 .is-transport .m3ssv2-command-button.is-active{border-color:#52c88f!important;background:linear-gradient(180deg,#286b51,#1d4d3b)!important;color:#e8fff4!important}
 .is-tools .m3ssv2-command-button.is-active{border-color:#5aa5ff!important;background:linear-gradient(180deg,#246fc0,#195292)!important;color:#fff!important}
-.m3ssv2-command-button:disabled{opacity:.34;filter:saturate(.35)}
+.m3ssv2-command-button:disabled{cursor:not-allowed;opacity:.34;filter:saturate(.35)}
 
 .m3ssv2-mockup-ui .m3ssv2-wave-head{order:2;flex:0 0 auto;margin:4px 10px 0;padding:5px 9px;border-left:3px solid rgba(85,185,165,.72);border-radius:6px;background:linear-gradient(90deg,rgba(55,124,112,.14),transparent)}
 .m3ssv2-mockup-ui .m3ssv2-wave-head strong{color:#e3edf4;font-size:11px}.m3ssv2-mockup-ui .m3ssv2-wave-note{color:#8396ad;font-size:9px}
@@ -63,7 +63,7 @@
 .m3ssv2-mockup-ui .m3ssv2-semantic-section:nth-child(9n+5){background:rgba(78,57,125,.54);border-color:rgba(135,100,201,.68)}
 .m3ssv2-mockup-ui .m3ssv2-semantic-section:nth-child(9n+6){background:rgba(135,48,52,.55);border-color:rgba(218,82,88,.72)}
 .m3ssv2-mockup-ui .m3ssv2-semantic-section:nth-child(9n+7){background:rgba(53,68,84,.6);border-color:rgba(111,133,157,.68)}
-.m3ssv2-wave-clips{position:absolute;z-index:4;top:29px;right:0;left:0;height:25px;pointer-events:none}
+.m3sv2-wave-clips{position:absolute;z-index:4;top:29px;right:0;left:0;height:25px;pointer-events:none}
 .m3ssv2-wave-clip{position:absolute;top:2px;height:20px;min-width:3px;overflow:hidden;padding:3px 5px;border:1px solid rgba(93,206,185,.32);border-radius:3px;background:rgba(46,114,103,.11);color:#9fd8cd;text-align:left;text-overflow:ellipsis;white-space:nowrap;font-size:8px;cursor:pointer;pointer-events:auto}
 .m3ssv2-wave-clip:hover{background:rgba(65,155,137,.22);border-color:rgba(109,220,199,.62)}
 .m3ssv2-wave-clip.is-selected{border-color:#f6c86f;background:rgba(246,200,111,.13);box-shadow:inset 0 -2px rgba(246,200,111,.55);color:#ffe5a4}
@@ -91,7 +91,7 @@
 .m3ssv2-time-dock{order:5;display:grid;grid-template-columns:minmax(240px,.9fr) minmax(420px,1.45fr) minmax(360px,1.05fr);gap:7px;flex:0 0 auto;margin:0 10px 8px}
 .m3ssv2-time-panel{min-width:0;padding:9px;border:1px solid rgba(77,188,132,.55);border-radius:8px;background:linear-gradient(180deg,#101923,#0c141d);box-shadow:inset 0 0 0 1px rgba(77,188,132,.08)}
 .m3ssv2-time-panel-title{display:block;margin-bottom:6px;color:#d9e4ee;font-size:10px;text-align:center;letter-spacing:.05em}
-.m3ssv2-position-time{display:block;width:100%;box-sizing:border-box;padding:7px 8px;border:1px solid rgba(255,255,255,.12);border-radius:6px;background:#17222f;color:#f3f7fb;font:26px ui-monospace,SFMono-Regular,Consolas,monospace;text-align:center;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.m3ssv2-position-time{display:block;width:100%;box-sizing:border-box;padding:7px 8px;border:1px solid rgba(255,255,255,.12);border-radius:6px;background:#17222f;color:#f3f7fb;font:26px ui-monospace,SFMono-Regular,Consolas,monospace;text-align:center;font-variant-numeric:tabular-numsletter-spacing:.02em}
 .m3ssv2-position-units{display:grid;grid-template-columns:1fr 1fr 1.45fr;padding:3px 6px 0;color:#6e8095;font-size:7px;text-align:center;letter-spacing:.08em}
 .m3ssv2-selection-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px}
 .m3ssv2-time-field{display:grid;gap:4px;color:#a9b7c8;font-size:9px}.m3ssv2-time-field input,.m3ssv2-time-field output{display:block;width:100%;box-sizing:border-box;padding:8px 7px;border:1px solid rgba(255,255,255,.12);border-radius:6px;background:#17222f;color:#f0f4f9;font:14px ui-monospace,SFMono-Regular,Consolas,monospace;text-align:center;font-variant-numeric:tabular-nums}
