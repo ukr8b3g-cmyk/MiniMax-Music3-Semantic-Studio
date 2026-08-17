@@ -7,7 +7,7 @@ Current status:
 - **V1 / Semantic Studio — Timeline / Lyrics / Generation UI implemented**
 - **English / Japanese UI — ComfyUI locale-aware labels implemented; other locales fall back to English**
 - **V2 / Phase B.2 — unified waveform editor, schema 2 track automation, and browser Draft Preview implemented; ComfyUI integration verification pending**
-- **V2.1 — Effects planned; not implemented yet**
+- **V2.1-A — Effects Rack authoring foundation implemented; DSP processing remains pending for V2.1-B**
 
 Neither V1 nor V2 patches ComfyUI core, MiniMax Music3 model code, KSampler, or VAE code.
 
@@ -254,18 +254,25 @@ The backend render order is clip processing -> track automation/controls -> trac
 
 See [`docs/PHASE_B_AUDIO_EDITOR.md`](docs/PHASE_B_AUDIO_EDITOR.md) and [`docs/V2_SPEC.md`](docs/V2_SPEC.md).
 
-## V2.1 boundary
+## V2.1 Effects
 
-The schema reserves track/master `effects[]`, but DSP effects are not enabled in this build. An enabled unsupported effect fails explicitly rather than being silently ignored.
+V2.1-A adds a compact **Effects** inspector and uses the existing schema-2 track/master `effects[]` arrays. Track and Master racks are separate. New effects are added disabled, and each effect card can be collapsed so only one parameter editor needs to occupy vertical space at a time.
 
-Planned V2.1 work:
+The Effects Rack supports:
 
-- pitch shift / time stretch
-- EQ / filters
-- compressor / limiter
-- delay / reverb
-- stereo width
-- spectrogram / advanced analysis
+- `+ Add Effect` grouped by Level / Dynamics / EQ & Filter / Stereo / Space
+- Gain / Amplify, Compressor, Limiter, 3-Band EQ, High-Pass, Low-Pass, Stereo Width, and Reverb authoring cards
+- numeric input plus slider for continuous parameters
+- ON/OFF state
+- reset and delete
+- move up/down and drag-handle reordering
+- English/Japanese UI labels
+- separate Track and Master effect chains
+- preservation of unknown effect objects
+
+V2.1-A is the authoring foundation only. DSP execution is **not** enabled yet. An enabled unsupported effect still fails explicitly in Browser Draft and Python/PyTorch rendering instead of being silently ignored. V2.1-B will add the actual DSP implementations and Draft/backend parity.
+
+Later V2.1 work includes pitch shift / time stretch and advanced analysis after the basic DSP set is stable.
 
 ## Development checks
 
@@ -285,6 +292,9 @@ node --check web/audio_draft_core.js
 node --check web/audio_draft_preview.js
 node --check web/audio_waveform.js
 node --check web/audio_panels.js
+node --check web/audio_effects_core.js
+node --check web/audio_effects.js
+node --check web/zz_audio_effects_foundation.js
 npm run test:semantic
 npm run test:audio
 ```
