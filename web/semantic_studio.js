@@ -12,6 +12,7 @@ import { SemanticHistory } from "./semantic_history.js";
 import { fitTimelineScale, renderSemanticTimeline, reorderSections, sectionPalette } from "./semantic_timeline.js";
 import { openPromptImporter } from "./prompt_import.js";
 import { analyzePromptImport, applyPromptImport } from "./prompt_import_core.js";
+import { installUiLocalization, tr } from "./ui_i18n.js";
 import {
   GENRE_PRESETS, INFLUENCE_PRESETS, MOOD_PRESETS, VOCAL_LEAD_PRESETS, VOCAL_TIMBRE_PRESETS,
   VOCAL_DELIVERY_PRESETS, VOCAL_HARMONY_PRESETS, VOCAL_EFFECT_PRESETS, SECTION_VOCAL_PRESETS,
@@ -22,7 +23,8 @@ const EXTENSION_NAME = "minimax.music3.semantic.studio";
 const NODE_ID = "MiniMaxMusic3SemanticStudio";
 const STYLE_ID = "m3ss-style-link";
 const PHASE_A_STYLE_ID = "m3ss-phase-a-style-link";
-const NAV = [["timeline", "Timeline"], ["lyrics", "Lyrics"]];
+const FINAL_STYLE_ID = "m3ss-final-polish-style-link";
+const NAV = [["timeline", "Timeline"], ["lyrics", "Lyrics"], ["generation", "Generation"]];
 const DEFAULT_SECTION_DURATION = { Intro: 8, Verse: 16, "Pre-Chorus": 8, Chorus: 16, "Post-Chorus": 8, Bridge: 12, Instrumental: 12, Solo: 12, Outro: 8 };
 const DEFAULT_SECTION_ENERGY = { Intro: .2, Verse: .42, "Pre-Chorus": .62, Chorus: .82, "Post-Chorus": .72, Bridge: .48, Instrumental: .52, Solo: .68, Outro: .28 };
 
@@ -39,6 +41,13 @@ function ensureStyles() {
     link.id = PHASE_A_STYLE_ID;
     link.rel = "stylesheet";
     link.href = new URL("./semantic_phase_a.css", import.meta.url).href;
+    document.head.appendChild(link);
+  }
+  if (!document.getElementById(FINAL_STYLE_ID)) {
+    const link = document.createElement("link");
+    link.id = FINAL_STYLE_ID;
+    link.rel = "stylesheet";
+    link.href = new URL("./semantic_final_polish.css", import.meta.url).href;
     document.head.appendChild(link);
   }
 }
@@ -73,9 +82,25 @@ async function copyText(value) {
   }
 }
 
+function effectiveKey(project) {
+  const key = String(project?.global?.key || "").trim();
+  const scale = String(project?.global?.scale || "").trim();
+  if (!key && !scale) return "—";
+  return [key, scale].filter(Boolean).join(" ");
+}
+
+function widgetNumber(widget, fallback) {
+  const value = Number(widget?.value);
+  return Number.isFinite(value) ? value : fallback;
+}
+
 function openStudio(node, compactSummary) {
   ensureStyles();
   const projectWidget = getNodeWidget(node, "project_json");
+  const seedWidget = getNodeWidget(node, "seed");
+  const durationWidget = getNodeWidget(node, "max_duration");
+  const cfgWidget = getNodeWidget(node, "cfg_scale");
+  const topKWidget = getNodeWidget(node, "top_k");
   if (!projectWidget) {
     alert("Music3 Semantic Studio: project_json widget was not found. Restart ComfyUI and reload the workflow.");
     return;
@@ -98,26 +123,39 @@ function openStudio(node, compactSummary) {
   let timelineInstrumentsOpen = readLayoutNumber("semantic-instruments-open", 0) !== 0;
   let moreSettingsOpen = readLayoutNumber("semantic-more-settings-open", 0) !== 0;
   let mainVocalOpen = readLayoutNumber("semantic-main-vocal-open", 1) !== 0;
+  let timelinePanelOpen = readLayoutNumber("semantic-song-timeline-open", 1) !== 0;
+  let generationAutoSync = readLayoutNumber("semantic-generation-auto-sync", 1) !== 0;
+  let generationDraft = {
+    seed: widgetNumber(seedWidget, 0),
+    max_duration: widgetNumber(durationWidget, totalDuration(project)),
+    cfg_scale: widgetNumber(cfgWidget, 1.5),
+    top_k: Math.round(widgetNumber(topKWidget, 50)),
+  };
+  if (generationAutoSync) generationDraft.max_duration = totalDuration(project);
   let captionEditMode = false;
   let captionDraft = "";
   let fullLyricsDraft = compilePreview(project).lyrics;
   let fullLyricsDirty = false;
   let cleanupLyricsSplitters = () => {};
   let cleanupKeyboard = () => {};
+  let cleanupLocalization = () => {};
   let cleanup = () => {};
   const history = new SemanticHistory({ limit: 120, coalesceMs: 700 });
 
   const shell = createStudioWindow({
-    title: "Music3 Semantic Studio",
-    subtitle: `Timeline / Lyrics · ${summarizeProject(project)}`,
+    title: tr("Music3 Semantic Studio"),
+    subtitle: `Timeline / Lyrics / Generation · ${summarizeProject(project)}`,
     storageKey: "m3ss-semantic-window",
     defaultWidth: 1480,
     defaultHeight: 900,
     minWidth: 860,
     minHeight: 580,
+    startMaximized: true,
+    maximizeLabel: tr("Maximize"),
+    restoreLabel: tr("Restore"),
     onClose: () => cleanup(),
   });
-  shell.window.classList.add("m3ss-dialog", "m3ss-phase-a", "m3ss-two-view");
+  shell.window.classList.add("m3ss-dialog", "m3ss-phase-a", "m3ss-two-view", "m3ss-final-polish");
 
   const topTabs = el("nav", "m3ss-top-tabs");
   topTabs.setAttribute("role", "tablist");
@@ -142,12 +180,21 @@ function openStudio(node, compactSummary) {
   cleanup = () => {
     cleanupLyricsSplitters();
     cleanupKeyboard();
+    cleanupLocalization();
     cleanupPaneSplitter();
   };
 
+  const historyActions = el("div", "m3ss-history-actions");
+  const undoButton = button(`↶ ${tr("Undo")}`, "m3ss-button secondary m3ss-history-undo");
+  const redoButton = button(`↷ ${tr("Redo")}`, "m3ss-button secondary m3ss-history-redo");
+  undoButton.title = `${tr("Undo")} · Ctrl/Cmd+Z`;
+  redoButton.title = `${tr("Redo")} · Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y`;
+  historyActions.append(undoButton, redoButton);
+  topTabs.appendChild(historyActions);
+
   const navButtons = new Map();
   for (const [id, label] of NAV) {
-    const item = button(label, "m3ss-top-tab");
+    const item = button(tr(label), "m3ss-top-tab");
     item.dataset.view = id;
     item.setAttribute("role", "tab");
     item.onclick = () => { active = id; render(); };
@@ -155,24 +202,11 @@ function openStudio(node, compactSummary) {
     topTabs.appendChild(item);
   }
 
-  const historyActions = el("div", "m3ss-history-actions");
-  historyActions.style.marginLeft = "auto";
-  historyActions.style.display = "flex";
-  historyActions.style.alignItems = "center";
-  historyActions.style.gap = "6px";
-  historyActions.style.paddingBottom = "6px";
-  const undoButton = button("Undo", "m3ss-button secondary");
-  const redoButton = button("Redo", "m3ss-button secondary");
-  undoButton.title = "Undo · Ctrl/Cmd+Z";
-  redoButton.title = "Redo · Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y";
-  historyActions.append(undoButton, redoButton);
-  topTabs.appendChild(historyActions);
-
   const durationStatus = el("div", "m3ss-duration-status");
   const actions = el("div", "m3ss-footer-actions");
-  const reset = button("Reset", "m3ss-button secondary");
-  const cancel = button("Cancel", "m3ss-button secondary");
-  const save = button("Save to Node", "m3ss-button primary");
+  const reset = button(tr("Reset"), "m3ss-button secondary");
+  const cancel = button(tr("Cancel"), "m3ss-button secondary");
+  const save = button(tr("Save to Node"), "m3ss-button primary");
   actions.append(reset, cancel, save);
   footer.append(durationStatus, actions);
 
@@ -181,6 +215,8 @@ function openStudio(node, compactSummary) {
     project: JSON.parse(JSON.stringify(project)),
     selectedId,
     lyricsExpandedId,
+    generationDraft: { ...generationDraft },
+    generationAutoSync,
   });
   const syncFullLyricsDraft = () => {
     if (!fullLyricsDirty) fullLyricsDraft = compilePreview(project).lyrics;
@@ -190,8 +226,9 @@ function openStudio(node, compactSummary) {
     redoButton.disabled = !history.canRedo;
   };
   const mark = () => {
+    if (generationAutoSync) generationDraft.max_duration = totalDuration(project);
     syncFullLyricsDraft();
-    shell.setSubtitle(`Timeline / Lyrics · ${summarizeProject(project)}`);
+    shell.setSubtitle(`Timeline / Lyrics / Generation · ${summarizeProject(project)}`);
     durationStatus.textContent = `${totalDuration(project).toFixed(1)} s · ${project.timeline.sections.length} sections · semantic timing/energy remain generation targets`;
     updateHistoryButtons();
   };
@@ -212,6 +249,8 @@ function openStudio(node, compactSummary) {
     lyricsExpandedId = project.timeline.sections.some((section) => section.id === state.lyricsExpandedId)
       ? state.lyricsExpandedId
       : selectedId;
+    if (state.generationDraft) generationDraft = { ...generationDraft, ...state.generationDraft };
+    if (typeof state.generationAutoSync === "boolean") generationAutoSync = state.generationAutoSync;
     captionEditMode = false;
     captionDraft = "";
     fullLyricsDirty = false;
@@ -301,7 +340,7 @@ function openStudio(node, compactSummary) {
     const toggle = button("", `m3ss-main-vocal-toggle${mainVocalOpen ? " is-open" : ""}`);
     toggle.append(
       el("span", "m3ss-main-vocal-arrow", mainVocalOpen ? "▾" : "▸"),
-      el("strong", "", "Main Vocal"),
+      el("strong", "", tr("Main Vocal")),
       el("span", "m3ss-main-vocal-summary", summaryParts.join(" · ")),
     );
     toggle.onclick = () => {
@@ -319,11 +358,11 @@ function openStudio(node, compactSummary) {
     const harmony = editableCombo({ value: vocal.harmony, options: VOCAL_HARMONY_PRESETS, placeholder: "layered chorus harmonies, murmured doubles…", onInput: (value) => update(() => { vocal.harmony = value; }, "main-vocal:harmony") });
     const effects = editableCombo({ value: vocal.effects, options: VOCAL_EFFECT_PRESETS, placeholder: "moderate reverb, tape delay, spring reverb…", onInput: (value) => update(() => { vocal.effects = value; }, "main-vocal:effects") });
     grid.append(
-      field("Lead / voice type", lead),
-      field("Timbre / character", timbre),
-      field("Delivery", delivery),
-      field("Harmony / backing", harmony, "Curated prompt wording; custom text remains valid."),
-      field("Vocal effects", effects, "Prompt guidance, not guaranteed DSP processing."),
+      field(tr("Lead / voice type"), lead),
+      field(tr("Timbre / character"), timbre),
+      field(tr("Delivery"), delivery),
+      field(tr("Harmony / backing"), harmony, "Curated prompt wording; custom text remains valid."),
+      field(tr("Vocal effects"), effects, "Prompt guidance, not guaranteed DSP processing."),
     );
     panel.appendChild(grid);
   }
@@ -341,17 +380,17 @@ function openStudio(node, compactSummary) {
     bpm.oninput = () => update(() => { global.bpm = Math.round(clamp(bpm.value, 20, 400)); }, "global:bpm");
     const key = editableCombo({
       value: global.key, options: KEY_PRESETS, placeholder: "Key…",
-      onInput: (value) => update(() => { global.key = value; }, "global:key"),
+      onInput: (value) => { update(() => { global.key = value; }, "global:key"); refreshTimeline(); },
     });
     const scale = editableCombo({
       value: global.scale, options: SCALE_PRESETS, placeholder: "Scale / mode…",
-      onInput: (value) => update(() => { global.scale = value; }, "global:scale"),
+      onInput: (value) => { update(() => { global.scale = value; }, "global:scale"); refreshTimeline(); },
     });
     const meter = selectInput(METERS.includes(global.meter) ? METERS : [...METERS, global.meter], global.meter || "4/4");
     meter.onchange = () => update(() => { global.meter = meter.value; });
     const mode = selectInput([{ value: "vocal", label: "Vocal" }, { value: "instrumental", label: "Instrumental" }], global.vocal?.mode || "vocal");
     mode.onchange = () => { update(() => { global.vocal.mode = mode.value; }); renderTimelineView(); };
-    const more = button(`${moreSettingsOpen ? "▴" : "▾"} More Settings`, "m3ss-button secondary m3ss-more-settings-button");
+    const more = button(`${moreSettingsOpen ? "▴" : "▾"} ${tr("More Settings")}`, "m3ss-button secondary m3ss-more-settings-button");
     more.onclick = () => {
       moreSettingsOpen = !moreSettingsOpen;
       writeLayoutNumber("semantic-more-settings-open", moreSettingsOpen ? 1 : 0);
@@ -359,10 +398,12 @@ function openStudio(node, compactSummary) {
     };
 
     primary.append(
-      field("Genre", genre), field("BPM", bpm), field("Key", key), field("Scale / Mode", scale),
-      field("Meter", meter), field("Vocal", mode), more,
+      field(tr("Genre"), genre), field(tr("BPM"), bpm), field(tr("Key"), key), field(tr("Scale / Mode"), scale),
+      field(tr("Meter"), meter), field(tr("Vocal"), mode), more,
     );
-    panel.appendChild(primary);
+    const effective = el("div", "m3ss-effective-key");
+    effective.append(el("span", "", `${tr("Effective Key")}:`), el("strong", "", effectiveKey(project)));
+    panel.append(primary, effective);
     renderMainVocal(panel);
 
     if (moreSettingsOpen) {
@@ -382,10 +423,10 @@ function openStudio(node, compactSummary) {
         suggestions: PRODUCTION_SUGGESTIONS, onInput: (value) => update(() => { global.production = value; }, "global:production"),
       });
       extra.append(
-        field("Working title", title, "Project-only; not injected into the caption."),
-        field("Subgenres / influences", influences),
-        field("Mood / direction", mood),
-        field("Production profile", production),
+        field(tr("Working title"), title, "Project-only; not injected into the caption."),
+        field(tr("Subgenres / influences"), influences),
+        field(tr("Mood / direction"), mood),
+        field(tr("Production profile"), production),
       );
       panel.appendChild(extra);
     }
@@ -398,10 +439,28 @@ function openStudio(node, compactSummary) {
     center.replaceChildren();
     center.appendChild(renderSongSettings());
 
+    const accordion = el("section", "m3ss-timeline-accordion");
+    const toggle = button("", `m3ss-timeline-accordion-toggle${timelinePanelOpen ? " is-open" : ""}`);
+    toggle.append(
+      el("span", "m3ss-timeline-accordion-arrow", timelinePanelOpen ? "▾" : "▸"),
+      el("span", "", tr("Song Timeline")),
+      el("span", "m3ss-timeline-accordion-summary", `${project.timeline.sections.length} sections · ${totalDuration(project).toFixed(1)} s`),
+    );
+    toggle.onclick = () => {
+      timelinePanelOpen = !timelinePanelOpen;
+      writeLayoutNumber("semantic-song-timeline-open", timelinePanelOpen ? 1 : 0);
+      renderTimelineView();
+    };
+    accordion.appendChild(toggle);
+    center.appendChild(accordion);
+    if (!timelinePanelOpen) return;
+
+    const body = el("div", "m3ss-timeline-accordion-body");
+    accordion.appendChild(body);
     const head = el("div", "m3ss-center-head m3ss-timeline-view-head");
     const headText = el("div");
     headText.append(
-      el("h3", "m3ss-view-title", "Song Timeline"),
+      el("h3", "m3ss-view-title", tr("Song Timeline")),
       el("p", "m3ss-view-note", "Drag Structure blocks to reorder. Section edges edit duration; Energy and Instrument changes are fully undoable."),
     );
     const controls = el("div", "m3ss-timeline-controls");
@@ -421,7 +480,7 @@ function openStudio(node, compactSummary) {
     addType.onchange = syncAddButton;
     syncAddButton();
     add.onclick = () => addSection(addType.value);
-    const fit = button("Fit", "m3ss-button secondary");
+    const fit = button(tr("Fit"), "m3ss-button secondary");
     const zoom = document.createElement("input");
     zoom.type = "range";
     zoom.min = "3";
@@ -429,12 +488,12 @@ function openStudio(node, compactSummary) {
     zoom.step = "0.5";
     zoom.value = String(timelinePxPerSecond);
     zoom.title = "Timeline horizontal scale";
-    controls.append(addType, add, el("span", "m3ss-timeline-scale-label", "Scale"), zoom, fit);
+    controls.append(addType, add, el("span", "m3ss-timeline-scale-label", tr("Scale")), zoom, fit);
     head.append(headText, controls);
-    center.appendChild(head);
+    body.appendChild(head);
 
     const host = el("div", "m3ss-timeline-host");
-    center.appendChild(host);
+    body.appendChild(host);
     renderSemanticTimeline(host, project, selectedId, {
       pxPerSecond: timelinePxPerSecond,
       showInstruments: timelineInstrumentsOpen,
@@ -484,15 +543,15 @@ function openStudio(node, compactSummary) {
   function renderCaptionPanel(compiled) {
     const panel = el("section", "m3ss-lyrics-pane m3ss-caption-pane");
     const head = el("div", "m3ss-lyrics-pane-head");
-    head.appendChild(el("h3", "", captionEditMode ? "Caption — Draft Editing" : "Caption"));
+    head.appendChild(el("h3", "", captionEditMode ? tr("Caption — Draft Editing") : tr("Caption")));
     const controls = el("div", "m3ss-inline-actions");
     const area = textarea(captionEditMode ? captionDraft : compiled.caption, "Structured Caption", 22);
     area.classList.add("m3ss-caption-editor");
     area.readOnly = !captionEditMode;
 
     if (captionEditMode) {
-      const cancelEdit = button("Cancel", "m3ss-button secondary");
-      const analyze = button("Analyze & Import", "m3ss-button primary");
+      const cancelEdit = button(tr("Cancel"), "m3ss-button secondary");
+      const analyze = button(tr("Analyze & Import"), "m3ss-button primary");
       cancelEdit.onclick = () => { captionEditMode = false; captionDraft = ""; renderLyrics(); };
       analyze.onclick = () => {
         captionDraft = area.value;
@@ -510,13 +569,13 @@ function openStudio(node, compactSummary) {
       area.oninput = () => { captionDraft = area.value; };
       controls.append(cancelEdit, analyze);
     } else {
-      const importButton = button("Import Prompt", "m3ss-button secondary");
-      const copy = button("Copy", "m3ss-button secondary");
-      const edit = button("Edit", "m3ss-button primary");
+      const importButton = button(tr("Import Prompt"), "m3ss-button secondary");
+      const copy = button(tr("Copy"), "m3ss-button secondary");
+      const edit = button(tr("Edit"), "m3ss-button primary");
       importButton.onclick = () => {
         openPromptImporter({ project, defaultMode: "replace", onApply: (next) => applyImportedProject(next) });
       };
-      copy.onclick = async () => { await copyText(compiled.caption); copy.textContent = "Copied"; setTimeout(() => { copy.textContent = "Copy"; }, 900); };
+      copy.onclick = async () => { await copyText(compiled.caption); copy.textContent = tr("Copied"); setTimeout(() => { copy.textContent = tr("Copy"); }, 900); };
       edit.onclick = () => { captionDraft = compiled.caption; captionEditMode = true; renderLyrics(); };
       controls.append(importButton, copy, edit);
     }
@@ -531,10 +590,10 @@ function openStudio(node, compactSummary) {
   function renderFullLyricsPanel(compiled) {
     const panel = el("section", "m3ss-lyrics-pane m3ss-full-lyrics-pane");
     const head = el("div", "m3ss-lyrics-pane-head");
-    head.appendChild(el("h3", "", "Full Lyrics"));
+    head.appendChild(el("h3", "", tr("Full Lyrics")));
     const controls = el("div", "m3ss-inline-actions");
-    const apply = button("Apply to Sections", "m3ss-button primary");
-    const resetDraft = button("Reset", "m3ss-button secondary");
+    const apply = button(tr("Apply to Sections"), "m3ss-button primary");
+    const resetDraft = button(tr("Reset"), "m3ss-button secondary");
     controls.append(apply, resetDraft);
     head.appendChild(controls);
 
@@ -575,8 +634,8 @@ function openStudio(node, compactSummary) {
   function renderSectionLyricsPanel(fullLyricsArea) {
     const panel = el("section", "m3ss-lyrics-pane m3ss-section-lyrics-pane");
     const head = el("div", "m3ss-lyrics-pane-head");
-    head.appendChild(el("h3", "", "Section Lyrics"));
-    head.appendChild(el("span", "m3ss-lyrics-pane-note", "Per section"));
+    head.appendChild(el("h3", "", tr("Section Lyrics")));
+    head.appendChild(el("span", "m3ss-lyrics-pane-note", tr("Per section")));
     panel.appendChild(head);
     const list = el("div", "m3ss-lyrics-list m3ss-lyrics-accordion");
 
@@ -588,7 +647,7 @@ function openStudio(node, compactSummary) {
       const title = button("", "m3ss-lyrics-title m3ss-lyrics-accordion-title");
       const arrow = el("span", "m3ss-lyrics-arrow", expanded ? "▾" : "▸");
       const name = el("span", "m3ss-lyrics-name", section.label || section.type);
-      const meta = el("span", "m3ss-lyrics-meta", `${Number(section.duration).toFixed(1)} s · ${empty ? "No lyrics" : `${lines} line${lines === 1 ? "" : "s"}`}`);
+      const meta = el("span", "m3ss-lyrics-meta", `${Number(section.duration).toFixed(1)} s · ${empty ? tr("No lyrics") : `${lines} line${lines === 1 ? "" : "s"}`}`);
       title.append(arrow, name, meta);
       title.onclick = () => {
         selectedId = section.id;
@@ -623,7 +682,7 @@ function openStudio(node, compactSummary) {
 
     const intro = el("div", "m3ss-lyrics-view-head");
     intro.append(
-      el("h3", "m3ss-view-title", "Lyrics & Caption"),
+      el("h3", "m3ss-view-title", tr("Lyrics & Caption")),
       el("p", "m3ss-view-note", "Caption → Full Lyrics → Section Lyrics. Drag the dividers to resize panes; double-click a divider to reset."),
     );
     center.appendChild(intro);
@@ -663,15 +722,86 @@ function openStudio(node, compactSummary) {
     };
   }
 
+  function renderGeneration() {
+    cleanupLyricsSplitters();
+    cleanupLyricsSplitters = () => {};
+    center.replaceChildren();
+    const root = el("div", "m3ss-generation-view");
+    const head = el("section", "m3ss-generation-head");
+    const headText = el("div");
+    headText.append(
+      el("h3", "", tr("MiniMax Music3 AR Generation")),
+      el("p", "", "These controls belong to MiniMax Music3's autoregressive music-conditioning/token stage. They are separate from the KSampler noise Seed and diffusion CFG."),
+    );
+    head.appendChild(headText);
+    root.appendChild(head);
+
+    const grid = el("div", "m3ss-generation-grid");
+    const seedCard = el("section", "m3ss-generation-card");
+    seedCard.appendChild(el("h4", "", tr("Music Seed (AR)")));
+    const seed = numberInput(generationDraft.seed, 0, Number.MAX_SAFE_INTEGER, 1);
+    seed.oninput = () => update(() => { generationDraft.seed = Math.max(0, Math.trunc(Number(seed.value) || 0)); }, "generation:seed");
+    seedCard.appendChild(field(tr("Music Seed (AR)"), seed, "AR-stage randomness. This is not the KSampler noise seed."));
+
+    const cfgCard = el("section", "m3ss-generation-card");
+    cfgCard.appendChild(el("h4", "", tr("Music CFG (AR)")));
+    const cfg = numberInput(generationDraft.cfg_scale, 0, 100, .1);
+    cfg.oninput = () => update(() => { generationDraft.cfg_scale = clamp(cfg.value, 0, 100); }, "generation:cfg");
+    cfgCard.appendChild(field(tr("Music CFG (AR)"), cfg, "Guidance used while MiniMax Music3 selects autoregressive music tokens; separate from KSampler CFG."));
+
+    const topCard = el("section", "m3ss-generation-card");
+    topCard.appendChild(el("h4", "", tr("Music Top-K")));
+    const maxTopK = Number(topKWidget?.options?.max) || 16384;
+    const topK = numberInput(generationDraft.top_k, 1, maxTopK, 1);
+    topK.oninput = () => update(() => { generationDraft.top_k = Math.round(clamp(topK.value, 1, maxTopK)); }, "generation:topk");
+    topCard.appendChild(field(tr("Music Top-K"), topK, "Restricts AR token candidates. It has no KSampler counterpart."));
+
+    const durationCard = el("section", "m3ss-generation-card is-duration");
+    durationCard.appendChild(el("h4", "", tr("Duration Limit")));
+    const durationRow = el("div", "m3ss-generation-value-row");
+    const maxDuration = Number(durationWidget?.options?.max) || 360;
+    const duration = numberInput(generationDraft.max_duration, .04, maxDuration, .04);
+    duration.disabled = generationAutoSync;
+    duration.oninput = () => update(() => { generationDraft.max_duration = Math.round(clamp(duration.value, .04, maxDuration) * 100) / 100; }, "generation:duration");
+    const totalBox = el("div", "m3ss-generation-timeline-total");
+    totalBox.append(el("span", "", tr("Timeline Total")), el("strong", "", `${totalDuration(project).toFixed(1)} s`));
+    durationRow.append(field(tr("Duration Limit"), duration, "Maximum AR generation duration; the model may end earlier."), totalBox);
+    const auto = el("label", "m3ss-generation-auto");
+    const autoCheck = document.createElement("input");
+    autoCheck.type = "checkbox";
+    autoCheck.checked = generationAutoSync;
+    autoCheck.onchange = () => {
+      commit(() => {
+        generationAutoSync = autoCheck.checked;
+        writeLayoutNumber("semantic-generation-auto-sync", generationAutoSync ? 1 : 0);
+        if (generationAutoSync) generationDraft.max_duration = totalDuration(project);
+      });
+      renderGeneration();
+    };
+    auto.append(autoCheck, el("span", "", tr("Auto Sync with Timeline")));
+    durationCard.append(durationRow, auto);
+
+    grid.append(seedCard, cfgCard, topCard, durationCard);
+    root.appendChild(grid);
+    const note = el("div", "m3ss-generation-note");
+    note.append(
+      el("strong", "", "Why two Seeds / CFGs? "),
+      document.createTextNode("Music Seed/CFG here operate before diffusion, while KSampler Seed creates latent noise and KSampler CFG guides diffusion. Both stages are used; neither overrides the other."),
+    );
+    root.appendChild(note);
+    center.appendChild(root);
+  }
+
   function renderCenter() {
     if (active === "timeline") renderTimelineView();
-    else renderLyrics();
+    else if (active === "lyrics") renderLyrics();
+    else renderGeneration();
   }
 
   function renderInspector() {
     inspector.replaceChildren();
     const section = selected();
-    inspector.appendChild(el("h3", "m3ss-inspector-title", "Section Inspector"));
+    inspector.appendChild(el("h3", "m3ss-inspector-title", tr("Section Inspector")));
     if (!section) {
       inspector.appendChild(el("div", "m3ss-empty", "Add a section to edit it."));
       return;
@@ -729,8 +859,8 @@ function openStudio(node, compactSummary) {
     const move = el("div", "m3ss-inspector-actions");
     const up = button("↑", "m3ss-icon-button");
     const down = button("↓", "m3ss-icon-button");
-    const duplicate = button("Duplicate", "m3ss-button secondary");
-    const remove = button("Delete", "m3ss-button danger");
+    const duplicate = button(tr("Duplicate"), "m3ss-button secondary");
+    const remove = button(tr("Delete"), "m3ss-button danger");
     const index = project.timeline.sections.indexOf(section);
     up.disabled = index <= 0;
     down.disabled = index >= project.timeline.sections.length - 1;
@@ -773,14 +903,14 @@ function openStudio(node, compactSummary) {
     move.append(up, down, duplicate, remove);
 
     inspector.append(
-      field("Type", type),
-      field("Title", label),
-      field("Duration (s)", duration, "Semantic timeline uses 0.1 s steps."),
-      field("Energy", energyWrap),
-      field("Vocal style", vocal, "Section performance expression; Main Vocal stays song-wide."),
-      field("Instruments", instruments, "Search presets or add custom instruments."),
-      field("Lyrics", lyrics),
-      field("Arrangement", directive),
+      field(tr("Type"), type),
+      field(tr("Title"), label),
+      field(tr("Duration (s)"), duration, "Semantic timeline uses 0.1 s steps."),
+      field(tr("Energy"), energyWrap),
+      field(tr("Vocal style"), vocal, "Section performance expression; Main Vocal stays song-wide."),
+      field(tr("Instruments"), instruments, "Search presets or add custom instruments."),
+      field(tr("Lyrics"), lyrics),
+      field(tr("Arrangement"), directive),
       move,
     );
   }
@@ -792,6 +922,7 @@ function openStudio(node, compactSummary) {
       item.setAttribute("aria-selected", isActive ? "true" : "false");
     }
     workspace.classList.toggle("is-lyrics-view", active === "lyrics");
+    workspace.classList.toggle("is-generation-view", active === "generation");
     renderCenter();
     if (active === "timeline") renderInspector();
     else inspector.replaceChildren();
@@ -810,6 +941,7 @@ function openStudio(node, compactSummary) {
       captionDraft = "";
       fullLyricsDirty = false;
       fullLyricsDraft = compilePreview(project).lyrics;
+      if (generationAutoSync) generationDraft.max_duration = totalDuration(project);
       active = "timeline";
     });
     render();
@@ -817,16 +949,21 @@ function openStudio(node, compactSummary) {
   cancel.onclick = () => shell.close();
   save.onclick = () => {
     project = normalizeProject(project);
+    if (generationAutoSync) generationDraft.max_duration = totalDuration(project);
     const serialized = JSON.stringify(project);
     projectWidget.value = serialized;
     projectWidget.callback?.(serialized);
-    const durationWidget = getNodeWidget(node, "max_duration");
-    if (durationWidget) {
-      const max = Number(durationWidget.options?.max);
-      const limit = Number.isFinite(max) ? max : 360;
-      durationWidget.value = Math.round(clamp(totalDuration(project), 0.04, limit) * 100) / 100;
-      durationWidget.callback?.(durationWidget.value);
-    }
+    const writeWidget = (widget, value) => {
+      if (!widget) return;
+      widget.value = value;
+      widget.callback?.(value);
+    };
+    writeWidget(seedWidget, Math.max(0, Math.trunc(generationDraft.seed)));
+    const maxDuration = Number(durationWidget?.options?.max) || 360;
+    writeWidget(durationWidget, Math.round(clamp(generationDraft.max_duration, .04, maxDuration) * 100) / 100);
+    writeWidget(cfgWidget, clamp(generationDraft.cfg_scale, 0, 100));
+    const maxTopK = Number(topKWidget?.options?.max) || 16384;
+    writeWidget(topKWidget, Math.round(clamp(generationDraft.top_k, 1, maxTopK)));
     compactSummary?.update(summarizeProject(project));
     node.setDirtyCanvas?.(true, true);
     app.graph?.setDirtyCanvas?.(true, true);
@@ -834,6 +971,7 @@ function openStudio(node, compactSummary) {
   };
 
   shell.mount();
+  cleanupLocalization = installUiLocalization(shell.window);
   render();
 }
 
@@ -844,18 +982,18 @@ app.registerExtension({
     node._m3ssStudioInstalled = true;
     ensureStyles();
     const projectWidget = getNodeWidget(node, "project_json");
-    hideNodeWidgets(node, ["project_json"]);
+    hideNodeWidgets(node, ["project_json", "seed", "max_duration", "cfg_scale", "top_k"]);
     let summary = "Semantic project";
     try { summary = summarizeProject(normalizeProject(JSON.parse(projectWidget?.value || "{}"))); } catch {}
     const compact = installNodeSummary(node, { widgetName: "Studio Summary", text: summary, minWidth: 360 });
-    const open = node.addWidget?.("button", "Open Semantic Studio", null, () => openStudio(node, compact), { serialize: false });
+    const open = node.addWidget?.("button", tr("Open Semantic Studio"), null, () => openStudio(node, compact), { serialize: false });
     if (open) {
-      open.label = "Open Semantic Studio";
+      open.label = tr("Open Semantic Studio");
       open.serialize = false;
     }
     node.setSize?.([
       Math.max(node.size?.[0] || 360, 360),
-      Math.min(Math.max(node.computeSize?.()[1] || 180, 180), 330),
+      Math.min(Math.max(node.computeSize?.()[1] || 180, 180), 250),
     ]);
   },
 });
