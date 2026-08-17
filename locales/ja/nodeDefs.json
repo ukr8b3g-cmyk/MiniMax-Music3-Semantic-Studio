@@ -1,0 +1,31 @@
+{
+  "MiniMaxMusic3SemanticStudio": {
+    "display_name": "Music3 セマンティックスタジオ",
+    "description": "MiniMax Music3 の構成、歌詞、アレンジ、ボーカル意図、エナジーをセマンティックタイムラインで設計します。",
+    "inputs": {
+      "clip": { "name": "clip" },
+      "project_json": { "name": "スタジオプロジェクト JSON", "tooltip": "バージョン管理されたSemantic Studioプロジェクトです。通常は『セマンティックスタジオを開く』から編集します。" },
+      "seed": { "name": "音楽シード（AR）", "tooltip": "MiniMax Music3の自己回帰（AR）音楽生成段階で使うシードです。KSamplerのノイズシードとは別です。" },
+      "max_duration": { "name": "生成時間上限", "tooltip": "MiniMax Music3 AR生成の最大時間です。モデルがこれより早く曲を終了する場合があります。" },
+      "cfg_scale": { "name": "音楽CFG（AR）", "tooltip": "MiniMax Music3の自己回帰音楽トークン生成に使うCFGです。KSamplerのCFGとは別です。" },
+      "top_k": { "name": "音楽Top-K", "tooltip": "MiniMax Music3 AR音楽トークン生成で候補を絞り込むTop-Kです。" }
+    },
+    "outputs": {
+      "0": { "name": "CONDITIONING" },
+      "1": { "name": "秒数" }
+    }
+  },
+  "MiniMaxMusic3SemanticStudioAudioEditor": {
+    "display_name": "Music3 セマンティックスタジオ オーディオエディター",
+    "description": "MiniMax Music3の生成音声を非破壊で編集するAUDIOコンパニオンノードです。",
+    "inputs": {
+      "audio": { "name": "オーディオ" },
+      "take_2": { "name": "テイク2" },
+      "take_3": { "name": "テイク3" },
+      "take_4": { "name": "テイク4" },
+      "edit_json": { "name": "オーディオ編集 JSON" },
+      "bypass": { "name": "バイパス" }
+    },
+    "outputs": { "0": { "name": "AUDIO" } }
+  }
+}
