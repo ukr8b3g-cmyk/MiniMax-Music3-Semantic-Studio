@@ -1,0 +1,54 @@
+/* Audio Editor workspace simplification: keep the waveform primary and expose only high-value inspector modes. */
+.m3ssv2-dialog .m3ssv2-inspector-tabs.is-workspace-polished{gap:5px;padding:7px}
+.m3ssv2-dialog .m3ssv2-workspace-tab{position:relative;min-width:0;flex:1;padding:8px 7px;font-size:11px}
+.m3ssv2-dialog .m3ssv2-workspace-tab.is-active{border-color:#7651e8;background:rgba(105,68,214,.2);color:#f1edff}
+.m3ssv2-dialog .m3ssv2-workspace-tab.is-effects{order:-4}
+.m3ssv2-dialog .m3ssv2-workspace-tab.is-edit{order:-3}
+.m3ssv2-dialog .m3ssv2-workspace-tab.is-mixer{order:-2}
+.m3ssv2-dialog .m3ssv2-workspace-tab.is-sources{order:-1}
+
+/* Development-phase chrome does not belong in the normal Effects workflow. */
+.m3ssv2-dialog .m3ssv2-effects-boundary,
+.m3ssv2-dialog .m3ssv2-fx-phase,
+.m3ssv2-dialog .m3ssv2-fx-pending,
+.m3ssv2-dialog .m3ssv2-fx-enabled-warning{display:none!important}
+.m3ssv2-dialog .m3ssv2-effects-root{gap:8px;padding:0}
+.m3ssv2-dialog .m3ssv2-effects-head{padding-bottom:6px}
+.m3ssv2-dialog .m3ssv2-fx-summary{padding-left:42px}
+
+/* Track + Master live together in Mixer instead of competing for top-level tabs. */
+.m3ssv2-mixer-stack{display:grid;gap:12px}
+.m3ssv2-mixer-section{display:grid;gap:8px;padding:10px;border:1px solid rgba(255,255,255,.08);border-radius:8px;background:rgba(16,24,35,.7)}
+.m3ssv2-mixer-section>h3{margin:0;color:#d9e2ee;font-size:11px;font-weight:700}
+.m3ssv2-mixer-section .m3ssv2-grid{gap:3px}
+
+/* One horizontal resize handle controls the whole stereo track height. */
+.m3ssv2-track-height-handle{order:4;position:relative;z-index:6;flex:0 0 9px;height:9px;margin:-4px 10px 2px;cursor:row-resize;touch-action:none}
+.m3ssv2-track-height-handle::before{content:"";position:absolute;top:4px;right:0;left:0;height:1px;background:rgba(139,158,184,.22)}
+.m3ssv2-track-height-handle::after{content:"";position:absolute;top:2px;left:50%;width:44px;height:5px;transform:translateX(-50%);border-radius:99px;background:rgba(129,151,180,.22)}
+.m3ssv2-track-height-handle:hover::after,.m3ssv2-track-height-handle.is-dragging::after{background:rgba(109,151,255,.58)}
+.m3ssv2-mockup-ui .m3ssv2-wave-area.has-manual-track-height{flex:0 0 auto!important;min-height:180px!important;max-height:none!important}
+
+/* Empty editor: Audacity-like blank working surface rather than a single message. */
+.m3ssv2-empty-editor .m3ssv2-root{min-height:0}
+.m3ssv2-empty-editor .m3ssv2-workspace{grid-template-columns:minmax(0,1fr) 7px var(--m3ssv2-inspector-width,360px)}
+.m3ssv2-empty-editor .m3ssv2-main{display:flex;min-width:0;min-height:0;flex-direction:column;overflow:hidden}
+.m3ssv2-empty-editor .m3ssv2-wave-area{display:grid;grid-template-columns:150px minmax(0,1fr);flex:1 1 auto;min-height:300px;margin:5px 10px;border:1px solid rgba(255,255,255,.11);border-radius:9px;background:#080d14;overflow:hidden}
+.m3ssv2-empty-editor .m3ssv2-empty-wave{position:relative;min-width:0;min-height:0;overflow:hidden;background-color:#090f17;background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);background-size:100% 72px,90px 100%}
+.m3ssv2-empty-editor .m3ssv2-empty-section-strip{position:absolute;z-index:2;top:0;right:0;left:0;height:29px;border-bottom:1px solid rgba(255,255,255,.08);background:#0b121c}
+.m3ssv2-empty-editor .m3ssv2-empty-section{position:absolute;top:2px;height:24px;box-sizing:border-box;overflow:hidden;padding:5px 6px;border:1px solid rgba(112,146,190,.28);border-radius:4px;background:rgba(72,92,141,.26);color:#c4d1e5;font-size:9px;text-align:center;text-overflow:ellipsis;white-space:nowrap}
+.m3ssv2-empty-editor .m3ssv2-empty-center{position:absolute;inset:29px 0 0;display:grid;place-content:center;gap:5px;padding:20px;color:#7f91a8;text-align:center;pointer-events:none}
+.m3ssv2-empty-editor .m3ssv2-empty-center strong{color:#b8c6d7;font-size:13px;font-weight:650}
+.m3ssv2-empty-editor .m3ssv2-empty-center span{font-size:10px}
+.m3ssv2-empty-editor .m3ssv2-track-strip{display:flex;min-width:0;flex-direction:column;gap:7px;padding:11px 10px;background:linear-gradient(180deg,#121c29,#0d1621)}
+.m3ssv2-empty-editor .m3ssv2-empty-meter{display:grid;grid-template-columns:1fr 1fr;gap:10px;flex:1;min-height:120px;margin-top:6px;padding-top:8px;border-top:1px solid rgba(255,255,255,.07)}
+.m3ssv2-empty-editor .m3ssv2-empty-meter-rail{align-self:stretch;justify-self:center;width:18px;border:1px solid rgba(255,255,255,.12);border-radius:4px;background:linear-gradient(to top,#11241d,#2b2716 72%,#31161a 90%);opacity:.55}
+.m3ssv2-empty-editor .m3ssv2-empty-inspector-note{display:grid;place-content:center;min-height:220px;padding:24px;color:#8294aa;font-size:11px;line-height:1.5;text-align:center}
+.m3ssv2-empty-editor .m3ssv2-meta-toolbar select:disabled,.m3ssv2-empty-editor .m3ssv2-meta-toolbar input:disabled{opacity:.55}
+.m3ssv2-empty-editor .m3ssv2-command-button:disabled{opacity:.28}
+.m3ssv2-empty-editor .m3ssv2-empty-status{color:#91a2b8;font-size:10px}
+
+@media(max-width:1000px){
+  .m3ssv2-dialog .m3ssv2-workspace-tab{padding:7px 5px;font-size:10px}
+  .m3ssv2-empty-editor .m3ssv2-wave-area{grid-template-columns:118px minmax(0,1fr)}
+}
