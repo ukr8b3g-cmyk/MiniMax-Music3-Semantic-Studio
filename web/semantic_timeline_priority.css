@@ -1,0 +1,47 @@
+/* Semantic Studio timeline-priority layout.
+   Compresses only the chrome above Song Timeline; timeline rows and controls keep their existing dimensions. */
+
+/* Header: keep title and live project summary on one compact row. */
+.m3ss-dialog .m3shell-header{padding:6px 10px;gap:10px}
+.m3ss-dialog .m3shell-heading{display:flex;align-items:baseline;gap:10px;min-width:0;flex:1}
+.m3ss-dialog .m3shell-title{flex:0 0 auto;font-size:15px;font-weight:700}
+.m3ss-dialog .m3shell-subtitle{min-width:0;flex:1;margin:0;font-size:10px}
+.m3ss-dialog .m3shell-window-controls{gap:4px}
+.m3ss-dialog .m3shell-control{width:28px;height:26px;border-radius:6px;font-size:14px}
+
+/* Primary navigation stays prominent, while Undo/Redo moves to the quiet right edge. */
+.m3ss-final-polish .m3ss-top-tabs{align-items:center;gap:6px;padding:5px 10px 4px}
+.m3ss-final-polish .m3ss-top-tab{min-width:104px;padding:7px 14px;font-size:12px;border-radius:8px}
+.m3ss-final-polish .m3ss-history-actions{order:20;margin:0 0 0 auto!important;padding:0 0 0 8px!important;border-right:0!important;border-left:1px solid rgba(255,255,255,.08);gap:4px!important}
+.m3ss-final-polish .m3ss-history-actions .m3ss-button{min-height:27px;padding:4px 7px;font-size:10px}
+
+/* Pull the settings block upward without changing its information architecture. */
+.m3ss-phase-a .m3ss-center{padding-top:8px}
+.m3ss-phase-a .m3ss-song-settings{margin-bottom:4px}
+.m3ss-phase-a .m3ss-song-settings-primary{padding:7px 9px;gap:6px}
+.m3ss-phase-a .m3ss-song-settings .m3ss-field{gap:3px}
+.m3ss-phase-a .m3ss-song-settings .m3ss-label{font-size:9px}
+.m3ss-phase-a .m3ss-song-settings .m3ss-field input,
+.m3ss-phase-a .m3ss-song-settings .m3ss-field select{padding:6px 7px;font-size:11px}
+.m3ss-phase-a .m3ss-more-settings-button{height:30px;padding:5px 8px;font-size:10px}
+
+/* Effective Key duplicates the adjacent Key + Scale values. Keep that information in their controls/tooltips, not a dedicated row. */
+.m3ss-final-polish .m3ss-effective-key{display:none!important}
+
+/* Main Vocal stays exactly where users expect it, but its summary is the default surface. */
+.m3ss-phase-a .m3ss-main-vocal-toggle{min-height:29px;padding:5px 9px;gap:6px}
+.m3ss-phase-a .m3ss-main-vocal-summary{font-size:9px}
+.m3ss-phase-a .m3ss-main-vocal-grid{padding:7px 9px 9px;gap:7px}
+
+/* Song Timeline remains the visual anchor. Remove only duplicated title/help chrome inside its already-labelled accordion. */
+.m3ss-final-polish .m3ss-timeline-accordion{margin-top:3px}
+.m3ss-final-polish .m3ss-timeline-accordion-toggle{padding:7px 10px}
+.m3ss-phase-a .m3ss-timeline-view-head{justify-content:flex-end;margin:0 0 6px;padding:5px 8px 0}
+.m3ss-phase-a .m3ss-timeline-view-head>div:first-child{display:none!important}
+.m3ss-phase-a .m3ss-timeline-controls{width:auto;margin-left:auto}
+
+@container (max-width:900px){
+  .m3ss-dialog .m3shell-heading{gap:7px}
+  .m3ss-final-polish .m3ss-top-tab{min-width:92px;padding-left:11px;padding-right:11px}
+  .m3ss-final-polish .m3ss-history-actions .m3ss-button{padding-left:5px;padding-right:5px}
+}

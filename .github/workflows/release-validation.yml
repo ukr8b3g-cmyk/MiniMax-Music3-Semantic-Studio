@@ -9,8 +9,8 @@ permissions:
   contents: read
 
 jobs:
-  js-audio:
-    name: Audio JS tests
+  js-release:
+    name: JS release tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,6 +24,8 @@ jobs:
           done
       - name: Run Audio Editor unit and contract tests
         run: npm run test:audio
+      - name: Run Semantic Studio unit and contract tests
+        run: npm run test:semantic
 
   python-release:
     name: Python release tests
