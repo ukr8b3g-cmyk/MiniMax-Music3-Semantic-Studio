@@ -84,7 +84,7 @@ function effectLabel(effect) {
   return String(effect?.params?.name || effect?.params?.plugin_name || "VST3");
 }
 
-function rackSection(title, owner, state, rerender) {
+function rackSection(title, owner, state, markDirty, rerender) {
   const section = el("section", "m3ssv2-vst3-rack-section");
   const effects = state[owner];
   section.appendChild(el("strong", "m3ssv2-vst3-rack-title", `${title} · ${effects.length}`));
@@ -100,12 +100,13 @@ function rackSection(title, owner, state, rerender) {
       el("div", "m3ssv2-vst3-meta", `${effect.enabled === false ? "BYPASS" : "ON"} · rack position ${index + 1}`),
     );
     const power = button(effect.enabled === false ? "Enable" : "Bypass", "m3ssv2-button secondary m3ssv2-vst3-mini");
-    power.onclick = () => { effect.enabled = effect.enabled === false; rerender(); };
+    power.onclick = () => { effect.enabled = effect.enabled === false; markDirty(); rerender(); };
     const up = button("↑", "m3ssv2-button secondary m3ssv2-vst3-icon");
     up.disabled = index === 0;
     up.onclick = () => {
       if (index <= 0) return;
       [effects[index - 1], effects[index]] = [effects[index], effects[index - 1]];
+      markDirty();
       rerender();
     };
     const down = button("↓", "m3ssv2-button secondary m3ssv2-vst3-icon");
@@ -113,11 +114,12 @@ function rackSection(title, owner, state, rerender) {
     down.onclick = () => {
       if (index >= effects.length - 1) return;
       [effects[index + 1], effects[index]] = [effects[index], effects[index + 1]];
+      markDirty();
       rerender();
     };
     const remove = button("×", "m3ssv2-button secondary m3ssv2-vst3-icon is-danger");
     remove.title = "Remove VST3 from rack";
-    remove.onclick = () => { effects.splice(index, 1); rerender(); };
+    remove.onclick = () => { effects.splice(index, 1); markDirty(); rerender(); };
     row.append(main, power, up, down, remove);
     section.appendChild(row);
   });
@@ -174,12 +176,14 @@ export function createVst3BrowserPanel({ node = null } = {}) {
   let scanning = false;
   let hostReady = false;
   let lastPlugins = [];
+  let rackDirty = false;
+  const markDirty = () => { rackDirty = true; };
 
   const renderRacks = () => {
     racks.replaceChildren(
       el("div", "m3ssv2-vst3-rack-note", "Phase 2A appends VST3 after built-in effects. VST3 order within each rack is preserved."),
-      rackSection("Main Track VST3", "track", state, renderRacks),
-      rackSection("Master VST3", "master", state, renderRacks),
+      rackSection("Main Track VST3", "track", state, markDirty, renderRacks),
+      rackSection("Master VST3", "master", state, markDirty, renderRacks),
     );
   };
 
@@ -191,6 +195,7 @@ export function createVst3BrowserPanel({ node = null } = {}) {
     }
     const onAdd = (owner, plugin) => {
       state[owner].push(pluginEffect(plugin));
+      markDirty();
       renderRacks();
     };
     for (const plugin of lastPlugins) {
@@ -233,7 +238,12 @@ export function createVst3BrowserPanel({ node = null } = {}) {
 
   rescan.onclick = runScan;
   root.runScan = runScan;
-  root.persistVst3State = () => persistRackState(node, state);
+  root.persistVst3State = () => {
+    if (!rackDirty) return true;
+    const saved = persistRackState(node, state);
+    if (saved) rackDirty = false;
+    return saved;
+  };
   renderRacks();
   return root;
 }
