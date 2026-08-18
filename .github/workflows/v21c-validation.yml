@@ -22,6 +22,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Materialize V2.1-C implementation
+        run: python .v21c_payload/materialize.py
       - name: Verify V2.1-C implementation is present
         run: |
           grep -q '"reverb"' audio_effects_dsp.py
@@ -29,6 +31,7 @@ jobs:
           grep -q 'effect_chain_tail_samples' audio_effects_dsp.py
           grep -q 'effectChainTailSamples' web/audio_effects_dsp.js
           grep -q 'Stereo Delay' web/audio_effects_core.js
+          grep -q 'V2.1-C spatial DSP' docs/V2_SPEC.md
       - name: Install test dependencies
         run: python -m pip install --upgrade pip pytest torch
       - name: Python tests
@@ -43,11 +46,12 @@ jobs:
           node --check web/audio_draft_core.js
       - name: Audio JS tests
         run: npm run test:audio
-      - name: Remove temporary workflow and publish
+      - name: Publish validated implementation
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm .github/workflows/v21c-validation.yml
-          git commit -m "Remove temporary V2.1-C validation workflow"
+          git rm -r .v21c_payload .github/workflows/v21c-validation.yml
+          git add -A
+          git commit -m "Implement V2.1-C reverb and stereo delay"
           git push origin HEAD:main
           git push origin HEAD:v2.1c-spatial-dsp
