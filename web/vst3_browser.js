@@ -38,6 +38,16 @@ export async function openVst3NativeEditor(effect) {
   return result;
 }
 
+export async function closeVst3NativeEditor() {
+  const response = await api.fetchApi("/m3ss/vst3/close-editor", { method: "POST" });
+  let result = null;
+  try { result = await response.json(); } catch {}
+  if (!response.ok || !result?.ok) {
+    throw new Error(result?.error || `Close VST3 editor failed: HTTP ${response.status}`);
+  }
+  return result;
+}
+
 function makeId() {
   return `vst3-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
 }
@@ -114,7 +124,9 @@ function stateLabel(effect) {
 }
 
 function rackSection(title, owner, state, options) {
-  const { markDirty, rerender, hostReady, openingIds, onOpenUi } = options;
+  const {
+    markDirty, rerender, hostReady, openingIds, closingIds, onOpenUi, onCloseUi,
+  } = options;
   const section = el("section", "m3ssv2-vst3-rack-section");
   const effects = state[owner];
   section.appendChild(el("strong", "m3ssv2-vst3-rack-title", `${title} · ${effects.length}`));
@@ -124,18 +136,29 @@ function rackSection(title, owner, state, options) {
   }
   effects.forEach((effect, index) => {
     const opening = openingIds.has(effect.id);
+    const closing = closingIds.has(effect.id);
+    const anotherOpen = openingIds.size > 0 && !opening;
     const row = el("div", `m3ssv2-vst3-rack-row${effect.enabled === false ? " is-bypassed" : ""}`);
     const main = el("div", "m3ssv2-vst3-main");
     main.append(
       el("strong", "m3ssv2-vst3-name", effectLabel(effect)),
       el("div", "m3ssv2-vst3-meta", `${effect.enabled === false ? "BYPASS" : "ON"} · ${stateLabel(effect)} · rack ${index + 1}`),
     );
-    const openUi = button(opening ? "Opening…" : "Open UI", "m3ssv2-button secondary m3ssv2-vst3-mini m3ssv2-vst3-open-ui");
-    openUi.disabled = !hostReady || opening;
-    openUi.title = hostReady
-      ? "Open this plugin's original VST3 interface in an isolated native window"
-      : "VST3 host is not ready";
-    openUi.onclick = () => onOpenUi(effect);
+
+    const uiButton = button(
+      opening ? (closing ? "Closing…" : "Close UI") : "Open UI",
+      "m3ssv2-button secondary m3ssv2-vst3-mini m3ssv2-vst3-open-ui",
+    );
+    uiButton.disabled = !hostReady || closing || anotherOpen;
+    uiButton.title = !hostReady
+      ? "VST3 host is not ready"
+      : opening
+        ? "Close the native plugin window and capture its current state"
+        : anotherOpen
+          ? "Close the currently open VST3 interface first"
+          : "Open this plugin's original VST3 interface in an isolated native window";
+    uiButton.onclick = () => opening ? onCloseUi(effect) : onOpenUi(effect);
+
     const power = button(effect.enabled === false ? "Enable" : "Bypass", "m3ssv2-button secondary m3ssv2-vst3-mini");
     power.onclick = () => { effect.enabled = effect.enabled === false; markDirty(); rerender(); };
     const up = button("↑", "m3ssv2-button secondary m3ssv2-vst3-icon");
@@ -155,9 +178,10 @@ function rackSection(title, owner, state, options) {
       rerender();
     };
     const remove = button("×", "m3ssv2-button secondary m3ssv2-vst3-icon is-danger");
-    remove.title = "Remove VST3 from rack";
+    remove.title = opening ? "Close Plugin UI before removing this VST3" : "Remove VST3 from rack";
+    remove.disabled = opening;
     remove.onclick = () => { effects.splice(index, 1); markDirty(); rerender(); };
-    row.append(main, openUi, power, up, down, remove);
+    row.append(main, uiButton, power, up, down, remove);
     section.appendChild(row);
   });
   return section;
@@ -197,7 +221,7 @@ export function createVst3BrowserPanel({ node = null } = {}) {
   const heading = el("div", "");
   heading.append(
     el("h3", "", "VST3 Plugins · Phase 2B"),
-    el("p", "m3ssv2-vst3-note", "Open the plugin's original native UI, close it to capture state, then Save Edits → Queue. Native UI runs in an isolated helper process."),
+    el("p", "m3ssv2-vst3-note", "Open the plugin's original native UI. Use Close UI here if the plugin window's own close button does not work. State is captured when the native window closes."),
   );
   const rescan = button("Rescan", "m3ssv2-button secondary");
   head.append(heading, rescan);
@@ -216,13 +240,42 @@ export function createVst3BrowserPanel({ node = null } = {}) {
   let lastPlugins = [];
   let rackDirty = false;
   const openingIds = new Set();
+  const closingIds = new Set();
   const markDirty = () => { rackDirty = true; };
 
-  async function onOpenUi(effect) {
-    if (!hostReady || openingIds.has(effect.id)) return;
-    openingIds.add(effect.id);
-    editorStatus.textContent = `Opening ${effectLabel(effect)}… Close the native plugin window to save its state.`;
+  function setNativeOpenFlag() {
+    root.dataset.m3ssVst3EditorOpen = openingIds.size ? "1" : "0";
+  }
+
+  async function onCloseUi(effect) {
+    if (!openingIds.has(effect.id) || closingIds.has(effect.id)) return;
+    closingIds.add(effect.id);
+    editorStatus.textContent = `Closing ${effectLabel(effect)}… Capturing native plugin state.`;
     editorStatus.classList.add("is-busy");
+    renderRacks();
+    try {
+      const result = await closeVst3NativeEditor();
+      if (result?.forced) {
+        editorStatus.textContent = `${effectLabel(effect)} was force-closed. Latest state may not have been captured.`;
+        editorStatus.classList.add("is-error");
+      } else {
+        editorStatus.textContent = `${effectLabel(effect)} close requested… waiting for state capture.`;
+      }
+    } catch (error) {
+      editorStatus.textContent = `Close Plugin UI failed: ${error}`;
+      editorStatus.classList.add("is-error");
+    } finally {
+      renderRacks();
+    }
+  }
+
+  async function onOpenUi(effect) {
+    if (!hostReady || openingIds.size || openingIds.has(effect.id)) return;
+    openingIds.add(effect.id);
+    setNativeOpenFlag();
+    editorStatus.textContent = `Native UI open: ${effectLabel(effect)}. Use Close UI here if the plugin window cannot close itself.`;
+    editorStatus.classList.add("is-busy");
+    editorStatus.classList.remove("is-error", "is-saved");
     renderRacks();
     try {
       const result = await openVst3NativeEditor(effect);
@@ -244,15 +297,19 @@ export function createVst3BrowserPanel({ node = null } = {}) {
       editorStatus.classList.add("is-error");
     } finally {
       openingIds.delete(effect.id);
+      closingIds.delete(effect.id);
+      setNativeOpenFlag();
       editorStatus.classList.remove("is-busy");
       renderRacks();
     }
   }
 
   const renderRacks = () => {
-    const options = { markDirty, rerender: renderRacks, hostReady, openingIds, onOpenUi };
+    const options = {
+      markDirty, rerender: renderRacks, hostReady, openingIds, closingIds, onOpenUi, onCloseUi,
+    };
     racks.replaceChildren(
-      el("div", "m3ssv2-vst3-rack-note", "Open UI uses the plugin's original VST3 window. Close that window to capture its state. Browser Draft still does not host VST3."),
+      el("div", "m3ssv2-vst3-rack-note", "Open UI uses the plugin's original VST3 window. If its own × does not work, use Close UI in this rack. Browser Draft still does not host VST3."),
       rackSection("Main Track VST3", "track", state, options),
       rackSection("Master VST3", "master", state, options),
     );
@@ -313,7 +370,7 @@ export function createVst3BrowserPanel({ node = null } = {}) {
   root.persistVst3State = () => {
     if (!rackDirty) return true;
     if (openingIds.size) {
-      editorStatus.textContent = "Close the native Plugin UI before Save Edits so its latest state can be captured.";
+      editorStatus.textContent = "Use Close UI before Save Edits so the latest VST3 state can be captured.";
       editorStatus.classList.add("is-error");
       return false;
     }
@@ -321,6 +378,7 @@ export function createVst3BrowserPanel({ node = null } = {}) {
     if (saved) rackDirty = false;
     return saved;
   };
+  setNativeOpenFlag();
   renderRacks();
   return root;
 }
