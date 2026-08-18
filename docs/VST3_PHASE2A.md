@@ -1,16 +1,18 @@
 # VST3 Phase 2A — queued host rendering
 
-Phase 2A adds optional Windows 64-bit VST3 **effect** processing to the Audio Editor's authoritative Python Queue render.
+Phase 2A adds Windows 64-bit VST3 **effect** processing to the Audio Editor's authoritative Python Queue render.
 
-## Install the optional host
+## VST3 host dependency
 
-The core custom node still has no new required runtime dependency. To enable VST3 hosting, install the optional file into the same Python environment used by ComfyUI:
+Starting with Phase 2B distribution, the repository root `requirements.txt` installs Pedalboard automatically on Windows when the custom node is installed or updated through ComfyUI Manager.
+
+`requirements-vst3.txt` remains only as a manual recovery/fallback path for installations where the normal dependency step was skipped or damaged:
 
 ```bash
 python -m pip install -r requirements-vst3.txt
 ```
 
-Restart ComfyUI afterwards. The VST3 tab reports whether the Pedalboard host is ready.
+Restart ComfyUI after dependency changes. The VST3 tab reports whether the Pedalboard host is ready.
 
 ## Workflow
 
@@ -27,9 +29,8 @@ Phase 2A appends VST3 effects after built-in effects for each owner. VST3-to-VST
 - Windows 64-bit VST3 effects only.
 - VST instruments are rejected by the host even if Phase 1 could not classify them.
 - Browser Draft does not host VST3. Queue render is authoritative.
-- Native plugin UI is Phase 2B.
-- Plugin parameters/preset state editing is Phase 2B/2C; Phase 2A uses the plugin's default loaded state.
-- Arbitrary VST3 release/reverb tails are not inferred in Phase 2A. The output buffer length remains the input buffer length for a VST3 stage; built-in Reverb/Delay keep their existing deterministic tail behavior.
+- Native plugin UI and captured plugin state are implemented in Phase 2B.
+- Arbitrary VST3 release/reverb tails are not inferred. The output buffer length remains the input buffer length for a VST3 stage; built-in Reverb/Delay keep their existing deterministic tail behavior.
 - Plugin load/process failures are explicit errors; they are never silently bypassed.
 
 ## Stored effect record
@@ -50,3 +51,5 @@ VST3 instances are stored inside the existing track/master `effects[]` arrays, p
   }
 }
 ```
+
+Phase 2B extends the same record with captured native plugin state without changing the edit schema version.
