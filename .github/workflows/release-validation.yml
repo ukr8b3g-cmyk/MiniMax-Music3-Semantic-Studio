@@ -46,3 +46,18 @@ jobs:
           tests/test_semantic_project.py
           tests/test_vst3_scan.py
           tests/test_vst3_window.py
+
+  windows-vst-window:
+    name: Windows native VST window tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile native-window helper
+        run: python -m compileall -q vst3_window.py vst3_editor_process.py
+      - name: Install lightweight test dependency
+        run: python -m pip install --disable-pip-version-check pytest
+      - name: Validate Win32 bindings and helper lifecycle
+        run: python -m pytest -q tests/test_vst3_window.py
