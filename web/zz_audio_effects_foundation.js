@@ -9,7 +9,7 @@ import { openEmptyAudioEditor } from "./audio_empty_editor.js";
 const DIALOG_INSTALLED = "m3ssWorkspacePolished";
 const NODE_WRAPPED = "_m3ssEmptyEditorWrapped";
 const STYLE_ID = "m3ss-v2-workspace-polish";
-const TRACK_HEIGHT_KEY = "m3ss-layout:audio-track-height";
+const AUDIO_HEIGHT_KEY = "m3ss-layout:audio-track-height";
 
 const tr = (en, ja) => currentUiLocale() === "ja" ? ja : en;
 
@@ -47,11 +47,12 @@ function previewTakeCount(dialog) {
   return preview ? Math.max(0, preview.options.length - 2) : 0;
 }
 
-function installTrackHeightResize(dialog) {
+function installAudioHeightResize(dialog) {
   const main = dialog.querySelector(".m3ssv2-main");
   const waveArea = dialog.querySelector(".m3ssv2-wave-area");
   if (!main || !waveArea || waveArea.dataset.m3ssTrackResize === "1") return;
   waveArea.dataset.m3ssTrackResize = "1";
+
   const handle = document.createElement("div");
   handle.className = "m3ssv2-track-height-handle";
   handle.setAttribute("role", "separator");
@@ -72,13 +73,13 @@ function installTrackHeightResize(dialog) {
     waveArea.style.flexBasis = `${next}px`;
     handle.setAttribute("aria-valuenow", String(Math.round(next)));
     if (persist) {
-      try { localStorage.setItem(TRACK_HEIGHT_KEY, String(Math.round(next))); } catch {}
+      try { localStorage.setItem(AUDIO_HEIGHT_KEY, String(Math.round(next))); } catch {}
     }
     window.dispatchEvent(new Event("resize"));
   };
 
   try {
-    const stored = Number(localStorage.getItem(TRACK_HEIGHT_KEY));
+    const stored = Number(localStorage.getItem(AUDIO_HEIGHT_KEY));
     if (Number.isFinite(stored) && stored > 0) setHeight(stored, false);
   } catch {}
 
@@ -157,22 +158,23 @@ function installDialog(dialog) {
   const tabs = dialog.querySelector(".m3ssv2-inspector-tabs");
   const body = dialog.querySelector(".m3ssv2-inspector-body");
   if (!tabs || !body) return;
+
   const originals = [...tabs.querySelectorAll(".m3ssv2-inspector-tab")].slice(0, 5);
   if (originals.length < 5) return;
+  const [trackTab, clipTab, envelopeTab, masterTab] = originals;
 
   ensureStyles();
   dialog.dataset[DIALOG_INSTALLED] = "1";
   dialog.dataset.m3ssSingleAudio = "1";
-  installTrackHeightResize(dialog);
+  installAudioHeightResize(dialog);
   polishSingleAudioChrome(dialog);
 
-  const takeCount = previewTakeCount(dialog);
-  if (takeCount <= 1) {
-    const useTake = [...dialog.querySelectorAll(".m3ssv2-secondary-commands button")].find((item) => /Use Preview Take|プレビューテイクを使用/.test(String(item.textContent || "")));
+  if (previewTakeCount(dialog) <= 1) {
+    const useTake = [...dialog.querySelectorAll(".m3ssv2-secondary-commands button")]
+      .find((item) => /Use Preview Take|プレビューテイクを使用/.test(String(item.textContent || "")));
     if (useTake) useTake.hidden = true;
   }
 
-  const [trackTab, clipTab, envelopeTab, masterTab, takesTab] = originals;
   for (const tab of originals) tab.hidden = true;
 
   const state = {
@@ -199,9 +201,6 @@ function installDialog(dialog) {
   const editTab = makeTab("edit", tr("Edit", "編集"), "is-edit");
   const mixerTab = makeTab("mixer", tr("Mixer", "ミキサー"), "is-mixer");
   const effectsTab = makeTab("effects", tr("Effects", "エフェクト"), "is-effects");
-  const sourcesTab = takeCount > 1
-    ? makeTab("sources", tr("Sources", "ソース"), "is-sources")
-    : null;
   tabs.classList.add("is-workspace-polished");
   tabs.setAttribute("role", "tablist");
 
@@ -209,7 +208,6 @@ function installDialog(dialog) {
     ["edit", editTab],
     ["mixer", mixerTab],
     ["effects", effectsTab],
-    ...(sourcesTab ? [["sources", sourcesTab]] : []),
   ]);
 
   const syncTabState = () => {
@@ -226,19 +224,9 @@ function installDialog(dialog) {
   };
 
   const officialClick = (tab) => tab?.click();
-
   const projectContext = () => {
     if (!body._m3ssEffectsContext?.project) officialClick(masterTab);
     return body._m3ssEffectsContext;
-  };
-
-  const renderEffects = () => {
-    const context = projectContext();
-    if (!context?.project || typeof context.commit !== "function") {
-      body.replaceChildren(el("div", "m3ssv2-empty", tr("Effects are unavailable.", "エフェクトを利用できません。")));
-      return;
-    }
-    renderSingleEffectsRack(body, context.project, context.commit, state.effects);
   };
 
   const renderEdit = () => {
@@ -256,7 +244,14 @@ function installDialog(dialog) {
     renderSingleMixer(body, context.project, context.commit);
   };
 
-  const renderSources = () => officialClick(takesTab);
+  const renderEffects = () => {
+    const context = projectContext();
+    if (!context?.project || typeof context.commit !== "function") {
+      body.replaceChildren(el("div", "m3ssv2-empty", tr("Effects are unavailable.", "エフェクトを利用できません。")));
+      return;
+    }
+    renderSingleEffectsRack(body, context.project, context.commit, state.effects);
+  };
 
   function renderActive() {
     if (state.rendering || !dialog.isConnected) return;
@@ -267,10 +262,9 @@ function installDialog(dialog) {
         polishSingleAudioChrome(dialog);
         return;
       }
-      if (state.mode === "effects") renderEffects();
-      else if (state.mode === "edit") renderEdit();
-      else if (state.mode === "mixer") renderMixer();
-      else renderSources();
+      if (state.mode === "mixer") renderMixer();
+      else if (state.mode === "effects") renderEffects();
+      else renderEdit();
       polishSingleAudioChrome(dialog);
     } finally {
       state.rendering = false;
@@ -290,12 +284,13 @@ function installDialog(dialog) {
   bodyObserver.observe(body, { childList: true, subtree: false });
 
   const chromeObserver = new MutationObserver(() => polishSingleAudioChrome(dialog));
-  const trackStrip = dialog.querySelector(".m3ssv2-track-strip");
-  const status = dialog.querySelector(".m3ssv2-status");
-  const contextMenu = dialog.querySelector(".m3ssv2-context-menu");
-  if (trackStrip) chromeObserver.observe(trackStrip, { childList: true, subtree: true, characterData: true });
-  if (status) chromeObserver.observe(status, { childList: true, subtree: true, characterData: true });
-  if (contextMenu) chromeObserver.observe(contextMenu, { childList: true, subtree: true, characterData: true });
+  for (const target of [
+    dialog.querySelector(".m3ssv2-track-strip"),
+    dialog.querySelector(".m3ssv2-status"),
+    dialog.querySelector(".m3ssv2-context-menu"),
+  ].filter(Boolean)) {
+    chromeObserver.observe(target, { childList: true, subtree: true, characterData: true });
+  }
 
   const envelopeButton = [...dialog.querySelectorAll(".m3ssv2-command-button")]
     .find((item) => String(item.title || "").startsWith("Envelope Tool"));
@@ -318,9 +313,10 @@ function installDialog(dialog) {
   dialog._m3ssSingleAudioContext = () => projectContext();
   dialog._m3ssSingleAudioRefresh = () => queueMicrotask(renderActive);
   dialog._m3ssSetWorkspaceMode = (mode) => {
-    state.mode = ["edit", "mixer", "effects", "sources", "vst3"].includes(mode) ? mode : "edit";
+    state.mode = ["edit", "mixer", "effects", "vst3"].includes(mode) ? mode : "edit";
     renderActive();
   };
+
   queueMicrotask(renderActive);
 }
 
