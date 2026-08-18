@@ -4,7 +4,8 @@ import base64
 import json
 import sys
 from pathlib import Path
-from typing import Any
+from threading import Event, Thread
+from typing import Any, TextIO
 
 MAX_STATE_BYTES = 32 * 1024 * 1024
 
@@ -67,6 +68,26 @@ def _capture_state(plugin: Any) -> tuple[str, bytes]:
     return kind, data
 
 
+def _start_close_watcher(close_event: Event, stream: TextIO | None = None) -> Thread:
+    """Watch stdin for a close request while show_editor owns the main thread."""
+
+    control = stream if stream is not None else sys.stdin
+
+    def watch() -> None:
+        try:
+            for line in control:
+                if line.strip().casefold() in {"close", "quit", "exit"}:
+                    close_event.set()
+                    return
+        except Exception:
+            # Losing the control pipe must not crash the native editor helper.
+            return
+
+    thread = Thread(target=watch, name="m3ss-vst3-close-watcher", daemon=True)
+    thread.start()
+    return thread
+
+
 def run(input_path: Path, output_path: Path) -> None:
     payload = json.loads(input_path.read_text(encoding="utf-8"))
     path = str(payload.get("path") or "").strip()
@@ -79,7 +100,9 @@ def run(input_path: Path, output_path: Path) -> None:
         raise ValueError(f"Plugin {plugin_name or Path(path).stem!r} is not an audio effect.")
 
     _restore_state(plugin, payload)
-    plugin.show_editor()
+    close_event = Event()
+    _start_close_watcher(close_event)
+    plugin.show_editor(close_event)
     state_kind, state = _capture_state(plugin)
 
     result = {
