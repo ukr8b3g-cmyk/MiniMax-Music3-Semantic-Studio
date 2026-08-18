@@ -121,6 +121,15 @@ function mountPanel(dialog) {
 
   dialog.addEventListener("click", (event) => {
     const target = event.target?.closest?.("button");
+    const label = String(target?.textContent || "").trim();
+    if (!target || (label !== "Undo" && label !== "Redo") || !nativeEditorIsOpen(panel)) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    alert("Close the Plugin UI before Undo or Redo so the captured VST3 state remains consistent.");
+  }, true);
+
+  dialog.addEventListener("click", (event) => {
+    const target = event.target?.closest?.("button");
     if (!target || String(target.textContent || "").trim() !== "Save Edits") return;
     if (!nativeEditorIsOpen(panel)) return;
     event.preventDefault();
