@@ -17,6 +17,7 @@ except ImportError:  # Pure-module tests.
 
 MAX_STATE_TEXT = 48 * 1024 * 1024
 _EDITOR_LOCK = asyncio.Lock()
+_ACTIVE_PROCESS: asyncio.subprocess.Process | None = None
 
 
 class Vst3EditorBusy(RuntimeError):
@@ -59,7 +60,54 @@ def _validated_payload(payload: Any) -> dict[str, Any]:
     }
 
 
+async def close_native_editor() -> dict[str, Any]:
+    """Ask the active helper to close its native plugin window.
+
+    Pedalboard's ``show_editor(close_event)`` checks a threading.Event. The
+    helper owns that Event, so the server sends a small command over stdin.
+    If a plugin refuses to close after the event is set, terminate only the
+    isolated helper process so ComfyUI itself stays alive.
+    """
+
+    process = _ACTIVE_PROCESS
+    if process is None or process.returncode is not None:
+        raise Vst3EditorRequestError("No native VST3 plugin editor is currently open.")
+    if process.stdin is None:
+        raise RuntimeError("Native VST3 editor control channel is unavailable.")
+
+    try:
+        process.stdin.write(b"close\n")
+        await process.stdin.drain()
+    except (BrokenPipeError, ConnectionResetError) as exc:
+        raise RuntimeError("Native VST3 editor control channel closed unexpectedly.") from exc
+
+    forced = False
+    try:
+        await asyncio.wait_for(asyncio.shield(process.wait()), timeout=3.0)
+    except asyncio.TimeoutError:
+        forced = True
+        process.terminate()
+        try:
+            await asyncio.wait_for(asyncio.shield(process.wait()), timeout=2.0)
+        except asyncio.TimeoutError:
+            process.kill()
+            await process.wait()
+
+    return {
+        "ok": True,
+        "closing": True,
+        "forced": forced,
+        "message": (
+            "Native VST3 helper was force-closed; the latest plugin state may not have been captured."
+            if forced
+            else "Native VST3 editor close requested; plugin state is being captured."
+        ),
+    }
+
+
 async def open_native_editor(payload: Any) -> dict[str, Any]:
+    global _ACTIVE_PROCESS
+
     status = host_status()
     if not status.get("ready"):
         raise Vst3EditorRequestError(str(status.get("message") or "VST3 host is unavailable."))
@@ -85,10 +133,23 @@ async def open_native_editor(payload: Any) -> dict[str, Any]:
                 str(script),
                 str(input_path),
                 str(output_path),
+                stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            stdout, stderr = await process.communicate()
+            _ACTIVE_PROCESS = process
+            try:
+                stdout_task = asyncio.create_task(process.stdout.read()) if process.stdout else None
+                stderr_task = asyncio.create_task(process.stderr.read()) if process.stderr else None
+                await process.wait()
+                stdout = await stdout_task if stdout_task else b""
+                stderr = await stderr_task if stderr_task else b""
+            finally:
+                if _ACTIVE_PROCESS is process:
+                    _ACTIVE_PROCESS = None
+                if process.stdin is not None:
+                    process.stdin.close()
+
             result: dict[str, Any] | None = None
             try:
                 if output_path.is_file():
