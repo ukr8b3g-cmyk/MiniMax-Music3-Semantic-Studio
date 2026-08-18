@@ -1,18 +1,9 @@
 /* Audio Editor workspace simplification: keep the waveform primary and expose only high-value inspector modes. */
 .m3ssv2-dialog .m3ssv2-inspector-tabs.is-workspace-polished{gap:5px;padding:7px}
-.m3ssv2-dialog .m3ssv2-workspace-tab{position:relative;min-width:0;flex:1;padding:8px 7px;border-width:1px;border-style:solid;font-size:11px;font-weight:650;transition:border-color .14s ease,background .14s ease,color .14s ease,box-shadow .14s ease}
-.m3ssv2-dialog .m3ssv2-workspace-tab.is-effects{order:-4;border-color:rgba(145,111,238,.38);background:rgba(104,72,191,.12);color:#d7cbff}
-.m3ssv2-dialog .m3ssv2-workspace-tab.is-edit{order:-3;border-color:rgba(75,180,229,.34);background:rgba(39,115,154,.11);color:#c0ecff}
-.m3ssv2-dialog .m3ssv2-workspace-tab.is-mixer{order:-2;border-color:rgba(226,166,78,.34);background:rgba(137,91,30,.11);color:#f1d7ad}
-.m3ssv2-dialog .m3ssv2-workspace-tab.is-sources{order:-1;border-color:rgba(71,191,146,.30);background:rgba(39,116,88,.10);color:#bdebd8}
-.m3ssv2-dialog .m3ssv2-workspace-tab.is-effects:hover{background:rgba(112,76,207,.20);border-color:rgba(158,126,247,.64)}
-.m3ssv2-dialog .m3ssv2-workspace-tab.is-edit:hover{background:rgba(40,130,174,.19);border-color:rgba(87,196,241,.60)}
-.m3ssv2-dialog .m3ssv2-workspace-tab.is-mixer:hover{background:rgba(151,98,31,.19);border-color:rgba(238,178,86,.60)}
-.m3ssv2-dialog .m3ssv2-workspace-tab.is-sources:hover{background:rgba(39,130,96,.18);border-color:rgba(79,207,157,.56)}
-.m3ssv2-dialog .m3ssv2-workspace-tab.is-effects.is-active{border-color:#9b78ff;background:rgba(117,77,224,.38);color:#fff;box-shadow:inset 0 0 0 1px rgba(202,187,255,.15),0 0 11px rgba(112,76,207,.18)}
-.m3ssv2-dialog .m3ssv2-workspace-tab.is-edit.is-active{border-color:#59c8f2;background:rgba(31,135,184,.34);color:#f4fcff;box-shadow:inset 0 0 0 1px rgba(186,235,255,.13),0 0 11px rgba(45,166,218,.14)}
-.m3ssv2-dialog .m3ssv2-workspace-tab.is-mixer.is-active{border-color:#e8a94e;background:rgba(163,103,31,.35);color:#fff8ed;box-shadow:inset 0 0 0 1px rgba(255,224,177,.12),0 0 11px rgba(211,143,48,.13)}
-.m3ssv2-dialog .m3ssv2-workspace-tab.is-sources.is-active{border-color:#50cf9d;background:rgba(35,137,99,.31);color:#f1fff9;box-shadow:inset 0 0 0 1px rgba(193,255,230,.12),0 0 11px rgba(61,189,140,.12)}
+.m3ssv2-dialog .m3ssv2-workspace-tab{position:relative;min-width:0;flex:1;padding:8px 7px;border:1px solid rgba(255,255,255,.13);border-radius:7px;background:rgba(255,255,255,.025);color:#aab7c8;font-size:11px;font-weight:650;transition:border-color .14s ease,background .14s ease,color .14s ease,box-shadow .14s ease,transform .14s ease}
+.m3ssv2-dialog .m3ssv2-workspace-tab:hover:not(:disabled){border-color:rgba(154,124,245,.54);background:rgba(112,76,207,.13);color:#e5ddff}
+.m3ssv2-dialog .m3ssv2-workspace-tab.is-active{border-color:#9b78ff;background:rgba(117,77,224,.36);color:#fff;font-weight:760;box-shadow:inset 0 0 0 1px rgba(202,187,255,.14),0 0 11px rgba(112,76,207,.16)}
+.m3ssv2-dialog .m3ssv2-workspace-tab:disabled{opacity:.38;cursor:not-allowed}
 
 /* Development-phase chrome does not belong in the normal Effects workflow. */
 .m3ssv2-dialog .m3ssv2-effects-boundary,
