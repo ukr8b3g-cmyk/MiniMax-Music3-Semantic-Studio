@@ -281,6 +281,7 @@ export function createVst3BrowserPanel({ node = null } = {}) {
   let statusTimer = null;
   const openingIds = new Set();
   const closingIds = new Set();
+  const forcedCloseIds = new Set();
   const markDirty = () => { rackDirty = true; };
 
   const rackCount = () => state.track.length + state.master.length;
@@ -323,9 +324,14 @@ export function createVst3BrowserPanel({ node = null } = {}) {
     renderRacks();
     try {
       const result = await closeVst3NativeEditor();
-      if (result?.forced) setStatus("Plugin UI force-closed. Latest state may not have been captured.", "error");
-      else setStatus("Closing Plugin UI…", "busy");
+      if (result?.forced) {
+        forcedCloseIds.add(effect.id);
+        setStatus("Plugin UI force-closed. Latest state may not have been captured.", "error");
+      } else {
+        setStatus("Closing Plugin UI…", "busy");
+      }
     } catch (error) {
+      closingIds.delete(effect.id);
       setStatus(`Close UI failed: ${error}`, "error");
     } finally {
       renderRacks();
@@ -351,10 +357,15 @@ export function createVst3BrowserPanel({ node = null } = {}) {
       markDirty();
       setStatus(`${effectLabel(effect)} · State captured`, "saved", 3500);
     } catch (error) {
-      setStatus(`Plugin UI failed: ${error}`, "error");
+      if (forcedCloseIds.has(effect.id)) {
+        setStatus("Plugin UI force-closed. Latest state was not captured.", "error");
+      } else {
+        setStatus(`Plugin UI failed: ${error}`, "error");
+      }
     } finally {
       openingIds.delete(effect.id);
       closingIds.delete(effect.id);
+      forcedCloseIds.delete(effect.id);
       setNativeOpenFlag();
       renderRacks();
     }
