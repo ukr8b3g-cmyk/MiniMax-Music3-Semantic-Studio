@@ -22,7 +22,7 @@ function install(dialog) {
   }
 
   const reset = [...dialog.querySelectorAll(".m3ssv2-footer-actions button")]
-    .find((button) => String(button.textContent || "").trim() === "Reset");
+    .find((button) => /^(Reset|リセット)$/.test(String(button.textContent || "").trim()));
   if (reset) {
     reset.addEventListener("click", () => {
       const original = globalThis.confirm;
