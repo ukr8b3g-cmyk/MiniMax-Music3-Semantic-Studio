@@ -24,12 +24,12 @@ export function renderTrack(container, track, commit, onToolEnvelope) {
   rememberEffectsContext(container, { track, commit });
   container.replaceChildren();
   if (!track) {
-    container.appendChild(el("div", "m3ssv2-empty", "No editable track is available."));
+    container.appendChild(el("div", "m3ssv2-empty", "No editable audio is available."));
     return;
   }
   const grid = el("div", "m3ssv2-grid m3ssv2-grid-2");
-  const name = input("text", track.name || "Main Track");
-  change(name, "change", commit, (control) => { track.name = control.value.trim() || "Main Track"; });
+  const name = input("text", track.name || "Audio");
+  change(name, "change", commit, (control) => { track.name = control.value.trim() || "Audio"; });
   const mute = input("checkbox");
   mute.checked = !!track.muted;
   change(mute, "change", commit, (control) => { track.muted = control.checked; });
@@ -44,16 +44,15 @@ export function renderTrack(container, track, commit, onToolEnvelope) {
   change(pan, "change", commit, (control) => { track.pan = clamp(control.value, -1, 1); });
   const panWrap = el("div", "m3ssv2-pan-control");
   panWrap.append(pan, panValue);
-  const envelope = el("button", "m3ssv2-button", "Edit Track Envelope on Waveform");
+  const envelope = el("button", "m3ssv2-button", "Edit Audio Envelope on Waveform");
   envelope.type = "button";
   envelope.onclick = () => onToolEnvelope?.();
   grid.append(
-    field("Track name", name),
-    field("Mute", mute, "Track Mute is reflected immediately in Draft Preview."),
-    field("Solo", solo, "If any track is soloed, only solo tracks are rendered."),
-    field("Track gain (dB)", gain),
-    field("Track pan", panWrap),
-    field("Automation", envelope, "Use the Envelope tool on the waveform for full-track gain automation."),
+    field("Audio name", name),
+    field("Mute", mute),
+    field("Input gain (dB)", gain),
+    field("Pan", panWrap),
+    field("Automation", envelope),
   );
   container.appendChild(grid);
 }
@@ -111,7 +110,7 @@ export function renderInspector(container, clip, meta, commit) {
   grid.append(field("Reverse", reverse), field("Clip muted", mute));
 
   if (clip.gain_envelope?.length) {
-    grid.appendChild(field("Legacy clip envelope", el("span", "m3ssv2-helper", `${clip.gain_envelope.length} point(s) retained for schema-1 compatibility. New automation should use Track Envelope.`)));
+    grid.appendChild(field("Legacy clip envelope", el("span", "m3ssv2-helper", `${clip.gain_envelope.length} point(s) retained for schema-1 compatibility. New automation should use Audio Envelope.`)));
   }
   container.appendChild(grid);
 }
@@ -120,13 +119,13 @@ export function renderTrackEnvelope(container, track, duration, commit, onToolEn
   rememberEffectsContext(container, { track, commit });
   container.replaceChildren();
   if (!track) {
-    container.appendChild(el("div", "m3ssv2-empty", "No editable track is available."));
+    container.appendChild(el("div", "m3ssv2-empty", "No editable audio is available."));
     return;
   }
   container.appendChild(el(
     "div",
     "m3ssv2-envelope-note",
-    "Main Track Gain Envelope spans the complete edit timeline. Choose the Envelope tool, click the waveform to add a point, drag to move it, and right-click or double-click to delete it. Values are applied to Draft Preview immediately and to final AUDIO after Save Edits → Queue.",
+    "Audio Gain Envelope spans the complete edit timeline. Choose the Envelope tool, click the waveform to add a point, drag to move it, and right-click or double-click to delete it. Values are applied to Draft Preview immediately and to final AUDIO after Save Edits → Queue.",
   ));
   const actions = el("div", "m3ssv2-envelope-actions");
   const edit = el("button", "m3ssv2-button", "Use Envelope Tool");
@@ -142,7 +141,7 @@ export function renderTrackEnvelope(container, track, duration, commit, onToolEn
   const points = [...(track.gain_envelope || [])].sort((a, b) => a.time - b.time);
   const list = el("div", "m3ssv2-envelope-point-list");
   if (!points.length) {
-    list.appendChild(el("div", "m3ssv2-empty", "No automation points. The track remains at 0 dB before Track Gain."));
+    list.appendChild(el("div", "m3ssv2-empty", "No automation points. Audio remains at 0 dB before Input Gain."));
   }
   points.forEach((point, index) => {
     const row = el("div", "m3ssv2-envelope-point-row");
@@ -184,12 +183,11 @@ export function renderMaster(container, project, commit) {
   change(normalize, "change", commit, (control) => { master.normalize.enabled = control.checked; });
   change(target, "change", commit, (control) => { master.normalize.target_peak_dbfs = clamp(control.value, -60, 0); });
   grid.append(
-    field("Master gain (dB)", gain),
-    field("Channel mode", mode, "This changes both Draft Preview and the queued backend output."),
-    field("Peak normalize", normalize),
+    field("Output gain (dB)", gain),
+    field("Channel", mode),
+    field("Normalize", normalize),
     field("Target peak dBFS", target),
   );
-  if (master.effects?.length) grid.appendChild(field("Effects", el("span", "m3ssv2-helper", "Effects are stored but enabled V2.1 DSP is not available in this build.")));
   container.appendChild(grid);
 }
 
