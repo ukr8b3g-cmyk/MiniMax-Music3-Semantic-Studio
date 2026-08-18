@@ -104,6 +104,10 @@ function mountPanel(dialog) {
     if (!tab || tab === vstTab) return;
     showCoreInspector();
   });
+  dialog.addEventListener("m3ss-workspace-mode-change", (event) => {
+    if (event.detail?.mode === "vst3") return;
+    showCoreInspector();
+  });
 
   // Save is blocked before the core handler if a native VST3 editor is still
   // open. Otherwise the core editor saves first, then the VST3 state is merged
