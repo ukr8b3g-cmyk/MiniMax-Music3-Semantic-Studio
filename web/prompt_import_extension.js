@@ -8,14 +8,8 @@ const EXTENSION_NAME = "minimax.music3.semantic.studio.prompt-import";
 const DIVIDER_NAME = "──────── Semantic Studio ────────";
 const nodeClass = (node) => node?.comfyClass || node?.constructor?.comfyClass || node?.type || "";
 
-function removeWidget(node, name) {
-  const index = node?.widgets?.findIndex((widget) => widget?.name === name) ?? -1;
-  if (index >= 0) node.widgets.splice(index, 1);
-}
-
 function normalizeNodeActions(node) {
   if (!Array.isArray(node?.widgets)) return;
-  removeWidget(node, "Studio Summary");
 
   const importPrompt = getNodeWidget(node, "Import Prompt");
   const importIndex = importPrompt ? node.widgets.indexOf(importPrompt) : -1;
@@ -81,9 +75,6 @@ function install(node) {
     open.serialize = false;
   }
 
-  // Other Semantic Studio extensions add their widgets during the same nodeCreated pass.
-  // Reorder on the next frame so the compact node always finishes as:
-  // Import Prompt -> divider -> Open Semantic Studio.
   requestAnimationFrame(() => normalizeNodeActions(node));
 }
 

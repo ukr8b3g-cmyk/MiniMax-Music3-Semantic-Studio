@@ -18,6 +18,13 @@ export function installNodeSummary(node, {
   text = "",
   minWidth = 340,
 } = {}) {
+  if (widgetName === "Studio Summary") {
+    return {
+      widget: null,
+      update() {},
+    };
+  }
+
   let widget = node?.widgets?.find((w) => w.name === widgetName);
   if (!widget) {
     widget = node.addWidget?.("text", widgetName, text, () => {}, { serialize: false });
