@@ -172,11 +172,15 @@ function installDialog(dialog) {
   ]);
 
   const syncTabState = () => {
+    const previous = dialog.dataset.m3ssWorkspaceMode || "";
     dialog.dataset.m3ssWorkspaceMode = state.mode;
     for (const [id, tab] of visibleTabs) {
       const active = id === state.mode;
       tab.classList.toggle("is-active", active);
       tab.setAttribute("aria-selected", active ? "true" : "false");
+    }
+    if (previous !== state.mode) {
+      dialog.dispatchEvent(new CustomEvent("m3ss-workspace-mode-change", { detail: { mode: state.mode } }));
     }
   };
 
