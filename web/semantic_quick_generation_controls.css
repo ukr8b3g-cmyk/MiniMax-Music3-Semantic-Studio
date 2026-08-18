@@ -6,11 +6,6 @@
 .m3ss-phase-a .m3ss-semantic-quick-field.is-cfg input{border-color:rgba(184,139,222,.24)}
 .m3ss-phase-a .m3ss-semantic-quick-field.is-duration input{border-color:rgba(91,207,188,.28)}
 
-/* Common Studio shell follows desktop-window behavior. */
-.m3shell-header{cursor:move;user-select:none;touch-action:none}
-.m3shell-header.is-dragging{cursor:grabbing}
-.m3shell-window-controls,.m3shell-window-controls *{cursor:default}
-
 @container (max-width:1120px){
   .m3ss-phase-a .m3ss-song-settings-primary{grid-template-columns:minmax(135px,1.25fr) 68px minmax(92px,.72fr) minmax(110px,.86fr) 68px 78px 64px 78px auto}
 }
