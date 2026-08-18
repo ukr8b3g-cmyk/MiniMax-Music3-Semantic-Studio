@@ -124,31 +124,6 @@ function generationTab(dialog) {
   return dialog.querySelector('.m3ss-top-tab[data-view="generation"]');
 }
 
-function timelineTab(dialog) {
-  return dialog.querySelector('.m3ss-top-tab[data-view="timeline"]');
-}
-
-function syncQuickControlsThroughGeneration(dialog, returnToTimeline = true) {
-  const generation = generationTab(dialog);
-  const timeline = timelineTab(dialog);
-  if (!generation) return;
-  const wasTimeline = !!timeline?.classList.contains("is-active");
-  if (!generation.classList.contains("is-active")) generation.click();
-  syncVisibleGeneration(dialog);
-  if (returnToTimeline && wasTimeline) timeline?.click();
-}
-
-function refreshQuickDraftFromHistory(dialog) {
-  const generation = generationTab(dialog);
-  const timeline = timelineTab(dialog);
-  if (!generation) return;
-  const wasTimeline = !!timeline?.classList.contains("is-active");
-  if (!generation.classList.contains("is-active")) generation.click();
-  captureVisibleGeneration(dialog);
-  if (wasTimeline) timeline?.click();
-  refreshAutoSyncedDuration(dialog);
-}
-
 function syncDraftBeforeSave(dialog) {
   const generation = generationTab(dialog);
   if (!generation) return;
@@ -157,7 +132,7 @@ function syncDraftBeforeSave(dialog) {
   syncVisibleGeneration(dialog);
 }
 
-function makeField(label, value, { min, max, step, className, onInput, onChange }) {
+function makeField(label, value, { min, max, step, className, onInput }) {
   const field = document.createElement("label");
   field.className = `m3ss-field m3ss-semantic-quick-field ${className}`;
   field.dataset.m3ssQuickGeneration = "1";
@@ -171,7 +146,6 @@ function makeField(label, value, { min, max, step, className, onInput, onChange 
   input.step = String(step);
   input.value = String(value);
   input.addEventListener("input", () => onInput(input));
-  input.addEventListener("change", () => onChange?.(input));
   field.append(title, input);
   return field;
 }
@@ -192,7 +166,6 @@ function ensureQuickControls(dialog) {
 
   const cfgWidget = widget(node, "cfg_scale");
   const durationWidget = widget(node, "max_duration");
-  const commitChange = () => syncQuickControlsThroughGeneration(dialog, true);
   const cfg = makeField("CFG", quickDraft.cfg, {
     min: Number(cfgWidget?.options?.min) || 0,
     max: Number(cfgWidget?.options?.max) || 100,
@@ -202,7 +175,6 @@ function ensureQuickControls(dialog) {
       const value = Number(input.value);
       if (Number.isFinite(value)) quickDraft.cfg = value;
     },
-    onChange: commitChange,
   });
   const duration = makeField("Duration", quickDraft.duration, {
     min: Number(durationWidget?.options?.min) || .04,
@@ -216,7 +188,6 @@ function ensureQuickControls(dialog) {
         quickDraft.durationDirty = true;
       }
     },
-    onChange: commitChange,
   });
   duration.querySelector("input").title = "Generation duration limit in seconds";
 
@@ -243,12 +214,6 @@ function installDialogBridge(dialog) {
     if (button.matches('.m3ss-top-tab[data-view="timeline"]')) captureVisibleGeneration(dialog);
     if (button.matches('.m3ss-top-tab[data-view="generation"]')) {
       queueMicrotask(() => syncVisibleGeneration(dialog));
-    }
-    if (button.matches(".m3ss-history-undo,.m3ss-history-redo")) {
-      queueMicrotask(() => refreshQuickDraftFromHistory(dialog));
-    }
-    if (button.closest(".m3ss-footer") && /Reset|リセット/i.test(button.textContent || "")) {
-      queueMicrotask(() => refreshQuickDraftFromHistory(dialog));
     }
     if (/Save to Node|ノードに保存/i.test(button.textContent || "")) syncDraftBeforeSave(dialog);
   }, true);
