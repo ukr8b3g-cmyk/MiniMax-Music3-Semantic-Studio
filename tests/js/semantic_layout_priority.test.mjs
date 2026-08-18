@@ -52,18 +52,17 @@ test("Timeline front restores only CFG and Duration quick generation controls", 
   assert.doesNotMatch(css, /m3shell-header/);
 });
 
-test("Quick controls follow Timeline auto-sync and Semantic history state", () => {
+test("Quick controls follow Timeline auto-sync without interrupting field focus", () => {
   const quick = source("web/zz_semantic_quick_generation_controls.js");
   assert.match(quick, /function readAutoSyncPreference/);
   assert.match(quick, /function timelineTotalDuration/);
   assert.match(quick, /function refreshAutoSyncedDuration/);
   assert.match(quick, /Music CFG\|音楽CFG/);
   assert.match(quick, /Duration Limit\|生成時間上限/);
-  assert.match(quick, /input\.addEventListener\("change"/);
-  assert.match(quick, /syncQuickControlsThroughGeneration/);
-  assert.match(quick, /refreshQuickDraftFromHistory/);
-  assert.match(quick, /m3ss-history-undo,\.m3ss-history-redo/);
+  assert.match(quick, /document\.activeElement !== input/);
   assert.match(quick, /quickDraft\.autoSync = false/);
+  assert.doesNotMatch(quick, /input\.addEventListener\("change"/);
+  assert.doesNotMatch(quick, /syncQuickControlsThroughGeneration/);
 });
 
 test("Shared Studio shell is not repurposed for native VST window movement", () => {
