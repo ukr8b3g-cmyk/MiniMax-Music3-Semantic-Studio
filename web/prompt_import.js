@@ -55,6 +55,7 @@ export function openPromptImporter({
 } = {}) {
   ensureStyles();
   let analysis = null;
+  let analysisStale = false;
   let mode = defaultMode === "merge" ? "merge" : "replace";
   const shell = createStudioWindow({ title, subtitle, storageKey: "m3ss-prompt-import-window", defaultWidth: 1180, defaultHeight: 820, minWidth: 780, minHeight: 560 });
   shell.window.classList.add("m3import-dialog");
@@ -74,26 +75,35 @@ export function openPromptImporter({
   importMode.onchange = () => { mode = importMode.value; updateApplyHint(); };
   const modeRow = el("div", "m3import-mode-row");
   modeRow.append(el("span", "m3import-label", "Import mode"), importMode, el("span", "m3import-mode-help", "Replace rebuilds section order from the analyzed prompt. Merge updates matching section-type occurrences and appends missing sections. Reserved V2/V3 fields are always preserved."));
-
-  const analyze = button("Analyze", "m3import-button primary"), clear = button("Clear", "m3import-button secondary"), inputActions = el("div", "m3import-actions");
-  inputActions.append(analyze, clear); inputs.append(captionField, lyricsField, modeRow, inputActions);
+  inputs.append(captionField, lyricsField, modeRow);
 
   const resultHead = el("div", "m3import-result-head"), badges = el("div", "m3import-badges"), resultBody = el("div", "m3import-result-body");
   resultHead.append(el("h3", "", "Import Preview"), badges); results.append(resultHead, resultBody);
 
-  const status = el("div", "m3import-status", "Analyze before applying."), cancel = button("Cancel", "m3import-button secondary"), apply = button("Apply Import", "m3import-button primary"), footerActions = el("div", "m3import-actions");
-  apply.disabled = true; footerActions.append(cancel, apply); footer.append(status, footerActions);
+  const status = el("div", "m3import-status", "Paste Caption/Lyrics, then click Analyze."), cancel = button("Cancel", "m3import-button secondary"), clear = button("Clear", "m3import-button secondary"), analyze = button("Analyze", "m3import-button analyze"), apply = button("Apply Import", "m3import-button primary"), footerActions = el("div", "m3import-actions");
+  apply.disabled = true;
+  analyze.title = "Analyze pasted Caption/Lyrics · Ctrl+Enter";
+  footerActions.append(cancel, clear, analyze, apply); footer.append(status, footerActions);
+
+  const hasInput = () => !!(String(caption.value).trim() || String(lyrics.value).trim());
 
   function updateApplyHint() {
+    if (analysisStale) {
+      status.textContent = "Caption/Lyrics changed · click Analyze again before applying.";
+      return;
+    }
     status.textContent = analysis
-      ? `${mode === "replace" ? "Replace section structure" : "Merge detected fields"} · ${analysis.sections.length} detected section(s) · review warnings before applying.`
-      : "Analyze before applying.";
+      ? `${mode === "replace" ? "Replace section structure" : "Merge detected fields"} · ${analysis.sections.length} detected section(s) · review preview, then Apply Import.`
+      : hasInput() ? "Ready to analyze · click Analyze (Ctrl+Enter)." : "Paste Caption/Lyrics, then click Analyze.";
   }
 
   function renderAnalysis() {
     resultBody.replaceChildren(); badges.replaceChildren();
-    if (!analysis) {
-      resultBody.appendChild(el("div", "m3import-empty", "No analysis yet.")); apply.disabled = true; updateApplyHint(); return;
+    if (!analysis || analysisStale) {
+      resultBody.appendChild(el("div", "m3import-empty", analysisStale
+        ? "Input changed after the last analysis. Click Analyze again to refresh this preview."
+        : "No analysis yet. Paste Caption/Lyrics, then click Analyze."));
+      apply.disabled = true; updateApplyHint(); return;
     }
     badges.append(
       el("span", "m3import-badge", analysis.format),
@@ -116,17 +126,32 @@ export function openPromptImporter({
 
   const runAnalysis = () => {
     analysis = analyzePromptImport({ caption: caption.value, lyrics: lyrics.value });
+    analysisStale = false;
     renderAnalysis();
   };
+  const invalidateAnalysis = () => {
+    if (analysis && !analysisStale) analysisStale = true;
+    apply.disabled = true;
+    renderAnalysis();
+  };
+
+  caption.addEventListener("input", invalidateAnalysis);
+  lyrics.addEventListener("input", invalidateAnalysis);
   analyze.onclick = runAnalysis;
-  clear.onclick = () => { caption.value = ""; lyrics.value = ""; analysis = null; renderAnalysis(); };
+  clear.onclick = () => { caption.value = ""; lyrics.value = ""; analysis = null; analysisStale = false; renderAnalysis(); };
   cancel.onclick = () => shell.close();
   apply.onclick = () => {
-    if (!analysis) return;
+    if (!analysis || analysisStale) return;
     const next = applyPromptImport(project, analysis, mode);
     onApply?.(next, analysis, { mode });
     shell.close();
   };
+  shell.window.addEventListener("keydown", (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+      event.preventDefault();
+      runAnalysis();
+    }
+  });
 
   shell.mount();
   if (autoAnalyze && (String(initialCaption).trim() || String(initialLyrics).trim())) runAnalysis();

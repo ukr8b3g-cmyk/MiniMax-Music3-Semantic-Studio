@@ -29,16 +29,17 @@
 .m3ss-timeline-accordion-body{padding:0 0 4px}
 .m3ss-timeline-accordion-body .m3ss-center-head{margin-top:0;border-top:0}
 
-/* Keep the whole cell clickable while preserving visible section boundaries even
-   when the same instrument is enabled in several adjacent sections. */
+/* Instrument cells are semantic section states, not continuous stems. Keep every
+   section edge visible even when the same instrument is enabled on both sides. */
 .m3ss-final-polish .m3ss-tl-instrument-cell{
   background:rgba(255,255,255,.012)!important;
-  border-color:rgba(255,255,255,.06)!important;
-  box-shadow:inset -1px 0 rgba(255,255,255,.055);
+  border-left:1px solid rgba(255,255,255,.07)!important;
+  border-right:3px solid #0c121d!important;
+  box-shadow:inset -1px 0 rgba(255,255,255,.16),inset 1px 0 rgba(255,255,255,.035);
 }
 .m3ss-final-polish .m3ss-tl-instrument-cell::after{
-  content:"";position:absolute;left:7px;right:7px;top:50%;height:5px;transform:translateY(-50%);
-  border-radius:999px;background:rgba(92,111,128,.13);pointer-events:none;
+  content:"";position:absolute;left:10px;right:10px;top:50%;height:5px;transform:translateY(-50%);
+  border-radius:4px;background:rgba(92,111,128,.13);pointer-events:none;
 }
 .m3ss-final-polish .m3ss-tl-instrument-cell.is-active::after{
   background:var(--m3ss-section-accent);

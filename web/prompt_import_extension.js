@@ -1,11 +1,45 @@
 import { app } from "../../scripts/app.js";
 import { getNodeWidget } from "./node_compact.js";
-import { normalizeProject, summarizeProject, totalDuration } from "./semantic_studio_core.js";
+import { normalizeProject, totalDuration } from "./semantic_studio_core.js";
 import { openPromptImporter } from "./prompt_import.js";
 
 const NODE_ID = "MiniMaxMusic3SemanticStudio";
 const EXTENSION_NAME = "minimax.music3.semantic.studio.prompt-import";
+const DIVIDER_NAME = "──────── Semantic Studio ────────";
 const nodeClass = (node) => node?.comfyClass || node?.constructor?.comfyClass || node?.type || "";
+
+function removeWidget(node, name) {
+  const index = node?.widgets?.findIndex((widget) => widget?.name === name) ?? -1;
+  if (index >= 0) node.widgets.splice(index, 1);
+}
+
+function normalizeNodeActions(node) {
+  if (!Array.isArray(node?.widgets)) return;
+  removeWidget(node, "Studio Summary");
+
+  const importPrompt = getNodeWidget(node, "Import Prompt");
+  const importIndex = importPrompt ? node.widgets.indexOf(importPrompt) : -1;
+  const openStudio = getNodeWidget(node, "Open Semantic Studio")
+    || (importIndex > 0 ? [...node.widgets.slice(0, importIndex)].reverse().find((widget) => widget?.type === "button" && !widget?.hidden) : null);
+  let divider = getNodeWidget(node, DIVIDER_NAME);
+  if (!divider && openStudio) {
+    divider = node.addWidget?.("button", DIVIDER_NAME, null, () => {}, { serialize: false });
+    if (divider) {
+      divider.label = DIVIDER_NAME;
+      divider.serialize = false;
+      divider.disabled = true;
+    }
+  }
+
+  if (!importPrompt || !openStudio || !divider) return;
+  const remaining = node.widgets.filter((widget) => ![importPrompt, divider, openStudio].includes(widget));
+  node.widgets.splice(0, node.widgets.length, ...remaining, importPrompt, divider, openStudio);
+  node.setSize?.([
+    Math.max(node.size?.[0] || 360, 360),
+    Math.max(150, Math.min(node.computeSize?.()[1] || node.size?.[1] || 190, 230)),
+  ]);
+  node.setDirtyCanvas?.(true, true);
+}
 
 function install(node) {
   if (nodeClass(node) !== NODE_ID || node._m3ssPromptImportInstalled) return;
@@ -36,8 +70,6 @@ function install(node) {
           durationWidget.callback?.(durationWidget.value);
         }
 
-        const summaryWidget = getNodeWidget(node, "Studio Summary");
-        if (summaryWidget) summaryWidget.value = summarizeProject(next);
         node.setDirtyCanvas?.(true, true);
         app.graph?.setDirtyCanvas?.(true, true);
       },
@@ -48,7 +80,11 @@ function install(node) {
     open.label = "Import Prompt";
     open.serialize = false;
   }
-  node.setSize?.([Math.max(node.size?.[0] || 360, 360), Math.max(node.size?.[1] || 180, 210)]);
+
+  // Other Semantic Studio extensions add their widgets during the same nodeCreated pass.
+  // Reorder on the next frame so the compact node always finishes as:
+  // Import Prompt -> divider -> Open Semantic Studio.
+  requestAnimationFrame(() => normalizeNodeActions(node));
 }
 
 app.registerExtension({
