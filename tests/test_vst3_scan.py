@@ -19,19 +19,21 @@ def test_scan_detects_vst3_bundle_and_reads_moduleinfo(tmp_path):
     assert plugin["name"] == "MuseFX Reverb"
     assert plugin["vendor"] == "Muse"
     assert plugin["kind"] == "effect"
+    assert plugin["category"] == "Space"
     assert plugin["status"] == "detected"
     assert plugin["validated"] is False
 
 
-def test_scan_keeps_unclassified_effect_candidate(tmp_path):
-    bundle = tmp_path / "LegacyEffect.vst3"
+def test_scan_keeps_unclassified_effect_candidate_and_infers_release_category(tmp_path):
+    bundle = tmp_path / "Legacy Compressor.vst3"
     bundle.mkdir()
 
     result = scan_vst3_plugins([tmp_path])
 
     assert result["count"] == 1
-    assert result["plugins"][0]["name"] == "LegacyEffect"
+    assert result["plugins"][0]["name"] == "Legacy Compressor"
     assert result["plugins"][0]["kind"] == "unknown"
+    assert result["plugins"][0]["category"] == "Dynamics"
 
 
 def test_scan_filters_known_vst3_instruments(tmp_path):
