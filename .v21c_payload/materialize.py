@@ -17,7 +17,13 @@ TARGETS = [
 ]
 
 for index, target in enumerate(TARGETS):
-    encoded = Path(f".v21c_payload/{index:02d}.txt").read_text(encoding="utf-8").strip()
+    if index == 1:
+        encoded = (
+            Path(".v21c_payload/01a.txt").read_text(encoding="utf-8").strip()
+            + Path(".v21c_payload/01b.txt").read_text(encoding="utf-8").strip()
+        )
+    else:
+        encoded = Path(f".v21c_payload/{index:02d}.txt").read_text(encoding="utf-8").strip()
     data = zlib.decompress(base64.b64decode(encoded))
     path = Path(target)
     path.parent.mkdir(parents=True, exist_ok=True)
