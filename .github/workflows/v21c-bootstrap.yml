@@ -1,0 +1,63 @@
+name: V2.1-C bootstrap
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/v21c-bootstrap.yml
+
+permissions:
+  contents: write
+
+jobs:
+  materialize-test-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Fetch validated V2.1-C payload
+        run: |
+          git fetch origin v2.1c-spatial-dsp
+          git checkout origin/v2.1c-spatial-dsp -- .v21c_payload
+      - name: Materialize exact implementation
+        run: python .v21c_payload/materialize.py
+      - name: Verify implementation markers
+        run: |
+          grep -q '"reverb"' audio_effects_dsp.py
+          grep -q '"delay"' audio_effects_dsp.py
+          grep -q 'effect_chain_tail_samples' audio_effects_dsp.py
+          grep -q 'effectChainTailSamples' web/audio_effects_dsp.js
+          grep -q 'Stereo Delay' web/audio_effects_core.js
+          grep -q 'V2.1-C spatial DSP' docs/V2_SPEC.md
+      - name: Install Python test dependencies
+        run: python -m pip install --upgrade pip pytest torch
+      - name: Python tests
+        run: python -m pytest
+      - name: Python compile check
+        run: python -m compileall -q .
+      - name: Frontend syntax checks
+        run: |
+          node --check web/audio_effects_core.js
+          node --check web/audio_effects.js
+          node --check web/audio_effects_dsp.js
+          node --check web/audio_draft_core.js
+      - name: Audio JS tests
+        run: npm run test:audio
+      - name: Publish clean V2.1-C commit
+        run: |
+          rm -rf .v21c_payload
+          rm -f .github/workflows/v21c-bootstrap.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Implement V2.1-C reverb and stereo delay"
+          git push origin HEAD:main
