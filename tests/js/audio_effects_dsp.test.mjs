@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyEffectChain } from '../../web/audio_effects_dsp.js';
+import { applyEffectChain, effectChainTailSamples } from '../../web/audio_effects_dsp.js';
 
 const fx = (type, params = {}, enabled = true) => ({ id: `fx-${type}`, type, enabled, params });
 
@@ -51,9 +51,37 @@ test('compressor reduces sustained level and limiter respects ceiling', () => {
   assert.ok(peak(limited) <= Math.pow(10, -1 / 20) + 1e-6);
 });
 
-test('disabled effects are neutral and unsupported enabled effects fail closed', () => {
+test('stereo delay alternates repeats and reports a -60 dB tail', () => {
+  const input = [new Float32Array(1200), new Float32Array(1200)];
+  input[0][0] = 1;
+  const effect = fx('delay', {
+    delay_ms: 100, feedback_percent: 50, wet_db: 0, dry_db: 0, ping_pong: true,
+  });
+  const delayed = applyEffectChain(input, 1000, [effect]);
+  assert.equal(delayed[0][0], 1);
+  assert.equal(delayed[1][100], 1);
+  assert.equal(delayed[0][200], .5);
+  assert.equal(effectChainTailSamples([effect], 1000), 1100);
+});
+
+test('reverb produces deterministic wet-only tail energy', () => {
+  const effect = fx('reverb', {
+    room_size: 75, pre_delay_ms: 10, reverberance: 50, damping: 50,
+    tone_low: 100, tone_high: 100, wet_db: 0, dry_db: 0, wet_only: true,
+  });
+  const tailSamples = effectChainTailSamples([effect], 1000);
+  const input = [new Float32Array(tailSamples + 1)];
+  input[0][0] = 1;
+  const reverbed = applyEffectChain(input, 1000, [effect]);
+  assert.ok(tailSamples > 1000);
+  assert.ok(Math.abs(reverbed[0][0]) < 1e-6);
+  assert.ok(peak(reverbed) > .01);
+  assert.ok(reverbed[0].every(Number.isFinite));
+});
+
+test('disabled effects are neutral and unknown enabled effects fail closed', () => {
   const input = [Float32Array.from([.1, .2])];
   const disabled = applyEffectChain(input, 48000, [fx('gain', { gain_db: 12 }, false)]);
   assert.equal(disabled, input);
-  assert.throws(() => applyEffectChain(input, 48000, [fx('reverb')]), /unsupported effect/);
+  assert.throws(() => applyEffectChain(input, 48000, [fx('chorus')]), /unsupported effect/);
 });

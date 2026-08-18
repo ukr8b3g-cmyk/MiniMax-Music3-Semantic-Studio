@@ -6,7 +6,10 @@ const range = (key, label, minimum, maximum, step, unit, defaultValue) => ({
 });
 const choice = (key, label, values, defaultValue) => ({ key, label, kind: "select", values, defaultValue });
 const toggle = (key, label, defaultValue = false) => ({ key, label, kind: "boolean", defaultValue });
-const AUTO_ENABLE_TYPES = new Set(["gain", "compressor", "limiter", "eq3", "high_pass", "low_pass", "stereo_width"]);
+const AUTO_ENABLE_TYPES = new Set([
+  "gain", "compressor", "limiter", "eq3", "high_pass", "low_pass",
+  "stereo_width", "reverb", "delay",
+]);
 
 export const EFFECT_CATALOG = Object.freeze([
   {
@@ -87,6 +90,19 @@ export const EFFECT_CATALOG = Object.freeze([
       range("wet_db", "Wet Gain", -24, 6, .1, "dB", -1),
       range("dry_db", "Dry Gain", -24, 6, .1, "dB", -1),
       toggle("wet_only", "Wet Only", false),
+    ],
+  },
+  {
+    type: "delay",
+    label: "Stereo Delay",
+    shortLabel: "Delay",
+    category: "Space",
+    params: [
+      range("delay_ms", "Delay Time", 10, 2000, 1, "ms", 350),
+      range("feedback_percent", "Feedback", 0, 90, 1, "%", 35),
+      range("wet_db", "Wet Gain", -60, 6, .1, "dB", -6),
+      range("dry_db", "Dry Gain", -60, 6, .1, "dB", 0),
+      toggle("ping_pong", "Ping-Pong", false),
     ],
   },
 ]);

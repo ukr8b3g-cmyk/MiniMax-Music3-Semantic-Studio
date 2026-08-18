@@ -1,6 +1,6 @@
 # Phase 2 / V2 Audio Editing Specification
 
-Status: **schema 2 unified waveform editor, V2.1-B basic DSP, Effects Rack, and selection-loop audition implemented; ComfyUI integration verification pending**.
+Status: **schema 2 unified waveform editor, V2.1-C spatial DSP (Reverb + Stereo Delay), Effects Rack, and selection-loop audition implemented; ComfyUI integration verification pending**.
 
 V2 is a deterministic non-destructive AUDIO companion node after MiniMax Music3 decode. It remains external to ComfyUI core and does not modify MiniMax Music3, KSampler, latent, or VAE code.
 
@@ -216,7 +216,7 @@ The Effects Rack provides:
 - reset, delete, move up/down and drag reorder
 - unknown effect objects remain round-trippable
 
-### V2.1-B supported DSP
+### V2.1-C supported DSP
 
 The following enabled effects execute in both Browser Draft and authoritative Python/PyTorch rendering:
 
@@ -227,8 +227,10 @@ The following enabled effects execute in both Browser Draft and authoritative Py
 - **Compressor** — channel-linked peak detection with attack/release and makeup gain
 - **Limiter** — input gain, ceiling, release, short lookahead peak anticipation
 - **Stereo Width** — mid/side width control for stereo material
+- **Reverb** — deterministic Schroeder/FreeVerb-inspired stereo room response with pre-delay, decay, damping, tone and wet/dry controls
+- **Stereo Delay** — feedback delay with wet/dry gain and optional Ping-Pong cross-feedback
 
-Python filtering uses `torchaudio.functional.lfilter` when available and retains a PyTorch fallback so importing the custom node does not depend on an optional DSP package import succeeding.
+Python filtering uses `torchaudio.functional.lfilter` when available and retains a PyTorch fallback so importing the custom node does not depend on an optional DSP package import succeeding. Reverb uses deterministic IR generation plus PyTorch FFT overlap-add convolution; Delay uses bounded feedback processing. Both report effect tails so Track and Master spatial effects are not cut off at the timeline boundary.
 
 ### Limiter Auto Level
 
@@ -242,7 +244,7 @@ The expanded Limiter card provides **Auto Level / オートレベル**.
 
 ### Future effects
 
-Reverb remains present in the authoring catalog for the next phase but is not executed by V2.1-B. An enabled Reverb or any unknown future effect raises a clear unsupported-effect error in both Draft and authoritative rendering.
+Reverb and Stereo Delay execute in V2.1-C. Any unknown future enabled effect still raises a clear unsupported-effect error in both Draft and authoritative rendering.
 
 ## 9. Verification
 
@@ -257,16 +259,16 @@ Pure-module validation covers:
 - overlap summing, channel modes, normalization
 - internal clipboard and ripple automation transforms
 - V2.1 effect defaults, parameter clamping, reset, owner separation and rack ordering
-- supported basic DSP behavior for Gain, Filters, EQ, Compressor, Limiter and Stereo Width
+- supported DSP behavior for Gain, Filters, EQ, Compressor, Limiter, Stereo Width, Reverb and Stereo Delay
 - disabled-effect neutrality and explicit unsupported-effect failure
-- Browser Draft support for enabled V2.1-B effects
+- Browser Draft support for enabled V2.1-C effects
 - selection-loop range clamping and end-of-range jump behavior
 
 Still required in ComfyUI:
 
 - source decode -> editor open / empty editor -> queued source transition
 - Draft playback after Mute/Envelope/Cut and supported effects
-- Save Edits -> Queue -> Rendered A comparison for each V2.1-B effect
+- Save Edits -> Queue -> Rendered A comparison for each V2.1-C effect
 - rack-order comparison with multiple effects
 - Limiter Auto Level on representative generated songs
 - Selection Loop start/end behavior during long playback

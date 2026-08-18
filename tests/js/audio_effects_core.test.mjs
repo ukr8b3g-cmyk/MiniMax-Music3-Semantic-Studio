@@ -25,9 +25,22 @@ test('implemented effects are created enabled with deterministic defaults', () =
   assert.equal(effectDefinition('compressor')?.category, 'Dynamics');
 });
 
-test('not-yet-implemented reverb remains off when newly added', () => {
-  const effect = createEffect('reverb', () => 'fx-reverb');
-  assert.equal(effect.enabled, false);
+test('V2.1-C reverb and stereo delay are enabled with stable defaults', () => {
+  const reverb = createEffect('reverb', () => 'fx-reverb');
+  assert.equal(reverb.enabled, true);
+  assert.equal(reverb.params.room_size, 75);
+  assert.equal(reverb.params.wet_only, false);
+
+  const delay = createEffect('delay', () => 'fx-delay');
+  assert.equal(delay.enabled, true);
+  assert.deepEqual(delay.params, {
+    delay_ms: 350,
+    feedback_percent: 35,
+    wet_db: -6,
+    dry_db: 0,
+    ping_pong: false,
+  });
+  assert.equal(effectDefinition('delay')?.label, 'Stereo Delay');
 });
 
 test('parameter edits clamp to the foundation control range', () => {

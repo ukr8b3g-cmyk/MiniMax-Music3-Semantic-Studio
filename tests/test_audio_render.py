@@ -203,8 +203,39 @@ def test_supported_v21b_track_and_master_effects_render():
     assert float(rendered.abs().max()) > 0.49
 
 
-def test_enabled_future_effect_fails_loudly_until_dsp_is_available():
+def test_v21c_delay_extends_track_tail_before_master_processing():
+    source = audio([1.0, 0.0, 0.0, 0.0], sample_rate=1000)
+    edit = project_with_clips(
+        [clip(source_out=0.004)],
+        track={"effects": [{
+            "id": "delay", "type": "delay", "enabled": True,
+            "params": {"delay_ms": 100, "feedback_percent": 50, "wet_db": 0, "dry_db": 0, "ping_pong": False},
+        }]},
+    )
+    rendered = render_audio_edit(source, edit).audio["waveform"][0, 0]
+    assert rendered.shape[-1] > 1000
+    assert rendered[0] == pytest.approx(1.0)
+    assert rendered[100] == pytest.approx(1.0)
+    assert rendered[200] == pytest.approx(0.5)
+
+
+def test_v21c_reverb_extends_master_tail_and_stays_finite():
+    source = audio([1.0, 0.0, 0.0, 0.0], sample_rate=1000)
+    edit = project_with_clips(
+        [clip(source_out=0.004)],
+        master={"effects": [{
+            "id": "reverb", "type": "reverb", "enabled": True,
+            "params": {"room_size": 75, "pre_delay_ms": 10, "reverberance": 50, "wet_only": True},
+        }]},
+    )
+    rendered = render_audio_edit(source, edit).audio["waveform"]
+    assert rendered.shape[-1] > 1000
+    assert float(rendered[..., 10:].abs().max()) > 0.001
+    assert torch.isfinite(rendered).all()
+
+
+def test_enabled_unknown_future_effect_fails_loudly_until_dsp_is_available():
     source = audio([1, 1], sample_rate=2)
-    edit = project_with_clips([clip(source_out=1)], track={"effects": [{"id": "fx", "type": "reverb", "enabled": True, "params": {}}]})
+    edit = project_with_clips([clip(source_out=1)], track={"effects": [{"id": "fx", "type": "chorus", "enabled": True, "params": {}}]})
     with pytest.raises(ValueError, match="unsupported effect"):
         render_audio_edit(source, edit)

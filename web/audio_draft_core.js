@@ -1,4 +1,4 @@
-import { applyEffectChain } from "./audio_effects_dsp.js";
+import { applyEffectChain, effectChainTailSamples } from "./audio_effects_dsp.js";
 
 const EPS = 1e-9;
 
@@ -94,17 +94,26 @@ function timelineDuration(project) {
   return Math.max(duration, 1 / 48000);
 }
 
+function padChannels(channels, length) {
+  if (!channels.length || channels[0].length >= length) return channels;
+  return channels.map((input) => {
+    const output = new Float32Array(length);
+    output.set(input);
+    return output;
+  });
+}
+
 export function renderDraftProject(project, sources) {
   const { sampleRate, channelCount } = assertSourceCompatibility(sources);
   const duration = timelineDuration(project);
-  const outputSamples = Math.max(1, secondsToSample(duration, sampleRate));
-  const mixed = Array.from({ length: channelCount }, () => new Float32Array(outputSamples));
+  const baseSamples = Math.max(1, secondsToSample(duration, sampleRate));
   const tracks = Array.isArray(project?.tracks) ? project.tracks : [];
   const anySolo = tracks.some((track) => !!track?.solo);
+  const renderedTracks = [];
 
   for (const track of tracks) {
     if (track?.muted || (anySolo && !track?.solo)) continue;
-    const trackMix = Array.from({ length: channelCount }, () => new Float32Array(outputSamples));
+    const trackMix = Array.from({ length: channelCount }, () => new Float32Array(baseSamples));
 
     for (const clip of track?.clips || []) {
       if (clip?.muted) continue;
@@ -129,7 +138,7 @@ export function renderDraftProject(project, sources) {
 
       for (let offset = 0; offset < length; offset++) {
         const target = timelineStart + offset;
-        if (target >= outputSamples) break;
+        if (target >= baseSamples) break;
         const sourceIndex = clip.reverse ? sourceEnd - 1 - offset : sourceStart + offset;
         const gain = clipGain * (clipEnvelope ? clipEnvelope[offset] : 1) * fadeAmplitude(offset, length, fadeIn, fadeOut);
         if (channelCount === 1) {
@@ -146,10 +155,13 @@ export function renderDraftProject(project, sources) {
       }
     }
 
-    const trackEnvelope = buildEnvelopeAmplitude(outputSamples, sampleRate, track.gain_envelope || [], { zeroAnchors: false });
+    // Track automation/controls precede the rack. Tail padding is inserted only
+    // after those controls so reverb/delay decay into silence rather than being
+    // extended by automation state.
+    const trackEnvelope = buildEnvelopeAmplitude(baseSamples, sampleRate, track.gain_envelope || [], { zeroAnchors: false });
     const trackGain = dbToAmplitude(track.gain_db);
     const pan = clamp(track.pan, -1, 1);
-    for (let index = 0; index < outputSamples; index++) {
+    for (let index = 0; index < baseSamples; index++) {
       const gain = trackGain * (trackEnvelope ? trackEnvelope[index] : 1);
       if (channelCount === 1) {
         trackMix[0][index] *= gain;
@@ -160,14 +172,31 @@ export function renderDraftProject(project, sources) {
       }
     }
 
-    const effectedTrack = applyEffectChain(trackMix, sampleRate, track?.effects, `Track ${track?.name || track?.id || ""}`);
-    for (let channel = 0; channel < effectedTrack.length; channel++) {
-      for (let index = 0; index < outputSamples; index++) mixed[channel][index] += effectedTrack[channel][index];
+    const effects = Array.isArray(track?.effects) ? track.effects : [];
+    const trackTail = effectChainTailSamples(effects, sampleRate);
+    const paddedTrack = trackTail > 0 ? padChannels(trackMix, baseSamples + trackTail) : trackMix;
+    renderedTracks.push(applyEffectChain(paddedTrack, sampleRate, effects, `Track ${track?.name || track?.id || ""}`));
+  }
+
+  let mixSamples = baseSamples;
+  for (const track of renderedTracks) mixSamples = Math.max(mixSamples, track[0]?.length || 0);
+  const mixed = Array.from({ length: channelCount }, () => new Float32Array(mixSamples));
+  for (const track of renderedTracks) {
+    for (let channel = 0; channel < Math.min(channelCount, track.length); channel++) {
+      for (let index = 0; index < track[channel].length; index++) mixed[channel][index] += track[channel][index];
     }
   }
 
   const master = project?.master || {};
-  let channels = applyEffectChain(mixed, sampleRate, master.effects, "Master");
+  const masterEffects = Array.isArray(master.effects) ? master.effects : [];
+  const masterTail = effectChainTailSamples(masterEffects, sampleRate);
+  let channels = applyEffectChain(
+    masterTail > 0 ? padChannels(mixed, mixSamples + masterTail) : mixed,
+    sampleRate,
+    masterEffects,
+    "Master",
+  );
+  const outputSamples = channels[0]?.length || 1;
   const mode = master.channel_mode || "preserve";
   if (mode === "mono") {
     const mono = new Float32Array(outputSamples);

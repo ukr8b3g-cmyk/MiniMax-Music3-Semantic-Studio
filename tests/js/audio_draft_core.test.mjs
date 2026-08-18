@@ -74,7 +74,7 @@ test('draft fades match backend endpoint direction', () => {
   assert.ok(Math.abs(rendered.channels[0][3] - 0) < 1e-6);
 });
 
-test('V2.1-B supported effects render while disabled/future effects keep safe behavior', () => {
+test('V2.1-C supported effects render while disabled/future effects keep safe behavior', () => {
   const input = { 'take-1': source([[.25, .25, .25, .25]]) };
   const disabled = project({ effects: [{ id: 'fx', type: 'gain', enabled: false, params: { gain_db: 12 } }] });
   assert.deepEqual([...renderDraftProject(disabled, input).channels[0]], [.25, .25, .25, .25]);
@@ -90,6 +90,33 @@ test('V2.1-B supported effects render while disabled/future effects keep safe be
   const limited = renderDraftProject(enabledMaster, input);
   assert.ok(Math.max(...[...limited.channels[0]].map(Math.abs)) <= .50001);
 
-  const future = project({ effects: [{ id: 'fx-future', type: 'reverb', enabled: true, params: {} }] });
+  const future = project({ effects: [{ id: 'fx-future', type: 'chorus', enabled: true, params: {} }] });
   assert.throws(() => renderDraftProject(future, input), /unsupported effect/);
+});
+
+test('V2.1-C delay extends Draft output and keeps audible repeats after the source ends', () => {
+  const input = { 'take-1': source([[1, 0, 0, 0]], 1000) };
+  const state = project({ effects: [{
+    id: 'delay', type: 'delay', enabled: true,
+    params: { delay_ms: 100, feedback_percent: 50, wet_db: 0, dry_db: 0, ping_pong: false },
+  }] });
+  state.tracks[0].clips[0].source_out = .004;
+  const rendered = renderDraftProject(state, input);
+  assert.ok(rendered.numSamples > 1000);
+  assert.equal(rendered.channels[0][0], 1);
+  assert.equal(rendered.channels[0][100], 1);
+  assert.equal(rendered.channels[0][200], .5);
+});
+
+test('V2.1-C reverb extends Draft output with finite wet tail energy', () => {
+  const input = { 'take-1': source([[1, 0, 0, 0]], 1000) };
+  const state = project({}, { effects: [{
+    id: 'reverb', type: 'reverb', enabled: true,
+    params: { room_size: 75, pre_delay_ms: 10, reverberance: 50, wet_only: true },
+  }] });
+  state.tracks[0].clips[0].source_out = .004;
+  const rendered = renderDraftProject(state, input);
+  assert.ok(rendered.numSamples > 1000);
+  assert.ok(Math.max(...rendered.channels[0].map(Math.abs)) > .001);
+  assert.ok(rendered.channels[0].every(Number.isFinite));
 });

@@ -8,10 +8,10 @@ import torch
 
 try:
     from .audio_edit_project import SourceInfo, normalize_edit_project, project_timeline_duration
-    from .audio_effects_dsp import apply_effect_chain
+    from .audio_effects_dsp import apply_effect_chain, effect_chain_tail_samples
 except ImportError:  # Allows pure-module tests outside ComfyUI package loading.
     from audio_edit_project import SourceInfo, normalize_edit_project, project_timeline_duration
-    from audio_effects_dsp import apply_effect_chain
+    from audio_effects_dsp import apply_effect_chain, effect_chain_tail_samples
 
 
 @dataclass(frozen=True)
@@ -261,10 +261,10 @@ def _render_track(
     track: dict[str, Any],
     sources: dict[str, dict[str, Any]],
     sample_rate: int,
-    output_shape: tuple[int, int, int],
+    base_output_shape: tuple[int, int, int],
 ) -> torch.Tensor:
     primary = sources["take-1"]["waveform"]
-    track_mix = torch.zeros(output_shape, device=primary.device, dtype=primary.dtype)
+    track_mix = torch.zeros(base_output_shape, device=primary.device, dtype=primary.dtype)
     for clip in track["clips"]:
         if clip["muted"]:
             continue
@@ -279,6 +279,8 @@ def _render_track(
             timeline_end = track_mix.shape[-1]
         track_mix[..., timeline_start:timeline_end] += rendered
 
+    # Track automation and controls happen before effects. The effect tail is
+    # therefore created by padding silence only after these controls are applied.
     track_envelope = _envelope_amplitude(
         track_mix.shape[-1],
         sample_rate,
@@ -291,10 +293,14 @@ def _render_track(
         track_mix *= track_envelope.view(1, 1, -1)
     track_mix *= _db_to_amplitude(track.get("gain_db", 0.0), device=track_mix.device, dtype=track_mix.dtype)
     track_mix = _apply_pan_balance(track_mix, track.get("pan", 0.0))
+    effects = track.get("effects", [])
+    tail_samples = effect_chain_tail_samples(effects, sample_rate)
+    if tail_samples > 0:
+        track_mix = torch.nn.functional.pad(track_mix, (0, tail_samples))
     return apply_effect_chain(
         track_mix,
         sample_rate,
-        track.get("effects", []),
+        effects,
         owner=f"Track {track.get('name') or track.get('id')}",
     )
 
@@ -341,19 +347,32 @@ def render_audio_edit(
     sample_rate = primary.sample_rate
 
     timeline_duration = project_timeline_duration(project)
-    output_samples = max(1, _seconds_to_sample(timeline_duration, sample_rate))
-    output_shape = (primary.batch_size, primary.channels, output_samples)
-    mixed = torch.zeros(output_shape, device=primary_waveform.device, dtype=primary_waveform.dtype)
+    base_samples = max(1, _seconds_to_sample(timeline_duration, sample_rate))
+    base_shape = (primary.batch_size, primary.channels, base_samples)
 
     tracks = project["tracks"]
     any_solo = any(bool(track.get("solo")) for track in tracks)
+    rendered_tracks: list[torch.Tensor] = []
     for track in tracks:
         if bool(track.get("muted")) or (any_solo and not bool(track.get("solo"))):
             continue
-        mixed += _render_track(track, sources, sample_rate, output_shape)
+        rendered_tracks.append(_render_track(track, sources, sample_rate, base_shape))
+
+    mix_samples = max([base_samples, *(track.shape[-1] for track in rendered_tracks)])
+    mixed = torch.zeros(
+        (primary.batch_size, primary.channels, mix_samples),
+        device=primary_waveform.device,
+        dtype=primary_waveform.dtype,
+    )
+    for track in rendered_tracks:
+        mixed[..., : track.shape[-1]] += track
 
     master = project["master"]
-    mixed = apply_effect_chain(mixed, sample_rate, master.get("effects", []), owner="Master")
+    master_effects = master.get("effects", [])
+    master_tail = effect_chain_tail_samples(master_effects, sample_rate)
+    if master_tail > 0:
+        mixed = torch.nn.functional.pad(mixed, (0, master_tail))
+    mixed = apply_effect_chain(mixed, sample_rate, master_effects, owner="Master")
     mixed = _apply_channel_mode(mixed, master["channel_mode"])
     mixed *= _db_to_amplitude(master["gain_db"], device=mixed.device, dtype=mixed.dtype)
     if master["normalize"]["enabled"]:
