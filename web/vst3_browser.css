@@ -1,5 +1,5 @@
-.m3ssv2-vst3-panel{display:grid;grid-template-rows:auto auto auto minmax(0,1fr);gap:7px;min-height:0;height:100%;box-sizing:border-box;padding:8px;border-top:0;background:transparent}
-.m3ssv2-vst3-tab-panel{min-height:0;overflow:hidden}
+.m3ssv2-vst3-panel{display:grid;grid-template-rows:auto auto auto minmax(0,1fr);gap:7px;min-height:0;height:auto;box-sizing:border-box;padding:8px;border-top:0;background:transparent}
+.m3ssv2-vst3-tab-panel{flex:1 1 auto;min-height:0;overflow:hidden}
 .m3ssv2-vst3-tab-panel[hidden],.m3ssv2-vst3-pane[hidden],.m3ssv2-vst3-search-wrap[hidden],.m3ssv2-vst3-inline-status[hidden]{display:none!important}
 .m3ssv2-vst3-head{grid-row:1;display:flex;align-items:center;gap:7px;min-width:0}
 .m3ssv2-vst3-view-tabs{display:flex;min-width:0;flex:1;gap:4px;padding:2px;border:1px solid rgba(255,255,255,.08);border-radius:7px;background:#0b121b}
