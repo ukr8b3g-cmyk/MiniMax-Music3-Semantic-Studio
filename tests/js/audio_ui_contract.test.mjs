@@ -70,6 +70,16 @@ test("VST3 mutations use Audio Editor project commit for Undo and Redo", () => {
   const bridge = source("web/vst3_extension.js");
   assert.match(bridge, /label !== "Undo" && label !== "Redo"/);
   assert.match(bridge, /panel\.refreshFromProject/);
+  assert.match(bridge, /Close the Plugin UI before Undo or Redo/);
+});
+
+test("Browser Draft explicitly bypasses VST3 while retaining unsupported-effect safety", () => {
+  const draft = source("web/audio_draft_core.js");
+  assert.match(draft, /filter\(\(effect\) => String\(effect\?\.type \|\| ""\) !== "vst3"\)/);
+  assert.match(draft, /const effects = draftEffects\(track\?\.effects\)/);
+  assert.match(draft, /const masterEffects = draftEffects\(master\.effects\)/);
+  const dsp = source("web/audio_effects_dsp.js");
+  assert.match(dsp, /unsupported effect/);
 });
 
 test("VST3 preset library uses IndexedDB rather than localStorage for state blobs", () => {
@@ -101,4 +111,7 @@ test("Release chrome hides schema and Track/Master wording from normal summaries
   assert.doesNotMatch(empty, /Main Track Waveform/);
   assert.doesNotMatch(empty, /Track Gain/);
   assert.doesNotMatch(empty, /Track Pan/);
+  const panels = source("web/audio_panels.js");
+  assert.match(panels, /Audio Gain Envelope/);
+  assert.doesNotMatch(panels, /Main Track Gain Envelope/);
 });
