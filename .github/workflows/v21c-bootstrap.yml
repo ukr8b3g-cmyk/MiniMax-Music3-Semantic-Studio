@@ -28,8 +28,24 @@ jobs:
         run: |
           git fetch origin v2.1c-spatial-dsp
           git checkout origin/v2.1c-spatial-dsp -- .v21c_payload
+      - name: Prepare validated Python test payload
+        run: |
+          sed -i 's/cac0f3632ffe2353b1486e98667844f386422e762109c518b465901ffb837c41/c45ade1fcf49b6992f2ef21de14bbba85c792ab1fd2251cfa5b2ebd45051ce63/' .v21c_payload/materialize.py
       - name: Materialize exact implementation
         run: python .v21c_payload/materialize.py
+      - name: Apply PyTorch scalar test compatibility fix
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('tests/test_audio_effects_dsp.py')
+          text = path.read_text(encoding='utf-8')
+          old = '    assert reverbed[0, 0, 0] == pytest.approx(0.0, abs=1e-6)\n'
+          new = '    assert float(reverbed[0, 0, 0]) == pytest.approx(0.0, abs=1e-6)\n'
+          if old not in text:
+              raise RuntimeError('Expected reverb scalar assertion not found')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          echo 'cac0f3632ffe2353b1486e98667844f386422e762109c518b465901ffb837c41  tests/test_audio_effects_dsp.py' | sha256sum -c -
       - name: Verify implementation markers
         run: |
           grep -q '"reverb"' audio_effects_dsp.py
