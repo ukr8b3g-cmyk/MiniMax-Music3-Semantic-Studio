@@ -1,9 +1,9 @@
 import { app } from "../../scripts/app.js";
 import { NODE_ID, nodeClass } from "./audio_editor_core.js";
-import { createVst3BrowserPanel } from "./vst3_browser.js";
+import { createVst3ReleasePanel } from "./vst3_release_browser.js";
 
 const STYLE_ID = "m3ss-vst3-browser-style";
-const BRIDGE_EXTENSION = "minimax.music3.vst3.phase2c.bridge";
+const BRIDGE_EXTENSION = "minimax.music3.vst3.phase2d.bridge";
 let pendingNode = null;
 
 function ensureStyles() {
@@ -48,12 +48,15 @@ function mountPanel(dialog) {
   const side = dialog?.querySelector?.(".m3ssv2-side");
   const tabs = side?.querySelector?.(".m3ssv2-inspector-tabs");
   const inspectorBody = side?.querySelector?.(".m3ssv2-inspector-body");
-  if (!side || !tabs || !inspectorBody || side.dataset.m3ssVst3Phase2cMounted === "1") return;
-  side.dataset.m3ssVst3Phase2cMounted = "1";
+  if (!side || !tabs || !inspectorBody || side.dataset.m3ssVst3Phase2dMounted === "1") return;
+  side.dataset.m3ssVst3Phase2dMounted = "1";
   ensureStyles();
 
-  const node = resolveDialogNode();
-  const panel = createVst3BrowserPanel({ node });
+  // Prime the hidden core Master renderer once so the shared project/commit
+  // context is available even if VST3 is the first workspace opened.
+  dialog._m3ssSingleAudioContext?.();
+  const contextProvider = () => dialog._m3ssSingleAudioContext?.() || inspectorBody._m3ssEffectsContext || null;
+  const panel = createVst3ReleasePanel({ contextProvider });
   panel.classList.add("m3ssv2-vst3-tab-panel");
   panel.hidden = true;
   side.appendChild(panel);
@@ -77,6 +80,7 @@ function mountPanel(dialog) {
   tabObserver.observe(tabs, { childList: true });
 
   const showVst3 = () => {
+    dialog._m3ssSingleAudioContext?.();
     for (const tab of tabs.querySelectorAll(".m3ssv2-workspace-tab")) {
       const active = tab === vstTab;
       tab.classList.toggle("is-active", active);
@@ -85,6 +89,7 @@ function mountPanel(dialog) {
     dialog.dataset.m3ssWorkspaceMode = "vst3";
     inspectorBody.hidden = true;
     panel.hidden = false;
+    panel.refreshFromProject?.();
     if (panel.dataset.m3ssVst3Scanned !== "1") {
       panel.dataset.m3ssVst3Scanned = "1";
       panel.runScan?.();
@@ -109,9 +114,14 @@ function mountPanel(dialog) {
     showCoreInspector();
   });
 
-  // Save is blocked before the core handler if a native VST3 editor is still
-  // open. Otherwise the core editor saves first, then the VST3 state is merged
-  // in a microtask so Cancel continues to discard unsaved VST3 changes.
+  // VST3 mutations now use the Audio Editor's own project commit function, so
+  // the existing Undo/Redo buttons also restore VST3 rack and captured state.
+  for (const control of dialog.querySelectorAll(".m3ssv2-meta-toolbar button")) {
+    const label = String(control.textContent || "").trim();
+    if (label !== "Undo" && label !== "Redo") continue;
+    control.addEventListener("click", () => queueMicrotask(() => panel.refreshFromProject?.()));
+  }
+
   dialog.addEventListener("click", (event) => {
     const target = event.target?.closest?.("button");
     if (!target || String(target.textContent || "").trim() !== "Save Edits") return;
