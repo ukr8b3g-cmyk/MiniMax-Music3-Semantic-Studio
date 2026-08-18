@@ -39,9 +39,10 @@ jobs:
         run: python -m compileall -q .
       - name: Install lightweight test dependency
         run: python -m pip install --disable-pip-version-check pytest
-      - name: Run schema and VST3 scanner tests
+      - name: Run schema and lightweight VST3 tests
         run: >-
           python -m pytest -q
           tests/test_audio_edit_project.py
           tests/test_semantic_project.py
           tests/test_vst3_scan.py
+          tests/test_vst3_window.py
