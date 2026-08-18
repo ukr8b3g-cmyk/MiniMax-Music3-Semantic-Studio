@@ -209,8 +209,20 @@ export function semanticOverlay(node) {
   }
 }
 
-export const snapshot = (project) => JSON.stringify(project);
-export const parseSnapshot = (value) => JSON.parse(value);
+function cloneHistoryValue(value) {
+  if (Array.isArray(value)) return value.map(cloneHistoryValue);
+  if (value && typeof value === "object") {
+    const output = {};
+    for (const [key, item] of Object.entries(value)) output[key] = cloneHistoryValue(item);
+    return output;
+  }
+  // Primitive strings, including large VST3 state_b64 values, are immutable.
+  // Reusing them avoids creating a fresh multi-megabyte JSON string per history entry.
+  return value;
+}
+
+export const snapshot = (project) => cloneHistoryValue(project);
+export const parseSnapshot = (value) => typeof value === "string" ? JSON.parse(value) : cloneHistoryValue(value);
 
 function splitEnvelope(points, splitTime, duration, side) {
   const source = Array.isArray(points) ? points : [];
