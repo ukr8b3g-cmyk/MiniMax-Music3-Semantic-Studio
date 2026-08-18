@@ -6,7 +6,7 @@ function source(path) {
   return fs.readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 }
 
-test("Audio Editor top-level workspace remains Edit, Mixer, Effects before VST3", () => {
+test("Audio Editor top-level workspace remains exactly Edit, Mixer, Effects before VST3", () => {
   const workspace = source("web/zz_audio_effects_foundation.js");
   const edit = workspace.indexOf('makeTab("edit"');
   const mixer = workspace.indexOf('makeTab("mixer"');
@@ -17,6 +17,7 @@ test("Audio Editor top-level workspace remains Edit, Mixer, Effects before VST3"
   assert.match(workspace, /renderSingleMixer/);
   assert.match(workspace, /renderSingleEffectsRack/);
   assert.match(workspace, /_m3ssSetWorkspaceMode/);
+  assert.doesNotMatch(workspace, /makeTab\("sources"/);
   assert.doesNotMatch(workspace, /trackTitle\.textContent\s*=\s*tr\("Track"/);
   assert.doesNotMatch(workspace, /masterTitle\.textContent\s*=\s*tr\("Master"/);
 
@@ -104,7 +105,7 @@ test("Phase 2D keeps the experienced-user visual language compact", () => {
 test("Release chrome hides schema and Track/Master wording from normal summaries", () => {
   const summary = source("web/node_compact.js");
   assert.match(summary, /releaseSummary/);
-  assert.match(summary, /schema\\s\*\\d\+/i);
+  assert.ok(summary.includes("schema\\s*\\d+"));
   const empty = source("web/audio_empty_editor.js");
   assert.match(empty, /Audio Waveform/);
   assert.match(empty, /Input Gain/);
