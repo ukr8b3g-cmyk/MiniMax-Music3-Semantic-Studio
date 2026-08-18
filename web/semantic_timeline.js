@@ -71,16 +71,31 @@ export function reorderSections(sections, fromIndex, insertionIndex) {
   return insertion;
 }
 
-export function collectInstrumentRows(sections = []) {
+export function collectInstrumentRows(sections = [], catalog = []) {
   const result = [], seen = new Set();
-  for (const section of sections) {
-    for (const raw of section?.instruments || []) {
-      const name = String(raw || "").trim(), key = name.toLowerCase();
-      if (!name || seen.has(key)) continue;
-      seen.add(key); result.push(name);
-    }
+  const source = [...(Array.isArray(catalog) ? catalog : []), ...sections.flatMap((section) => section?.instruments || [])];
+  for (const raw of source) {
+    const name = String(raw || "").trim(), key = name.toLowerCase();
+    if (!name || seen.has(key)) continue;
+    seen.add(key); result.push(name);
   }
   return result;
+}
+
+export function ensureInstrumentCatalog(project) {
+  const timeline = project?.timeline;
+  if (!timeline) return [];
+  const catalog = collectInstrumentRows(timeline.sections || [], timeline.instrument_catalog || []);
+  timeline.instrument_catalog = catalog;
+  return catalog;
+}
+
+export function resetInstrumentCatalog(project) {
+  const timeline = project?.timeline;
+  if (!timeline) return [];
+  const catalog = collectInstrumentRows(timeline.sections || []);
+  timeline.instrument_catalog = catalog;
+  return catalog;
 }
 
 export function sectionHasInstrument(section, instrument) {
@@ -95,6 +110,20 @@ export function toggleSectionInstrument(section, instrument) {
   const index = values.findIndex((item) => String(item || "").trim().toLowerCase() === needle);
   if (index >= 0) { values.splice(index, 1); section.instruments = values; return false; }
   values.push(String(instrument).trim()); section.instruments = values; return true;
+}
+
+export function removeInstrumentFromProject(project, instrument) {
+  const timeline = project?.timeline;
+  const needle = String(instrument || "").trim().toLowerCase();
+  if (!timeline || !needle) return 0;
+  let removed = 0;
+  for (const section of timeline.sections || []) {
+    const before = Array.isArray(section.instruments) ? section.instruments.length : 0;
+    section.instruments = (section.instruments || []).filter((item) => String(item || "").trim().toLowerCase() !== needle);
+    removed += before - section.instruments.length;
+  }
+  timeline.instrument_catalog = (timeline.instrument_catalog || []).filter((item) => String(item || "").trim().toLowerCase() !== needle);
+  return removed;
 }
 
 function summary(text, max = 78) {
@@ -167,7 +196,8 @@ export function renderSemanticTimeline(container, project, selectedId, {
 
   const geometry = sectionTimelineGeometry(sections);
   const total = Math.max(MIN_DURATION, geometry.at(-1)?.end || MIN_DURATION);
-  const instruments = collectInstrumentRows(sections);
+  const instrumentCatalog = ensureInstrumentCatalog(project);
+  const instruments = collectInstrumentRows(sections, instrumentCatalog);
   const shell = el("div", "m3ss-semantic-timeline"), labels = el("div", "m3ss-tl-labels"), scroll = el("div", "m3ss-tl-scroll"), stage = el("div", "m3ss-tl-stage");
   scroll.appendChild(stage); shell.append(labels, scroll); container.appendChild(shell);
 
@@ -304,21 +334,74 @@ export function renderSemanticTimeline(container, project, selectedId, {
     cell.title = `${item.section.label || item.section.type} · ${item.section.vocal || "No section vocal style"}`;
   }
 
-  const instrumentHeader = makeRow(stage, "m3ss-tl-instrument-header"), instrumentToggle = el("button", "m3ss-tl-instrument-toggle", `${showInstruments ? "▾" : "▸"} Instruments (${instruments.length})${showInstruments ? " · click cells to toggle" : ""}`);
+  const instrumentHeader = makeRow(stage, "m3ss-tl-instrument-header"), instrumentToggle = el("button", "m3ss-tl-instrument-toggle", `${showInstruments ? "▾" : "▸"} Instruments (${instruments.length})${showInstruments ? " · click cells: ON / BYPASS" : ""}`);
   instrumentToggle.type = "button"; instrumentToggle.onclick = toggleLabels; instrumentHeader.appendChild(instrumentToggle);
   if (showInstruments) {
     const labelNames = el("div", "m3ss-tl-instrument-labels");
     labelNames.appendChild(el("div", "m3ss-tl-instrument-label-head", `▾ Instruments (${instruments.length})`));
     instrumentLabel.replaceChildren(labelNames);
-    for (const instrument of instruments) labelNames.appendChild(el("div", "m3ss-tl-instrument-name", instrument));
+    for (const instrument of instruments) {
+      const nameRow = el("div", "m3ss-tl-instrument-name");
+      nameRow.style.display = "flex";
+      nameRow.style.alignItems = "center";
+      nameRow.style.gap = "4px";
+      nameRow.style.paddingRight = "4px";
+      const nameText = el("span", "", instrument);
+      nameText.style.minWidth = "0";
+      nameText.style.flex = "1";
+      nameText.style.overflow = "hidden";
+      nameText.style.textOverflow = "ellipsis";
+      nameText.style.whiteSpace = "nowrap";
+      const remove = el("button", "", "×");
+      remove.type = "button";
+      remove.title = `Remove ${instrument} from the whole project`;
+      remove.setAttribute("aria-label", `Remove ${instrument} from the whole project`);
+      remove.style.width = "20px";
+      remove.style.height = "20px";
+      remove.style.flex = "0 0 20px";
+      remove.style.padding = "0";
+      remove.style.border = "1px solid rgba(225,92,101,.28)";
+      remove.style.borderRadius = "5px";
+      remove.style.background = "rgba(145,44,54,.10)";
+      remove.style.color = "#c87980";
+      remove.style.cursor = "pointer";
+      remove.onclick = (event) => {
+        event.preventDefault(); event.stopPropagation();
+        if (!window.confirm(`Remove "${instrument}" from every section and from the project instrument list?`)) return;
+        onChangeBegin?.({ kind: "instrument-remove-project", instrument });
+        removeInstrumentFromProject(project, instrument);
+        onChange?.({ kind: "instrument-remove-project", instrument });
+      };
+      nameRow.append(nameText, remove);
+      labelNames.appendChild(nameRow);
+    }
     if (!instruments.length) {
       const emptyRow = makeRow(stage, "m3ss-tl-instrument-row is-empty"); emptyRow.appendChild(el("div", "m3ss-tl-instrument-empty", "Add instruments from the Section Inspector to create lanes."));
     } else {
       for (const instrument of instruments) {
         const row = makeRow(stage, "m3ss-tl-instrument-row");
         for (const item of geometry) {
-          const active = sectionHasInstrument(item.section, instrument), cell = placeBlock(row, item, total, `m3ss-tl-instrument-cell${active ? " is-active" : ""}`, "", item.section.id === selectedId);
-          cell.title = `${item.section.label || item.section.type} · ${instrument}: ${active ? "On" : "Off"}`; cell.setAttribute("aria-pressed", active ? "true" : "false");
+          const active = sectionHasInstrument(item.section, instrument), cell = placeBlock(row, item, total, `m3ss-tl-instrument-cell${active ? " is-active" : " is-bypassed"}`, "", item.section.id === selectedId);
+          cell.title = `${item.section.label || item.section.type} · ${instrument}: ${active ? "ON · click to bypass" : "BYPASSED · click to enable"}`;
+          cell.setAttribute("aria-pressed", active ? "true" : "false");
+          cell.setAttribute("aria-label", cell.title);
+          if (!active) {
+            cell.style.opacity = ".72";
+            const bypass = el("span", "", "BYPASS");
+            bypass.style.position = "absolute";
+            bypass.style.left = "50%";
+            bypass.style.top = "50%";
+            bypass.style.transform = "translate(-50%,-50%)";
+            bypass.style.padding = "1px 4px";
+            bypass.style.borderRadius = "4px";
+            bypass.style.background = "rgba(12,18,29,.72)";
+            bypass.style.color = "#8292a5";
+            bypass.style.fontSize = "7px";
+            bypass.style.fontWeight = "700";
+            bypass.style.letterSpacing = ".04em";
+            bypass.style.pointerEvents = "none";
+            cell.appendChild(bypass);
+          }
           cell.onclick = () => {
             onSelect?.(item.section.id, { render: false });
             onChangeBegin?.({ kind: "instrument", section: item.section, instrument });
@@ -332,7 +415,7 @@ export function renderSemanticTimeline(container, project, selectedId, {
     const summaryRow = makeRow(stage, "m3ss-tl-instrument-summary-row");
     for (const item of geometry) {
       const cell = placeBlock(summaryRow, item, total, "m3ss-tl-instrument-summary", item.section.instruments?.length ? `${item.section.instruments.length} inst.` : "—", item.section.id === selectedId);
-      cell.onclick = () => onSelect?.(item.section.id); cell.title = item.section.instruments?.join(", ") || "No instruments";
+      cell.onclick = () => onSelect?.(item.section.id); cell.title = item.section.instruments?.join(", ") || "No active instruments";
     }
   }
   return { width: stageWidth, total, zoomFactor, instrumentCount: instruments.length };
