@@ -119,3 +119,12 @@ test("Release chrome hides schema and Track/Master wording from normal summaries
   assert.match(panels, /Audio Gain Envelope/);
   assert.doesNotMatch(panels, /Main Track Gain Envelope/);
 });
+
+test("Undo history snapshots avoid serializing large VST3 state on every edit", () => {
+  const core = source("web/audio_editor_core.js");
+  assert.match(core, /function cloneHistoryValue/);
+  assert.match(core, /snapshot = \(project\) => cloneHistoryValue\(project\)/);
+  assert.match(core, /parseSnapshot = \(value\) => typeof value === "string" \? JSON\.parse\(value\) : cloneHistoryValue\(value\)/);
+  assert.doesNotMatch(core, /snapshot = \(project\) => JSON\.stringify\(project\)/);
+  assert.match(core, /large VST3 state_b64 values/);
+});
