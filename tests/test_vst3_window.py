@@ -24,6 +24,14 @@ def test_window_manager_is_dependency_free_noop_off_windows():
     assert vst3_window.start_native_editor_window_manager("Test FX", Event()) is None
 
 
+def test_windows_api_bindings_initialize_without_an_editor():
+    if os.name != "nt":
+        return
+    stop = Event()
+    stop.set()
+    vst3_window._manage_windows_editor("Test FX", stop)
+
+
 def test_editor_helper_stops_window_manager_after_native_ui(monkeypatch, tmp_path):
     class FakePlugin:
         is_effect = True
