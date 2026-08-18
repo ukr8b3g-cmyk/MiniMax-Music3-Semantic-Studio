@@ -46,3 +46,15 @@ def test_scan_filters_known_vst3_instruments(tmp_path):
 
     assert result["count"] == 0
     assert result["plugins"] == []
+
+
+def test_scan_does_not_double_count_bundle_internal_binary(tmp_path):
+    bundle = tmp_path / "BundleFx.vst3"
+    binary_dir = bundle / "Contents" / "x86_64-win"
+    binary_dir.mkdir(parents=True)
+    (binary_dir / "BundleFx.vst3").write_bytes(b"placeholder")
+
+    result = scan_vst3_plugins([tmp_path])
+
+    assert result["count"] == 1
+    assert result["plugins"][0]["path"] == str(bundle)
