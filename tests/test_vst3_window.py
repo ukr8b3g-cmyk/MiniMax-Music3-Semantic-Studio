@@ -32,6 +32,93 @@ def test_windows_api_bindings_initialize_without_an_editor():
     vst3_window._manage_windows_editor("Test FX", stop)
 
 
+def test_windows_manager_frames_and_centres_borderless_window():
+    if os.name != "nt":
+        return
+
+    import ctypes
+    from ctypes import wintypes
+
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    WS_POPUP = 0x80000000
+    WS_VISIBLE = 0x10000000
+    WS_CAPTION = 0x00C00000
+    GWL_STYLE = -16
+
+    class RECT(ctypes.Structure):
+        _fields_ = [
+            ("left", wintypes.LONG),
+            ("top", wintypes.LONG),
+            ("right", wintypes.LONG),
+            ("bottom", wintypes.LONG),
+        ]
+
+    kernel32.GetModuleHandleW.argtypes = [wintypes.LPCWSTR]
+    kernel32.GetModuleHandleW.restype = wintypes.HMODULE
+    user32.CreateWindowExW.argtypes = [
+        wintypes.DWORD,
+        wintypes.LPCWSTR,
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        wintypes.HWND,
+        wintypes.HMENU,
+        wintypes.HINSTANCE,
+        wintypes.LPVOID,
+    ]
+    user32.CreateWindowExW.restype = wintypes.HWND
+    user32.GetWindowLongPtrW.argtypes = [wintypes.HWND, ctypes.c_int]
+    user32.GetWindowLongPtrW.restype = ctypes.c_ssize_t
+    user32.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(RECT)]
+    user32.GetWindowRect.restype = wintypes.BOOL
+    user32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+    user32.GetWindowTextW.restype = ctypes.c_int
+    user32.DestroyWindow.argtypes = [wintypes.HWND]
+    user32.DestroyWindow.restype = wintypes.BOOL
+
+    hwnd = user32.CreateWindowExW(
+        0,
+        "STATIC",
+        "Pedalboard",
+        WS_POPUP | WS_VISIBLE,
+        0,
+        0,
+        460,
+        510,
+        0,
+        0,
+        kernel32.GetModuleHandleW(None),
+        None,
+    )
+    assert hwnd
+
+    old_timeout = vst3_window.WINDOW_SEARCH_TIMEOUT_SECONDS
+    old_interval = vst3_window.WINDOW_SEARCH_INTERVAL_SECONDS
+    try:
+        vst3_window.WINDOW_SEARCH_TIMEOUT_SECONDS = 1.0
+        vst3_window.WINDOW_SEARCH_INTERVAL_SECONDS = 0.02
+        vst3_window._manage_windows_editor("Test FX", Event())
+
+        style = int(user32.GetWindowLongPtrW(hwnd, GWL_STYLE))
+        assert style & WS_CAPTION == WS_CAPTION
+
+        title = ctypes.create_unicode_buffer(256)
+        user32.GetWindowTextW(hwnd, title, len(title))
+        assert title.value == "Test FX — VST3"
+
+        rect = RECT()
+        assert user32.GetWindowRect(hwnd, ctypes.byref(rect))
+        assert int(rect.left) > 24 or int(rect.top) > 24
+    finally:
+        vst3_window.WINDOW_SEARCH_TIMEOUT_SECONDS = old_timeout
+        vst3_window.WINDOW_SEARCH_INTERVAL_SECONDS = old_interval
+        user32.DestroyWindow(hwnd)
+
+
 def test_editor_helper_stops_window_manager_after_native_ui(monkeypatch, tmp_path):
     class FakePlugin:
         is_effect = True
