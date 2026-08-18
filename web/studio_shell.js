@@ -27,26 +27,53 @@ function make(tag, className = "", text) {
   return node;
 }
 
-function readSize(storageKey) {
+function readStoredObject(storageKey, suffix) {
   if (!storageKey) return null;
   try {
-    const raw = localStorage.getItem(`${storageKey}:size`);
-    if (!raw) return null;
-    const value = JSON.parse(raw);
-    if (!Number.isFinite(value?.width) || !Number.isFinite(value?.height)) return null;
-    return value;
+    const raw = localStorage.getItem(`${storageKey}:${suffix}`);
+    return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
   }
 }
 
-function writeSize(storageKey, width, height) {
+function writeStoredObject(storageKey, suffix, value) {
   if (!storageKey) return;
   try {
-    localStorage.setItem(`${storageKey}:size`, JSON.stringify({ width, height }));
+    localStorage.setItem(`${storageKey}:${suffix}`, JSON.stringify(value));
   } catch {
     // Storage can be unavailable in hardened/private browser contexts.
   }
+}
+
+function readSize(storageKey) {
+  const value = readStoredObject(storageKey, "size");
+  if (!Number.isFinite(value?.width) || !Number.isFinite(value?.height)) return null;
+  return value;
+}
+
+function writeSize(storageKey, width, height) {
+  writeStoredObject(storageKey, "size", { width, height });
+}
+
+function readPosition(storageKey) {
+  const value = readStoredObject(storageKey, "position");
+  if (!Number.isFinite(value?.left) || !Number.isFinite(value?.top)) return null;
+  return value;
+}
+
+function writePosition(storageKey, left, top) {
+  writeStoredObject(storageKey, "position", { left, top });
+}
+
+function clampPosition(left, top, width, height) {
+  const margin = 8;
+  const maxLeft = Math.max(margin, window.innerWidth - Math.min(width, window.innerWidth - margin * 2) - margin);
+  const maxTop = Math.max(margin, window.innerHeight - Math.min(height, window.innerHeight - margin * 2) - margin);
+  return {
+    left: Math.max(margin, Math.min(Number(left) || margin, maxLeft)),
+    top: Math.max(margin, Math.min(Number(top) || margin, maxTop)),
+  };
 }
 
 export function createStudioWindow({
@@ -108,15 +135,43 @@ export function createStudioWindow({
   let beforeMaximize = null;
   let resizeObserver = null;
   let cleanupLocalization = () => {};
+  let dragState = null;
+
+  function placeWindow(left, top, persist = true) {
+    const rect = windowEl.getBoundingClientRect();
+    const next = clampPosition(left, top, rect.width, rect.height);
+    windowEl.style.position = "absolute";
+    windowEl.style.left = `${Math.round(next.left)}px`;
+    windowEl.style.top = `${Math.round(next.top)}px`;
+    if (persist && !maximized) writePosition(storageKey, Math.round(next.left), Math.round(next.top));
+    return next;
+  }
+
+  function restoreStoredPosition(fallback = null) {
+    const rect = windowEl.getBoundingClientRect();
+    const storedPosition = fallback || readPosition(storageKey);
+    if (storedPosition) return placeWindow(storedPosition.left, storedPosition.top, false);
+    return placeWindow((window.innerWidth - rect.width) / 2, (window.innerHeight - rect.height) / 2, false);
+  }
 
   function setMaximized(next) {
     if (closed || maximized === next) return;
     if (next) {
+      const rect = windowEl.getBoundingClientRect();
       beforeMaximize = {
-        width: windowEl.getBoundingClientRect().width,
-        height: windowEl.getBoundingClientRect().height,
+        width: rect.width,
+        height: rect.height,
+        left: rect.left,
+        top: rect.top,
       };
+      if (rect.width > 0 && rect.height > 0) {
+        writeSize(storageKey, Math.round(rect.width), Math.round(rect.height));
+        writePosition(storageKey, Math.round(rect.left), Math.round(rect.top));
+      }
       windowEl.classList.add("is-maximized");
+      windowEl.style.position = "absolute";
+      windowEl.style.left = "8px";
+      windowEl.style.top = "8px";
       windowEl.style.width = "";
       windowEl.style.height = "";
       maximizeButton.textContent = "❐";
@@ -127,12 +182,85 @@ export function createStudioWindow({
       const size = beforeMaximize || readSize(storageKey) || { width: defaultWidth, height: defaultHeight };
       windowEl.style.width = `${Math.min(size.width, Math.max(320, window.innerWidth - 32))}px`;
       windowEl.style.height = `${Math.min(size.height, Math.max(320, window.innerHeight - 32))}px`;
+      maximized = false;
+      restoreStoredPosition(beforeMaximize && Number.isFinite(beforeMaximize.left)
+        ? { left: beforeMaximize.left, top: beforeMaximize.top }
+        : null);
       maximizeButton.textContent = "□";
       maximizeButton.title = tr(maximizeLabel);
       maximizeButton.setAttribute("aria-label", tr(maximizeLabel));
+      onResize?.(windowEl.getBoundingClientRect(), { maximized });
+      return;
     }
     maximized = next;
     onResize?.(windowEl.getBoundingClientRect(), { maximized });
+  }
+
+  function finishDrag(event) {
+    if (!dragState) return;
+    header.releasePointerCapture?.(event.pointerId);
+    header.removeEventListener("pointermove", dragMove);
+    header.removeEventListener("pointerup", finishDrag);
+    header.removeEventListener("pointercancel", finishDrag);
+    header.classList.remove("is-dragging");
+    if (dragState.started && !maximized) {
+      const rect = windowEl.getBoundingClientRect();
+      writePosition(storageKey, Math.round(rect.left), Math.round(rect.top));
+    }
+    dragState = null;
+  }
+
+  function dragMove(event) {
+    if (!dragState || event.pointerId !== dragState.pointerId) return;
+    const dx = event.clientX - dragState.startX;
+    const dy = event.clientY - dragState.startY;
+    if (!dragState.started && Math.hypot(dx, dy) < 4) return;
+
+    if (!dragState.started) {
+      dragState.started = true;
+      if (dragState.wasMaximized) {
+        const ratio = dragState.startRect.width > 0
+          ? (dragState.startX - dragState.startRect.left) / dragState.startRect.width
+          : .5;
+        setMaximized(false);
+        const restored = windowEl.getBoundingClientRect();
+        const left = event.clientX - restored.width * Math.max(.08, Math.min(.92, ratio));
+        const top = Math.max(8, event.clientY - Math.min(18, header.getBoundingClientRect().height / 2));
+        const placed = placeWindow(left, top, false);
+        dragState.baseLeft = placed.left;
+        dragState.baseTop = placed.top;
+        dragState.startX = event.clientX;
+        dragState.startY = event.clientY;
+      }
+      header.classList.add("is-dragging");
+    }
+
+    placeWindow(
+      dragState.baseLeft + (event.clientX - dragState.startX),
+      dragState.baseTop + (event.clientY - dragState.startY),
+      false,
+    );
+  }
+
+  function dragStart(event) {
+    if (closed || event.button !== 0) return;
+    if (event.target.closest?.(".m3shell-window-controls,button,input,select,textarea,a")) return;
+    event.preventDefault();
+    const rect = windowEl.getBoundingClientRect();
+    dragState = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      baseLeft: rect.left,
+      baseTop: rect.top,
+      startRect: rect,
+      wasMaximized: maximized,
+      started: false,
+    };
+    header.setPointerCapture?.(event.pointerId);
+    header.addEventListener("pointermove", dragMove);
+    header.addEventListener("pointerup", finishDrag);
+    header.addEventListener("pointercancel", finishDrag);
   }
 
   function close() {
@@ -140,6 +268,7 @@ export function createStudioWindow({
     closed = true;
     cleanupLocalization();
     resizeObserver?.disconnect();
+    header.removeEventListener("pointerdown", dragStart);
     document.removeEventListener("keydown", keyHandler);
     window.removeEventListener("resize", viewportHandler);
     overlay.remove();
@@ -152,6 +281,8 @@ export function createStudioWindow({
 
   function viewportHandler() {
     if (maximized) {
+      windowEl.style.left = "8px";
+      windowEl.style.top = "8px";
       onResize?.(windowEl.getBoundingClientRect(), { maximized });
       return;
     }
@@ -160,10 +291,13 @@ export function createStudioWindow({
     const maxHeight = Math.max(320, window.innerHeight - 32);
     if (rect.width > maxWidth) windowEl.style.width = `${maxWidth}px`;
     if (rect.height > maxHeight) windowEl.style.height = `${maxHeight}px`;
+    const nextRect = windowEl.getBoundingClientRect();
+    placeWindow(nextRect.left, nextRect.top, true);
   }
 
   maximizeButton.addEventListener("click", () => setMaximized(!maximized));
   closeButton.addEventListener("click", close);
+  header.addEventListener("pointerdown", dragStart);
   overlay.addEventListener("mousedown", (event) => {
     if (event.target === overlay) close();
   });
@@ -175,6 +309,7 @@ export function createStudioWindow({
       const rect = windowEl.getBoundingClientRect();
       if (!maximized && rect.width > 0 && rect.height > 0) {
         writeSize(storageKey, Math.round(rect.width), Math.round(rect.height));
+        placeWindow(rect.left, rect.top, true);
       }
       onResize?.(rect, { maximized });
     });
@@ -185,7 +320,10 @@ export function createStudioWindow({
     parent.appendChild(overlay);
     cleanupLocalization = installUiLocalization(windowEl);
     if (startMaximized) setMaximized(true);
-    else onResize?.(windowEl.getBoundingClientRect(), { maximized });
+    else {
+      restoreStoredPosition();
+      onResize?.(windowEl.getBoundingClientRect(), { maximized });
+    }
     return api;
   }
 
