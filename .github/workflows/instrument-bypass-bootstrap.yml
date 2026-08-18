@@ -1,0 +1,167 @@
+name: Instrument bypass bootstrap
+
+on:
+  push:
+    branches: [instrument-bypass-toggle]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: instrument-bypass-toggle
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply instrument bypass implementation
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace(path, old, new):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              if old not in text:
+                  raise SystemExit(f'pattern not found in {path}: {old[:120]!r}')
+              p.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          # Persistent instrument catalog: active membership remains section-local,
+          # while the catalog keeps fully-bypassed instruments visible in Timeline.
+          replace(
+              'web/semantic_studio_core.js',
+              'timeline:{sections:[',
+              'timeline:{instrument_catalog:[],sections:['
+          )
+          replace(
+              'web/semantic_studio_core.js',
+              '  p.timeline.sections=p.timeline.sections.slice(0,32).map((s,i)=>({...(s||{}),id:s?.id||uid("section"),type:SECTION_TYPES.includes(s?.type)?s.type:"Verse",label:String(s?.label||s?.type||`Section ${i+1}`),duration:snapSemanticDuration(s?.duration??16),energy:clamp(s?.energy??.5,0,1),lyrics:String(s?.lyrics||""),instruments:Array.isArray(s?.instruments)?s.instruments.filter(Boolean):[],vocal:String(s?.vocal||""),directives:String(s?.directives||"")}));\n',
+              '  p.timeline.sections=p.timeline.sections.slice(0,32).map((s,i)=>({...(s||{}),id:s?.id||uid("section"),type:SECTION_TYPES.includes(s?.type)?s.type:"Verse",label:String(s?.label||s?.type||`Section ${i+1}`),duration:snapSemanticDuration(s?.duration??16),energy:clamp(s?.energy??.5,0,1),lyrics:String(s?.lyrics||""),instruments:Array.isArray(s?.instruments)?s.instruments.filter(Boolean):[],vocal:String(s?.vocal||""),directives:String(s?.directives||"")}));\n  const instrumentCatalog=[],seenInstruments=new Set();for(const raw of [...(Array.isArray(p.timeline.instrument_catalog)?p.timeline.instrument_catalog:[]),...p.timeline.sections.flatMap(s=>s.instruments||[])]){const name=String(raw||"").trim(),key=name.toLowerCase();if(!name||seenInstruments.has(key))continue;seenInstruments.add(key);instrumentCatalog.push(name);}p.timeline.instrument_catalog=instrumentCatalog;\n'
+          )
+
+          # Replace-import intentionally rebuilds the catalog from imported sections,
+          # avoiding stale all-bypassed rows from the previous project structure.
+          replace(
+              'web/prompt_import_core.js',
+              '    if (mode === "replace") {\n      next.timeline.sections = analysis.sections.slice(0, 32).map(newSectionFromImport);',
+              '    if (mode === "replace") {\n      next.timeline.instrument_catalog = [];\n      next.timeline.sections = analysis.sections.slice(0, 32).map(newSectionFromImport);'
+          )
+
+          # Timeline catalog + explicit project removal helper.
+          replace(
+              'web/semantic_timeline.js',
+              'export function collectInstrumentRows(sections = []) {\n  const result = [], seen = new Set();\n  for (const section of sections) {\n    for (const raw of section?.instruments || []) {\n      const name = String(raw || "").trim(), key = name.toLowerCase();\n      if (!name || seen.has(key)) continue;\n      seen.add(key); result.push(name);\n    }\n  }\n  return result;\n}',
+              'export function collectInstrumentRows(sections = [], catalog = []) {\n  const result = [], seen = new Set();\n  for (const raw of [...(Array.isArray(catalog) ? catalog : []), ...sections.flatMap((section) => section?.instruments || [])]) {\n    const name = String(raw || "").trim(), key = name.toLowerCase();\n    if (!name || seen.has(key)) continue;\n    seen.add(key); result.push(name);\n  }\n  return result;\n}'
+          )
+          replace(
+              'web/semantic_timeline.js',
+              'export function toggleSectionInstrument(section, instrument) {\n  if (!section || !instrument) return false;\n  const values = Array.isArray(section.instruments) ? [...section.instruments] : [];\n  const needle = String(instrument).trim().toLowerCase();\n  const index = values.findIndex((item) => String(item || "").trim().toLowerCase() === needle);\n  if (index >= 0) { values.splice(index, 1); section.instruments = values; return false; }\n  values.push(String(instrument).trim()); section.instruments = values; return true;\n}\n',
+              'export function toggleSectionInstrument(section, instrument) {\n  if (!section || !instrument) return false;\n  const values = Array.isArray(section.instruments) ? [...section.instruments] : [];\n  const needle = String(instrument).trim().toLowerCase();\n  const index = values.findIndex((item) => String(item || "").trim().toLowerCase() === needle);\n  if (index >= 0) { values.splice(index, 1); section.instruments = values; return false; }\n  values.push(String(instrument).trim()); section.instruments = values; return true;\n}\n\nexport function removeInstrumentFromProject(project, instrument) {\n  const needle = String(instrument || "").trim().toLowerCase();\n  if (!project?.timeline || !needle) return 0;\n  let removed = 0;\n  for (const section of project.timeline.sections || []) {\n    const before = Array.isArray(section.instruments) ? section.instruments.length : 0;\n    section.instruments = (section.instruments || []).filter((item) => String(item || "").trim().toLowerCase() !== needle);\n    removed += before - section.instruments.length;\n  }\n  project.timeline.instrument_catalog = (project.timeline.instrument_catalog || []).filter((item) => String(item || "").trim().toLowerCase() !== needle);\n  return removed;\n}\n'
+          )
+          replace(
+              'web/semantic_timeline.js',
+              '  const instruments = collectInstrumentRows(sections);',
+              '  const instruments = collectInstrumentRows(sections, project?.timeline?.instrument_catalog);'
+          )
+          replace(
+              'web/semantic_timeline.js',
+              '  const instrumentHeader = makeRow(stage, "m3ss-tl-instrument-header"), instrumentToggle = el("button", "m3ss-tl-instrument-toggle", `${showInstruments ? "▾" : "▸"} Instruments (${instruments.length})${showInstruments ? " · click cells to toggle" : ""}`);',
+              '  const instrumentHeader = makeRow(stage, "m3ss-tl-instrument-header"), instrumentToggle = el("button", "m3ss-tl-instrument-toggle", `${showInstruments ? "▾" : "▸"} Instruments (${instruments.length})${showInstruments ? " · click cells: ON / BYPASS" : ""}`);'
+          )
+          replace(
+              'web/semantic_timeline.js',
+              '    for (const instrument of instruments) labelNames.appendChild(el("div", "m3ss-tl-instrument-name", instrument));',
+              '''    for (const instrument of instruments) {
+      const nameRow = el("div", "m3ss-tl-instrument-name");
+      nameRow.appendChild(el("span", "m3ss-tl-instrument-name-text", instrument));
+      const remove = el("button", "m3ss-tl-instrument-delete", "×");
+      remove.type = "button";
+      remove.title = `Remove ${instrument} from the whole project`;
+      remove.setAttribute("aria-label", `Remove ${instrument} from the whole project`);
+      remove.onclick = (event) => {
+        event.preventDefault(); event.stopPropagation();
+        if (!window.confirm(`Remove "${instrument}" from every section and from the project instrument list?`)) return;
+        onChangeBegin?.({ kind: "instrument-remove-project", instrument });
+        removeInstrumentFromProject(project, instrument);
+        onChange?.({ kind: "instrument-remove-project", instrument });
+      };
+      nameRow.appendChild(remove);
+      labelNames.appendChild(nameRow);
+    }'''
+          )
+          replace(
+              'web/semantic_timeline.js',
+              '          const active = sectionHasInstrument(item.section, instrument), cell = placeBlock(row, item, total, `m3ss-tl-instrument-cell${active ? " is-active" : ""}`, "", item.section.id === selectedId);\n          cell.title = `${item.section.label || item.section.type} · ${instrument}: ${active ? "On" : "Off"}`; cell.setAttribute("aria-pressed", active ? "true" : "false");',
+              '          const active = sectionHasInstrument(item.section, instrument), cell = placeBlock(row, item, total, `m3ss-tl-instrument-cell${active ? " is-active" : " is-bypassed"}`, "", item.section.id === selectedId);\n          cell.title = `${item.section.label || item.section.type} · ${instrument}: ${active ? "ON · click to bypass" : "BYPASSED · click to enable"}`; cell.setAttribute("aria-pressed", active ? "true" : "false");'
+          )
+
+          # Styling: visible bypass state + explicit destructive action.
+          css = Path('web/semantic_final_polish.css')
+          css.write_text(css.read_text(encoding='utf-8') + '''
+
+/* Instrument lane ON/BYPASS semantics. BYPASS remains visible; project removal is explicit. */
+.m3ss-final-polish .m3ss-tl-instrument-cell.is-bypassed::after{
+  opacity:.62;background:repeating-linear-gradient(135deg,rgba(118,132,148,.42) 0 4px,rgba(54,65,79,.22) 4px 8px);box-shadow:none;
+}
+.m3ss-final-polish .m3ss-tl-instrument-cell.is-bypassed{background:rgba(45,54,66,.10)!important}
+.m3ss-final-polish .m3ss-tl-instrument-name{display:flex;align-items:center;gap:4px;padding:0 4px 0 12px}
+.m3ss-final-polish .m3ss-tl-instrument-name-text{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.m3ss-final-polish .m3ss-tl-instrument-delete{width:20px;height:20px;flex:0 0 20px;padding:0;border:1px solid transparent;border-radius:5px;background:transparent;color:#68798c;font:700 14px/18px sans-serif;cursor:pointer}
+.m3ss-final-polish .m3ss-tl-instrument-delete:hover{border-color:rgba(225,92,101,.45);background:rgba(145,44,54,.22);color:#f08d95}
+''', encoding='utf-8')
+
+          # Remove the temporary selection-only interception: native cells toggle again.
+          selection_ext = Path('web/instrument_selection_extension.js')
+          if selection_ext.exists(): selection_ext.unlink()
+
+          # Regression tests.
+          replace(
+              'tests/js/semantic_timeline.test.mjs',
+              '  reorderSections,\n  resizeSectionDurations,',
+              '  reorderSections,\n  removeInstrumentFromProject,\n  resizeSectionDurations,'
+          )
+          insert_before = "test('section palettes are deterministic by section type', () => {"
+          p = Path('tests/js/semantic_timeline.test.mjs')
+          text = p.read_text(encoding='utf-8')
+          test_block = '''test('instrument catalog keeps fully bypassed rows visible until explicit project removal', () => {
+  const project = normalizeProject(factoryProject());
+  const instrument = project.timeline.sections[0].instruments[0];
+  assert.ok(project.timeline.instrument_catalog.some((item) => item.toLowerCase() === instrument.toLowerCase()));
+  for (const section of project.timeline.sections) section.instruments = section.instruments.filter((item) => item.toLowerCase() !== instrument.toLowerCase());
+  const normalized = normalizeProject(project);
+  assert.equal(collectInstrumentRows(normalized.timeline.sections, normalized.timeline.instrument_catalog).some((item) => item.toLowerCase() === instrument.toLowerCase()), true);
+  assert.equal(normalized.timeline.sections.some((section) => sectionHasInstrument(section, instrument)), false);
+  removeInstrumentFromProject(normalized, instrument);
+  const removed = normalizeProject(normalized);
+  assert.equal(collectInstrumentRows(removed.timeline.sections, removed.timeline.instrument_catalog).some((item) => item.toLowerCase() === instrument.toLowerCase()), false);
+});
+
+'''
+          if insert_before not in text: raise SystemExit('timeline test insertion anchor missing')
+          p.write_text(text.replace(insert_before, test_block + insert_before, 1), encoding='utf-8')
+
+          replace(
+              'tests/js/prompt_import_core.test.mjs',
+              "test('replace uses imported section order', () => {\n  const out = applyPromptImport(factoryProject(), analyzePromptImport({ caption, lyrics }), 'replace');\n  assert.deepEqual(out.timeline.sections.map((item) => item.type), ['Intro', 'Verse', 'Chorus']);\n  assert.equal(out.timeline.sections[2].duration, 7);\n});",
+              "test('replace uses imported section order and rebuilds the instrument catalog', () => {\n  const project = factoryProject();\n  project.timeline.instrument_catalog = ['obsolete instrument'];\n  const out = applyPromptImport(project, analyzePromptImport({ caption, lyrics }), 'replace');\n  assert.deepEqual(out.timeline.sections.map((item) => item.type), ['Intro', 'Verse', 'Chorus']);\n  assert.equal(out.timeline.sections[2].duration, 7);\n  assert.equal(out.timeline.instrument_catalog.includes('obsolete instrument'), false);\n  assert.equal(out.timeline.instrument_catalog.includes('rain texture'), true);\n});"
+          )
+
+          # Remove this temporary workflow before publishing the patch commit.
+          Path('.github/workflows/instrument-bypass-bootstrap.yml').unlink()
+      - name: Validate JavaScript
+        run: |
+          node --check web/semantic_studio_core.js
+          node --check web/prompt_import_core.js
+          node --check web/semantic_timeline.js
+          npm run test:semantic
+      - name: Commit implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Implement persistent instrument bypass toggles"
+          git push origin HEAD:instrument-bypass-toggle
