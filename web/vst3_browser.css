@@ -1,7 +1,7 @@
 .m3ssv2-vst3-panel{display:grid;grid-template-rows:auto auto auto minmax(0,1fr);gap:7px;min-height:0;height:100%;box-sizing:border-box;padding:8px;border-top:0;background:transparent}
 .m3ssv2-vst3-tab-panel{min-height:0;overflow:hidden}
 .m3ssv2-vst3-tab-panel[hidden],.m3ssv2-vst3-pane[hidden],.m3ssv2-vst3-search-wrap[hidden],.m3ssv2-vst3-inline-status[hidden]{display:none!important}
-.m3ssv2-vst3-head{display:flex;align-items:center;gap:7px;min-width:0}
+.m3ssv2-vst3-head{grid-row:1;display:flex;align-items:center;gap:7px;min-width:0}
 .m3ssv2-vst3-view-tabs{display:flex;min-width:0;flex:1;gap:4px;padding:2px;border:1px solid rgba(255,255,255,.08);border-radius:7px;background:#0b121b}
 .m3ssv2-vst3-view-tab{min-width:0;flex:1;border:1px solid transparent;border-radius:5px;background:transparent;color:#9eacbe;padding:6px 8px;font-size:10px;font-weight:650;cursor:pointer;transition:border-color .12s ease,background .12s ease,color .12s ease}
 .m3ssv2-vst3-view-tab:hover{background:rgba(112,76,207,.12);color:#e6deff}
@@ -13,15 +13,15 @@
 .m3ssv2-vst3-host-text{color:#aab7c8;font-weight:650}
 .m3ssv2-vst3-count{color:#728399}
 .m3ssv2-vst3-rescan{flex:0 0 auto;min-height:27px!important;padding:3px 7px!important;font-size:9px!important}
-.m3ssv2-vst3-search-wrap{min-width:0}
+.m3ssv2-vst3-search-wrap{grid-row:2;min-width:0}
 .m3ssv2-vst3-search{width:100%;height:31px;box-sizing:border-box;border:1px solid rgba(255,255,255,.12);border-radius:7px;outline:0;background:#0c141f;color:#eaf0f7;padding:5px 9px;font-size:10px}
 .m3ssv2-vst3-search::placeholder{color:#627389}
 .m3ssv2-vst3-search:focus{border-color:rgba(155,120,255,.68);box-shadow:0 0 0 2px rgba(112,76,207,.11)}
-.m3ssv2-vst3-inline-status{overflow:hidden;padding:5px 7px;border:1px solid rgba(255,255,255,.07);border-radius:6px;background:rgba(255,255,255,.025);color:#94a3b5;font-size:9px;line-height:1.3;text-overflow:ellipsis;white-space:nowrap}
+.m3ssv2-vst3-inline-status{grid-row:3;overflow:hidden;padding:5px 7px;border:1px solid rgba(255,255,255,.07);border-radius:6px;background:rgba(255,255,255,.025);color:#94a3b5;font-size:9px;line-height:1.3;text-overflow:ellipsis;white-space:nowrap}
 .m3ssv2-vst3-inline-status.is-busy{border-color:rgba(98,133,205,.24);background:rgba(55,86,142,.09);color:#a9c1e9}
 .m3ssv2-vst3-inline-status.is-saved{border-color:rgba(73,165,108,.22);background:rgba(45,120,76,.07);color:#9fd4b5}
 .m3ssv2-vst3-inline-status.is-error{border-color:rgba(196,105,84,.26);background:rgba(126,57,43,.09);color:#e1aa9e}
-.m3ssv2-vst3-pane{min-height:0;overflow:hidden}
+.m3ssv2-vst3-pane{grid-row:4;min-height:0;overflow:hidden}
 .m3ssv2-vst3-plugins-pane{display:flex;min-height:0}
 .m3ssv2-vst3-list{display:grid;align-content:start;gap:4px;min-height:0;width:100%;overflow:auto;padding-right:2px}
 .m3ssv2-vst3-row{display:flex;align-items:center;gap:6px;min-height:38px;padding:5px 6px;border:1px solid rgba(255,255,255,.075);border-radius:7px;background:rgba(255,255,255,.022);transition:border-color .12s ease,background .12s ease}
