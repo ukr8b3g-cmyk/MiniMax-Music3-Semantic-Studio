@@ -69,7 +69,10 @@ test("VST3 mutations use Audio Editor project commit for Undo and Redo", () => {
   assert.match(vst, /ctx\.commit\(\(\) => movePipelineEffect/);
   assert.match(vst, /ctx\.commit\(\(\) => removePipelineEffect/);
   const bridge = source("web/vst3_extension.js");
-  assert.match(bridge, /label !== "Undo" && label !== "Redo"/);
+  assert.match(bridge, /UNDO_REDO_LABELS/);
+  assert.match(bridge, /SAVE_LABELS/);
+  assert.match(bridge, /元に戻す/);
+  assert.match(bridge, /編集を保存/);
   assert.match(bridge, /panel\.refreshFromProject/);
   assert.match(bridge, /Close the Plugin UI before Undo or Redo/);
 });
