@@ -4,7 +4,13 @@ import { createVst3ReleasePanel } from "./vst3_release_browser.js";
 
 const STYLE_ID = "m3ss-vst3-browser-style";
 const BRIDGE_EXTENSION = "minimax.music3.vst3.phase2d.bridge";
+const UNDO_REDO_LABELS = new Set(["Undo", "Redo", "元に戻す", "やり直す"]);
+const SAVE_LABELS = new Set(["Save Edits", "編集を保存"]);
 let pendingNode = null;
+
+function labelOf(button) {
+  return String(button?.textContent || "").trim();
+}
 
 function ensureStyles() {
   if (document.getElementById(STYLE_ID)) return;
@@ -114,15 +120,13 @@ function mountPanel(dialog) {
   });
 
   for (const control of dialog.querySelectorAll(".m3ssv2-meta-toolbar button")) {
-    const label = String(control.textContent || "").trim();
-    if (label !== "Undo" && label !== "Redo") continue;
+    if (!UNDO_REDO_LABELS.has(labelOf(control))) continue;
     control.addEventListener("click", () => queueMicrotask(() => panel.refreshFromProject?.()));
   }
 
   dialog.addEventListener("click", (event) => {
     const target = event.target?.closest?.("button");
-    const label = String(target?.textContent || "").trim();
-    if (!target || (label !== "Undo" && label !== "Redo") || !nativeEditorIsOpen(panel)) return;
+    if (!target || !UNDO_REDO_LABELS.has(labelOf(target)) || !nativeEditorIsOpen(panel)) return;
     event.preventDefault();
     event.stopImmediatePropagation();
     alert("Close the Plugin UI before Undo or Redo so the captured VST3 state remains consistent.");
@@ -130,8 +134,7 @@ function mountPanel(dialog) {
 
   dialog.addEventListener("click", (event) => {
     const target = event.target?.closest?.("button");
-    if (!target || String(target.textContent || "").trim() !== "Save Edits") return;
-    if (!nativeEditorIsOpen(panel)) return;
+    if (!target || !SAVE_LABELS.has(labelOf(target)) || !nativeEditorIsOpen(panel)) return;
     event.preventDefault();
     event.stopImmediatePropagation();
     alert("Use Close UI in the VST3 rack first. The plugin state is captured when the native window closes.");
@@ -139,7 +142,7 @@ function mountPanel(dialog) {
 
   dialog.addEventListener("click", (event) => {
     const target = event.target?.closest?.("button");
-    if (!target || String(target.textContent || "").trim() !== "Save Edits") return;
+    if (!target || !SAVE_LABELS.has(labelOf(target))) return;
     queueMicrotask(() => panel.persistVst3State?.());
   });
 }
