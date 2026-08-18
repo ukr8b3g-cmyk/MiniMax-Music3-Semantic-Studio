@@ -31,6 +31,10 @@
 
 /* Instrument cells are semantic section states, not continuous stems. Keep every
    section edge visible even when the same instrument is enabled on both sides. */
+.m3ss-final-polish .m3ss-tl-instrument-cell,
+.m3ss-final-polish .m3ss-tl-instrument-summary{
+  position:absolute;
+}
 .m3ss-final-polish .m3ss-tl-instrument-cell{
   background:rgba(255,255,255,.012)!important;
   border-left:1px solid rgba(255,255,255,.07)!important;
