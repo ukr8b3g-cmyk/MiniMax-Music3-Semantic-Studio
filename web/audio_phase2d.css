@@ -1,0 +1,30 @@
+/* Phase 2D — single-audio release surface. Internal Track/Master schema remains hidden. */
+.m3ssv2-dialog[data-m3ss-single-audio="1"] .m3ssv2-track-button-row .m3ssv2-track-mini-button:nth-child(2){display:none!important}
+.m3ssv2-dialog[data-m3ss-single-audio="1"] .m3ssv2-single-mixer{gap:5px}
+.m3ssv2-dialog[data-m3ss-single-audio="1"] .m3ssv2-single-mixer .m3ssv2-field{margin-bottom:6px}
+.m3ssv2-dialog[data-m3ss-single-audio="1"] .m3ssv2-single-effects .m3ssv2-fx-summary{padding-left:42px}
+.m3ssv2-dialog[data-m3ss-single-audio="1"] .m3ssv2-single-effects .m3ssv2-effects-rack-head{margin-bottom:2px}
+
+/* Phase 2D VST3 browser: browser first, one rack, compact filters. */
+.m3ssv2-vst3-release{grid-template-rows:auto auto auto minmax(0,1fr)!important}
+.m3ssv2-vst3-release .m3ssv2-vst3-filters{grid-row:2;display:grid;grid-template-columns:minmax(120px,1.7fr) minmax(76px,.7fr) minmax(92px,.9fr) minmax(92px,.9fr);gap:5px;min-width:0}
+.m3ssv2-vst3-release .m3ssv2-vst3-search,.m3ssv2-vst3-release .m3ssv2-vst3-filter,.m3ssv2-vst3-release .m3ssv2-vst3-preset-select{height:30px;min-width:0;box-sizing:border-box;border:1px solid rgba(255,255,255,.12);border-radius:6px;background:#0c141f;color:#e5edf6;padding:4px 7px;font-size:9px;outline:0}
+.m3ssv2-vst3-release .m3ssv2-vst3-search:focus,.m3ssv2-vst3-release .m3ssv2-vst3-filter:focus,.m3ssv2-vst3-release .m3ssv2-vst3-preset-select:focus{border-color:rgba(155,120,255,.68);box-shadow:0 0 0 2px rgba(112,76,207,.10)}
+.m3ssv2-vst3-release .m3ssv2-vst3-inline-status{grid-row:3}
+.m3ssv2-vst3-release .m3ssv2-vst3-pane{grid-row:4}
+.m3ssv2-vst3-release .m3ssv2-vst3-favorite{flex:0 0 auto;width:25px;height:25px;padding:0;border:0;background:transparent;color:#77889d;font-size:15px;cursor:pointer}
+.m3ssv2-vst3-release .m3ssv2-vst3-favorite:hover,.m3ssv2-vst3-release .m3ssv2-vst3-favorite[aria-pressed="true"]{color:#f0c76b}
+.m3ssv2-vst3-release .m3ssv2-vst3-add{min-width:54px}
+.m3ssv2-vst3-release .m3ssv2-vst3-rack-pane{display:flex;min-height:0;flex-direction:column;gap:7px;overflow:hidden}
+.m3ssv2-vst3-release .m3ssv2-vst3-racks{min-height:0;overflow:auto;padding-right:2px}
+.m3ssv2-vst3-release .m3ssv2-vst3-preset-bar{display:grid;grid-template-columns:minmax(70px,.8fr) minmax(92px,1.2fr) auto auto auto auto;align-items:center;gap:4px;flex:0 0 auto;padding-top:7px;border-top:1px solid rgba(255,255,255,.08)}
+.m3ssv2-vst3-release .m3ssv2-vst3-preset-bar[hidden]{display:none!important}
+.m3ssv2-vst3-release .m3ssv2-vst3-preset-title{overflow:hidden;color:#b9c6d6;font-size:9px;text-overflow:ellipsis;white-space:nowrap}
+.m3ssv2-vst3-release .m3ssv2-vst3-rack-row{cursor:default}
+.m3ssv2-vst3-release .m3ssv2-vst3-rack-row.is-selected{border-color:rgba(155,120,255,.68);box-shadow:inset 3px 0 0 rgba(155,120,255,.72)}
+
+@media(max-width:1180px){
+  .m3ssv2-vst3-release .m3ssv2-vst3-filters{grid-template-columns:minmax(110px,1fr) minmax(72px,.7fr);}
+  .m3ssv2-vst3-release .m3ssv2-vst3-preset-bar{grid-template-columns:minmax(90px,1fr) auto auto auto;}
+  .m3ssv2-vst3-release .m3ssv2-vst3-preset-title{grid-column:1/-1}
+}

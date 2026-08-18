@@ -1,10 +1,16 @@
 import { app } from "../../scripts/app.js";
 import { NODE_ID, nodeClass } from "./audio_editor_core.js";
-import { createVst3BrowserPanel } from "./vst3_browser.js";
+import { createVst3ReleasePanel } from "./vst3_release_browser.js";
 
 const STYLE_ID = "m3ss-vst3-browser-style";
-const BRIDGE_EXTENSION = "minimax.music3.vst3.phase2c.bridge";
+const BRIDGE_EXTENSION = "minimax.music3.vst3.phase2d.bridge";
+const UNDO_REDO_LABELS = new Set(["Undo", "Redo", "元に戻す", "やり直す"]);
+const SAVE_LABELS = new Set(["Save Edits", "編集を保存"]);
 let pendingNode = null;
+
+function labelOf(button) {
+  return String(button?.textContent || "").trim();
+}
 
 function ensureStyles() {
   if (document.getElementById(STYLE_ID)) return;
@@ -48,12 +54,13 @@ function mountPanel(dialog) {
   const side = dialog?.querySelector?.(".m3ssv2-side");
   const tabs = side?.querySelector?.(".m3ssv2-inspector-tabs");
   const inspectorBody = side?.querySelector?.(".m3ssv2-inspector-body");
-  if (!side || !tabs || !inspectorBody || side.dataset.m3ssVst3Phase2cMounted === "1") return;
-  side.dataset.m3ssVst3Phase2cMounted = "1";
+  if (!side || !tabs || !inspectorBody || side.dataset.m3ssVst3Phase2dMounted === "1") return;
+  side.dataset.m3ssVst3Phase2dMounted = "1";
   ensureStyles();
 
-  const node = resolveDialogNode();
-  const panel = createVst3BrowserPanel({ node });
+  dialog._m3ssSingleAudioContext?.();
+  const contextProvider = () => dialog._m3ssSingleAudioContext?.() || inspectorBody._m3ssEffectsContext || null;
+  const panel = createVst3ReleasePanel({ contextProvider });
   panel.classList.add("m3ssv2-vst3-tab-panel");
   panel.hidden = true;
   side.appendChild(panel);
@@ -77,14 +84,17 @@ function mountPanel(dialog) {
   tabObserver.observe(tabs, { childList: true });
 
   const showVst3 = () => {
+    dialog._m3ssSingleAudioContext?.();
+    dialog._m3ssSetWorkspaceMode?.("vst3");
     for (const tab of tabs.querySelectorAll(".m3ssv2-workspace-tab")) {
       const active = tab === vstTab;
       tab.classList.toggle("is-active", active);
       tab.setAttribute("aria-selected", active ? "true" : "false");
     }
-    dialog.dataset.m3ssWorkspaceMode = "vst3";
+    if (!dialog._m3ssSetWorkspaceMode) dialog.dataset.m3ssWorkspaceMode = "vst3";
     inspectorBody.hidden = true;
     panel.hidden = false;
+    panel.refreshFromProject?.();
     if (panel.dataset.m3ssVst3Scanned !== "1") {
       panel.dataset.m3ssVst3Scanned = "1";
       panel.runScan?.();
@@ -109,13 +119,22 @@ function mountPanel(dialog) {
     showCoreInspector();
   });
 
-  // Save is blocked before the core handler if a native VST3 editor is still
-  // open. Otherwise the core editor saves first, then the VST3 state is merged
-  // in a microtask so Cancel continues to discard unsaved VST3 changes.
+  for (const control of dialog.querySelectorAll(".m3ssv2-meta-toolbar button")) {
+    if (!UNDO_REDO_LABELS.has(labelOf(control))) continue;
+    control.addEventListener("click", () => queueMicrotask(() => panel.refreshFromProject?.()));
+  }
+
   dialog.addEventListener("click", (event) => {
     const target = event.target?.closest?.("button");
-    if (!target || String(target.textContent || "").trim() !== "Save Edits") return;
-    if (!nativeEditorIsOpen(panel)) return;
+    if (!target || !UNDO_REDO_LABELS.has(labelOf(target)) || !nativeEditorIsOpen(panel)) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    alert("Close the Plugin UI before Undo or Redo so the captured VST3 state remains consistent.");
+  }, true);
+
+  dialog.addEventListener("click", (event) => {
+    const target = event.target?.closest?.("button");
+    if (!target || !SAVE_LABELS.has(labelOf(target)) || !nativeEditorIsOpen(panel)) return;
     event.preventDefault();
     event.stopImmediatePropagation();
     alert("Use Close UI in the VST3 rack first. The plugin state is captured when the native window closes.");
@@ -123,7 +142,7 @@ function mountPanel(dialog) {
 
   dialog.addEventListener("click", (event) => {
     const target = event.target?.closest?.("button");
-    if (!target || String(target.textContent || "").trim() !== "Save Edits") return;
+    if (!target || !SAVE_LABELS.has(labelOf(target))) return;
     queueMicrotask(() => panel.persistVst3State?.());
   });
 }

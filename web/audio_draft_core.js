@@ -7,6 +7,8 @@ const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, N
 const secondsToSample = (seconds, sampleRate) => Math.max(0, Math.round(Number(seconds || 0) * sampleRate));
 const clipDuration = (clip) => Math.max(0, Number(clip?.source_out || 0) - Number(clip?.source_in || 0));
 const clipEnd = (clip) => Math.max(0, Number(clip?.timeline_start || 0)) + clipDuration(clip);
+const draftEffects = (effects) => (Array.isArray(effects) ? effects : [])
+  .filter((effect) => String(effect?.type || "") !== "vst3");
 
 function normalizedEnvelopePoints(points, duration, zeroAnchors) {
   const map = new Map();
@@ -155,9 +157,6 @@ export function renderDraftProject(project, sources) {
       }
     }
 
-    // Track automation/controls precede the rack. Tail padding is inserted only
-    // after those controls so reverb/delay decay into silence rather than being
-    // extended by automation state.
     const trackEnvelope = buildEnvelopeAmplitude(baseSamples, sampleRate, track.gain_envelope || [], { zeroAnchors: false });
     const trackGain = dbToAmplitude(track.gain_db);
     const pan = clamp(track.pan, -1, 1);
@@ -172,10 +171,12 @@ export function renderDraftProject(project, sources) {
       }
     }
 
-    const effects = Array.isArray(track?.effects) ? track.effects : [];
+    // Browser Draft intentionally previews built-in DSP only. VST3 remains
+    // authoritative in the queued backend render and is bypassed here.
+    const effects = draftEffects(track?.effects);
     const trackTail = effectChainTailSamples(effects, sampleRate);
     const paddedTrack = trackTail > 0 ? padChannels(trackMix, baseSamples + trackTail) : trackMix;
-    renderedTracks.push(applyEffectChain(paddedTrack, sampleRate, effects, `Track ${track?.name || track?.id || ""}`));
+    renderedTracks.push(applyEffectChain(paddedTrack, sampleRate, effects, "Audio"));
   }
 
   let mixSamples = baseSamples;
@@ -188,13 +189,13 @@ export function renderDraftProject(project, sources) {
   }
 
   const master = project?.master || {};
-  const masterEffects = Array.isArray(master.effects) ? master.effects : [];
+  const masterEffects = draftEffects(master.effects);
   const masterTail = effectChainTailSamples(masterEffects, sampleRate);
   let channels = applyEffectChain(
     masterTail > 0 ? padChannels(mixed, mixSamples + masterTail) : mixed,
     sampleRate,
     masterEffects,
-    "Master",
+    "Audio",
   );
   const outputSamples = channels[0]?.length || 1;
   const mode = master.channel_mode || "preserve";

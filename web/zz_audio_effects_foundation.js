@@ -1,13 +1,15 @@
 import { app } from "../../scripts/app.js";
 import { NODE_ID, nodeClass } from "./audio_editor_core.js";
-import { createEffectsRackState, renderEffectsRack } from "./audio_effects.js";
+import {
+  createSingleEffectsState, renderSingleEffectsRack, renderSingleMixer,
+} from "./audio_single_pipeline.js";
 import { currentUiLocale } from "./ui_i18n.js";
 import { openEmptyAudioEditor } from "./audio_empty_editor.js";
 
 const DIALOG_INSTALLED = "m3ssWorkspacePolished";
 const NODE_WRAPPED = "_m3ssEmptyEditorWrapped";
 const STYLE_ID = "m3ss-v2-workspace-polish";
-const TRACK_HEIGHT_KEY = "m3ss-layout:audio-track-height";
+const AUDIO_HEIGHT_KEY = "m3ss-layout:audio-track-height";
 
 const tr = (en, ja) => currentUiLocale() === "ja" ? ja : en;
 
@@ -45,18 +47,19 @@ function previewTakeCount(dialog) {
   return preview ? Math.max(0, preview.options.length - 2) : 0;
 }
 
-function installTrackHeightResize(dialog) {
+function installAudioHeightResize(dialog) {
   const main = dialog.querySelector(".m3ssv2-main");
   const waveArea = dialog.querySelector(".m3ssv2-wave-area");
   if (!main || !waveArea || waveArea.dataset.m3ssTrackResize === "1") return;
   waveArea.dataset.m3ssTrackResize = "1";
+
   const handle = document.createElement("div");
   handle.className = "m3ssv2-track-height-handle";
   handle.setAttribute("role", "separator");
   handle.setAttribute("aria-orientation", "horizontal");
   handle.setAttribute("aria-valuemin", "260");
   handle.setAttribute("aria-valuemax", "760");
-  handle.title = tr("Drag to resize track height · double-click to reset", "ドラッグでトラックの高さを変更 · ダブルクリックでリセット");
+  handle.title = tr("Drag to resize audio height · double-click to reset", "ドラッグでオーディオの高さを変更 · ダブルクリックでリセット");
   handle.tabIndex = 0;
   waveArea.after(handle);
 
@@ -70,13 +73,13 @@ function installTrackHeightResize(dialog) {
     waveArea.style.flexBasis = `${next}px`;
     handle.setAttribute("aria-valuenow", String(Math.round(next)));
     if (persist) {
-      try { localStorage.setItem(TRACK_HEIGHT_KEY, String(Math.round(next))); } catch {}
+      try { localStorage.setItem(AUDIO_HEIGHT_KEY, String(Math.round(next))); } catch {}
     }
     window.dispatchEvent(new Event("resize"));
   };
 
   try {
-    const stored = Number(localStorage.getItem(TRACK_HEIGHT_KEY));
+    const stored = Number(localStorage.getItem(AUDIO_HEIGHT_KEY));
     if (Number.isFinite(stored) && stored > 0) setHeight(stored, false);
   } catch {}
 
@@ -111,30 +114,73 @@ function installTrackHeightResize(dialog) {
   };
 }
 
+function polishSingleAudioChrome(dialog) {
+  const waveTitle = dialog.querySelector(".m3ssv2-wave-head strong");
+  if (waveTitle && waveTitle.textContent !== "Audio Waveform") waveTitle.textContent = "Audio Waveform";
+  const waveNote = dialog.querySelector(".m3ssv2-wave-note");
+  if (waveNote) waveNote.hidden = true;
+
+  const strip = dialog.querySelector(".m3ssv2-track-strip");
+  if (strip) {
+    const name = strip.querySelector(".m3ssv2-track-name");
+    if (name && name.textContent !== "Audio") name.textContent = "Audio";
+    const buttons = [...strip.querySelectorAll(".m3ssv2-track-mini-button")];
+    if (buttons[0]) buttons[0].title = "Mute / unmute audio (M)";
+    if (buttons[1]) {
+      buttons[1].hidden = true;
+      buttons[1].tabIndex = -1;
+    }
+    const labels = [...strip.querySelectorAll(".m3ssv2-track-mini-label")];
+    if (labels[0] && labels[0].textContent !== "Input Gain") labels[0].textContent = "Input Gain";
+    if (labels[1] && labels[1].textContent !== "Pan") labels[1].textContent = "Pan";
+    const ranges = [...strip.querySelectorAll('input[type="range"]')];
+    if (ranges[0]) ranges[0].title = "Input Gain";
+    if (ranges[1]) ranges[1].title = "Pan";
+  }
+
+  const status = dialog.querySelector(".m3ssv2-status");
+  if (status?.textContent) {
+    const compact = status.textContent.replace(/\s*·\s*schema\s*\d+/gi, "");
+    if (compact !== status.textContent) status.textContent = compact;
+  }
+
+  const menu = dialog.querySelector(".m3ssv2-context-menu");
+  if (menu && !menu.hidden) {
+    for (const span of menu.querySelectorAll("button > span:first-child")) {
+      if (span.textContent === "Mute Track") span.textContent = "Mute Audio";
+      if (span.textContent === "Unmute Track") span.textContent = "Unmute Audio";
+    }
+  }
+}
+
 function installDialog(dialog) {
   if (!dialog || dialog.dataset.m3ssEmptyEditor === "1" || dialog.dataset[DIALOG_INSTALLED] === "1") return;
   const tabs = dialog.querySelector(".m3ssv2-inspector-tabs");
   const body = dialog.querySelector(".m3ssv2-inspector-body");
   if (!tabs || !body) return;
+
   const originals = [...tabs.querySelectorAll(".m3ssv2-inspector-tab")].slice(0, 5);
   if (originals.length < 5) return;
+  const [trackTab, clipTab, envelopeTab, masterTab] = originals;
 
   ensureStyles();
   dialog.dataset[DIALOG_INSTALLED] = "1";
-  installTrackHeightResize(dialog);
-  const takeCount = previewTakeCount(dialog);
-  if (takeCount <= 1) {
-    const useTake = [...dialog.querySelectorAll(".m3ssv2-secondary-commands button")].find((button) => /Use Preview Take|プレビューテイクを使用/.test(String(button.textContent || "")));
+  dialog.dataset.m3ssSingleAudio = "1";
+  installAudioHeightResize(dialog);
+  polishSingleAudioChrome(dialog);
+
+  if (previewTakeCount(dialog) <= 1) {
+    const useTake = [...dialog.querySelectorAll(".m3ssv2-secondary-commands button")]
+      .find((item) => /Use Preview Take|プレビューテイクを使用/.test(String(item.textContent || "")));
     if (useTake) useTake.hidden = true;
   }
 
-  const [trackTab, clipTab, envelopeTab, masterTab, takesTab] = originals;
   for (const tab of originals) tab.hidden = true;
 
   const state = {
     mode: "edit",
     rendering: false,
-    effects: createEffectsRackState(),
+    effects: createSingleEffectsState(),
   };
 
   const makeTab = (id, label, className) => {
@@ -152,15 +198,9 @@ function installDialog(dialog) {
     return tab;
   };
 
-  // Stable top-level order follows the editor mental model:
-  // edit first, mixer second, built-in effects third, external VST3 next.
-  // The VST3 extension inserts itself immediately after Effects.
   const editTab = makeTab("edit", tr("Edit", "編集"), "is-edit");
   const mixerTab = makeTab("mixer", tr("Mixer", "ミキサー"), "is-mixer");
   const effectsTab = makeTab("effects", tr("Effects", "エフェクト"), "is-effects");
-  const sourcesTab = takeCount > 1
-    ? makeTab("sources", tr("Sources", "ソース"), "is-sources")
-    : null;
   tabs.classList.add("is-workspace-polished");
   tabs.setAttribute("role", "tablist");
 
@@ -168,7 +208,6 @@ function installDialog(dialog) {
     ["edit", editTab],
     ["mixer", mixerTab],
     ["effects", effectsTab],
-    ...(sourcesTab ? [["sources", sourcesTab]] : []),
   ]);
 
   const syncTabState = () => {
@@ -184,91 +223,79 @@ function installDialog(dialog) {
     }
   };
 
-  const officialClick = (tab) => {
-    tab?.click();
-  };
-
-  const renderEffects = () => {
+  const officialClick = (tab) => tab?.click();
+  const projectContext = () => {
     if (!body._m3ssEffectsContext?.project) officialClick(masterTab);
-    const context = body._m3ssEffectsContext;
-    if (!context?.project || typeof context.commit !== "function") {
-      body.replaceChildren();
-      const note = document.createElement("div");
-      note.className = "m3ssv2-empty";
-      note.textContent = tr("Effects are not available yet.", "エフェクトをまだ利用できません。");
-      body.appendChild(note);
-      return;
-    }
-    renderEffectsRack(body, context.project, context.commit, state.effects);
+    return body._m3ssEffectsContext;
   };
 
   const renderEdit = () => {
     const envelopeButton = [...dialog.querySelectorAll(".m3ssv2-command-button")]
-      .find((button) => String(button.title || "").startsWith("Envelope Tool"));
+      .find((item) => String(item.title || "").startsWith("Envelope Tool"));
     officialClick(envelopeButton?.classList.contains("is-active") ? envelopeTab : clipTab);
   };
 
-  const removeField = (labelTexts) => {
-    for (const label of [...body.querySelectorAll(".m3ssv2-label")]) {
-      if (!labelTexts.includes(String(label.textContent || "").trim())) continue;
-      label.closest?.(".m3ssv2-field")?.remove();
-    }
-  };
-
   const renderMixer = () => {
-    officialClick(trackTab);
-    removeField(["Automation", "オートメーション"]);
-    const trackSection = document.createElement("section");
-    trackSection.className = "m3ssv2-mixer-section";
-    const trackTitle = document.createElement("h3");
-    trackTitle.textContent = tr("Track", "トラック");
-    trackSection.append(trackTitle, ...body.childNodes);
-
-    officialClick(masterTab);
-    removeField(["Effects", "エフェクト"]);
-    const masterSection = document.createElement("section");
-    masterSection.className = "m3ssv2-mixer-section";
-    const masterTitle = document.createElement("h3");
-    masterTitle.textContent = tr("Master", "マスター");
-    masterSection.append(masterTitle, ...body.childNodes);
-
-    const stack = document.createElement("div");
-    stack.className = "m3ssv2-mixer-stack";
-    stack.append(trackSection, masterSection);
-    body.replaceChildren(stack);
+    const context = projectContext();
+    if (!context?.project || typeof context.commit !== "function") {
+      body.replaceChildren(el("div", "m3ssv2-empty", tr("Mixer is unavailable.", "ミキサーを利用できません。")));
+      return;
+    }
+    renderSingleMixer(body, context.project, context.commit);
   };
 
-  const renderSources = () => officialClick(takesTab);
+  const renderEffects = () => {
+    const context = projectContext();
+    if (!context?.project || typeof context.commit !== "function") {
+      body.replaceChildren(el("div", "m3ssv2-empty", tr("Effects are unavailable.", "エフェクトを利用できません。")));
+      return;
+    }
+    renderSingleEffectsRack(body, context.project, context.commit, state.effects);
+  };
 
   function renderActive() {
     if (state.rendering || !dialog.isConnected) return;
     state.rendering = true;
     syncTabState();
     try {
-      if (state.mode === "effects") renderEffects();
-      else if (state.mode === "edit") renderEdit();
-      else if (state.mode === "mixer") renderMixer();
-      else renderSources();
+      if (state.mode === "vst3") {
+        polishSingleAudioChrome(dialog);
+        return;
+      }
+      if (state.mode === "mixer") renderMixer();
+      else if (state.mode === "effects") renderEffects();
+      else renderEdit();
+      polishSingleAudioChrome(dialog);
     } finally {
       state.rendering = false;
     }
   }
 
-  const observer = new MutationObserver(() => {
+  const bodyObserver = new MutationObserver(() => {
     if (!dialog.isConnected) {
-      observer.disconnect();
+      bodyObserver.disconnect();
       return;
     }
-    if (state.rendering) return;
-    if (state.mode === "effects" && !body.querySelector(".m3ssv2-effects-root")) queueMicrotask(renderActive);
-    else if (state.mode === "mixer" && !body.querySelector(".m3ssv2-mixer-stack")) queueMicrotask(renderActive);
+    polishSingleAudioChrome(dialog);
+    if (state.rendering || state.mode === "vst3") return;
+    if (state.mode === "effects" && !body.querySelector(".m3ssv2-single-effects")) queueMicrotask(renderActive);
+    else if (state.mode === "mixer" && !body.querySelector(".m3ssv2-single-mixer")) queueMicrotask(renderActive);
   });
-  observer.observe(body, { childList: true, subtree: false });
+  bodyObserver.observe(body, { childList: true, subtree: false });
+
+  const chromeObserver = new MutationObserver(() => polishSingleAudioChrome(dialog));
+  for (const target of [
+    dialog.querySelector(".m3ssv2-track-strip"),
+    dialog.querySelector(".m3ssv2-status"),
+    dialog.querySelector(".m3ssv2-context-menu"),
+  ].filter(Boolean)) {
+    chromeObserver.observe(target, { childList: true, subtree: true, characterData: true });
+  }
 
   const envelopeButton = [...dialog.querySelectorAll(".m3ssv2-command-button")]
-    .find((button) => String(button.title || "").startsWith("Envelope Tool"));
+    .find((item) => String(item.title || "").startsWith("Envelope Tool"));
   const selectButton = [...dialog.querySelectorAll(".m3ssv2-command-button")]
-    .find((button) => String(button.title || "").startsWith("Select Tool"));
+    .find((item) => String(item.title || "").startsWith("Select Tool"));
 
   envelopeButton?.addEventListener("click", () => {
     state.mode = "edit";
@@ -282,6 +309,13 @@ function installDialog(dialog) {
     state.mode = "edit";
     queueMicrotask(renderActive);
   }, true);
+
+  dialog._m3ssSingleAudioContext = () => projectContext();
+  dialog._m3ssSingleAudioRefresh = () => queueMicrotask(renderActive);
+  dialog._m3ssSetWorkspaceMode = (mode) => {
+    state.mode = ["edit", "mixer", "effects", "vst3"].includes(mode) ? mode : "edit";
+    renderActive();
+  };
 
   queueMicrotask(renderActive);
 }
