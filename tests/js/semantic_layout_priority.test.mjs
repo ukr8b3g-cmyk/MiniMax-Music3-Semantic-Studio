@@ -35,3 +35,30 @@ test("Song Settings stay above Song Timeline and timeline content remains intact
   assert.match(studio, /renderSemanticTimeline\(host, project, selectedId/);
   assert.match(studio, /m3ss-main-vocal-summary/);
 });
+
+test("Timeline front restores only CFG and Duration quick generation controls", () => {
+  const quick = source("web/zz_semantic_quick_generation_controls.js");
+  const css = source("web/semantic_quick_generation_controls.css");
+  assert.match(quick, /makeField\("CFG"/);
+  assert.match(quick, /makeField\("Duration"/);
+  assert.doesNotMatch(quick, /makeField\("Seed"/);
+  assert.doesNotMatch(quick, /makeField\("Top-K"/);
+  assert.doesNotMatch(quick, /makeField\("Auto Sync/);
+  assert.match(quick, /syncDraftBeforeSave/);
+  assert.match(quick, /durationDirty/);
+  assert.match(quick, /auto\.checked = false/);
+  assert.match(css, /m3ss-semantic-quick-field\.is-cfg/);
+  assert.match(css, /m3ss-semantic-quick-field\.is-duration/);
+});
+
+test("Studio shell supports persisted drag position and drag-to-restore from maximized", () => {
+  const shell = source("web/studio_shell.js");
+  assert.match(shell, /function readPosition/);
+  assert.match(shell, /function writePosition/);
+  assert.match(shell, /header\.addEventListener\("pointerdown", dragStart\)/);
+  assert.match(shell, /header\.setPointerCapture/);
+  assert.match(shell, /dragState\.wasMaximized/);
+  assert.match(shell, /setMaximized\(false\)/);
+  assert.match(shell, /writePosition\(storageKey/);
+  assert.match(shell, /m3shell-window-controls,button,input,select,textarea,a/);
+});
