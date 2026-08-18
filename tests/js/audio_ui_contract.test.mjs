@@ -46,19 +46,30 @@ test("Single audio pipeline preserves historical internal stages until explicit 
   assert.doesNotMatch(pipeline, /Master Effects/);
 });
 
-test("VST3 release browser is one Add target and one Rack", () => {
+test("VST3 opens directly as one rack with an explicit Add VST3 chooser", () => {
   const vst = source("web/vst3_release_browser.js");
-  assert.match(vst, /button\("Plugins"/);
-  assert.match(vst, /button\("Rack"/);
-  assert.match(vst, /button\("\+ Add"/);
+  assert.match(vst, /button\("\+ Add VST3"/);
+  assert.match(vst, /m3ssv2-vst3-chooser-pane/);
+  assert.match(vst, /Search installed VST3/);
+  assert.match(vst, /ctx\.commit\(\(\) => appendPipelineEffect/);
+  assert.match(vst, /selectedRackId = effect\.id;\s*closeChooser\(\);/s);
+  assert.doesNotMatch(vst, /button\("Plugins"/);
+  assert.doesNotMatch(vst, /button\("Rack"/);
+  assert.doesNotMatch(vst, /Favorites/);
+  assert.doesNotMatch(vst, /Recent/);
+  assert.doesNotMatch(vst, /All Vendors/);
+  assert.doesNotMatch(vst, /All Categories/);
   assert.doesNotMatch(vst, /\+ Track/);
   assert.doesNotMatch(vst, /\+ Master/);
-  assert.match(vst, /Favorites/);
-  assert.match(vst, /Recent/);
-  assert.match(vst, /All Vendors/);
-  assert.match(vst, /All Categories/);
-  assert.match(vst, /saveVst3Preset/);
-  assert.match(vst, /listVst3Presets/);
+});
+
+test("VST3 rack shares Effects power-state grammar and keeps native UI separate", () => {
+  const vst = source("web/vst3_release_browser.js");
+  assert.match(vst, /m3ssv2-fx-card m3ssv2-vst3-rack-row/);
+  assert.match(vst, /m3ssv2-fx-power m3ssv2-vst3-power/);
+  assert.match(vst, /is-enabled/);
+  assert.match(vst, /enabled \? "ON" : "BYPASS"/);
+  assert.match(vst, /opening \? \(closing \? "Closing…" : "Close UI"\) : "Open UI"/);
   assert.match(vst, /closeVst3NativeEditor/);
 });
 
@@ -94,15 +105,14 @@ test("VST3 preset library uses IndexedDB rather than localStorage for state blob
   assert.doesNotMatch(presets, /localStorage/);
 });
 
-test("Phase 2D keeps the experienced-user visual language compact", () => {
-  const css = source("web/audio_workspace_polish.css");
-  assert.match(css, /\.m3ssv2-workspace-tab\.is-active/);
-  assert.match(css, /\.is-tools \.m3ssv2-command-button\.is-active/);
-  assert.match(css, /\.m3ssv2-vst3-view-tab\.is-active/);
+test("VST3 release layout cannot reintroduce clipped filter columns or secondary navigation", () => {
   const phase2d = source("web/audio_phase2d.css");
-  assert.match(phase2d, /m3ssv2-vst3-filters/);
-  assert.match(phase2d, /m3ssv2-vst3-preset-bar/);
-  assert.match(phase2d, /nth-child\(2\)\{display:none!important\}/);
+  assert.match(phase2d, /m3ssv2-vst3-chooser-pane/);
+  assert.match(phase2d, /m3ssv2-vst3-rack-row\.is-selected/);
+  assert.match(phase2d, /flex-wrap:wrap/);
+  assert.doesNotMatch(phase2d, /m3ssv2-vst3-filters/);
+  const browser = source("web/vst3_release_browser.js");
+  assert.doesNotMatch(browser, /m3ssv2-vst3-view-tabs/);
 });
 
 test("Release chrome hides schema and Track/Master wording from normal summaries", () => {
