@@ -49,16 +49,26 @@ test("Timeline front restores only CFG and Duration quick generation controls", 
   assert.match(quick, /auto\.checked = false/);
   assert.match(css, /m3ss-semantic-quick-field\.is-cfg/);
   assert.match(css, /m3ss-semantic-quick-field\.is-duration/);
+  assert.doesNotMatch(css, /m3shell-header/);
 });
 
-test("Studio shell supports persisted drag position and drag-to-restore from maximized", () => {
+test("Quick controls follow Timeline auto-sync and Semantic history state", () => {
+  const quick = source("web/zz_semantic_quick_generation_controls.js");
+  assert.match(quick, /function readAutoSyncPreference/);
+  assert.match(quick, /function timelineTotalDuration/);
+  assert.match(quick, /function refreshAutoSyncedDuration/);
+  assert.match(quick, /Music CFG\|音楽CFG/);
+  assert.match(quick, /Duration Limit\|生成時間上限/);
+  assert.match(quick, /input\.addEventListener\("change"/);
+  assert.match(quick, /syncQuickControlsThroughGeneration/);
+  assert.match(quick, /refreshQuickDraftFromHistory/);
+  assert.match(quick, /m3ss-history-undo,\.m3ss-history-redo/);
+  assert.match(quick, /quickDraft\.autoSync = false/);
+});
+
+test("Shared Studio shell is not repurposed for native VST window movement", () => {
   const shell = source("web/studio_shell.js");
-  assert.match(shell, /function readPosition/);
-  assert.match(shell, /function writePosition/);
-  assert.match(shell, /header\.addEventListener\("pointerdown", dragStart\)/);
-  assert.match(shell, /header\.setPointerCapture/);
-  assert.match(shell, /dragState\.wasMaximized/);
-  assert.match(shell, /setMaximized\(false\)/);
-  assert.match(shell, /writePosition\(storageKey/);
-  assert.match(shell, /m3shell-window-controls,button,input,select,textarea,a/);
+  assert.doesNotMatch(shell, /header\.addEventListener\("pointerdown", dragStart\)/);
+  assert.doesNotMatch(shell, /function readPosition/);
+  assert.doesNotMatch(shell, /dragState/);
 });
