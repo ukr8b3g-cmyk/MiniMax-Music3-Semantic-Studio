@@ -13,12 +13,14 @@ test("Audio Editor top-level workspace order is Edit, Mixer, Effects before VST3
   const effects = workspace.indexOf('makeTab("effects"');
   assert.ok(edit >= 0 && mixer > edit && effects > mixer);
   assert.match(workspace, /mode:\s*"edit"/);
+  assert.match(workspace, /m3ss-workspace-mode-change/);
 
   const vst = source("web/vst3_extension.js");
   assert.match(vst, /dataset\.m3ssMode\s*=\s*"vst3"/);
-  assert.match(vst, /data-m3ss-mode=\\"effects\\"/);
+  assert.match(vst, /data-m3ss-mode="effects"/);
   assert.match(vst, /effectsTab\.after\(vstTab\)/);
   assert.match(vst, /m3ssv2-workspace-tab m3ssv2-vst3-tab/);
+  assert.match(vst, /m3ss-workspace-mode-change/);
 });
 
 test("VST3 opens as a compact plugin browser with Rack as a secondary view", () => {
