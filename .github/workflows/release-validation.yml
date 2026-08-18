@@ -17,19 +17,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Check release JavaScript syntax
+      - name: Check all web JavaScript syntax
         run: |
-          node --check web/audio_draft_core.js
-          node --check web/audio_empty_editor.js
-          node --check web/audio_panels.js
-          node --check web/audio_single_pipeline.js
-          node --check web/node_compact.js
-          node --check web/vst3_extension.js
-          node --check web/vst3_preset_store.js
-          node --check web/vst3_release_browser.js
-          node --check web/zz_audio_effects_foundation.js
-          node --check web/zz_audio_phase2d_chrome.js
-          node --check web/zz_audio_phase2d_style.js
+          for file in web/*.js; do
+            node --check "$file"
+          done
       - name: Run Audio Editor unit and contract tests
         run: npm run test:audio
 
