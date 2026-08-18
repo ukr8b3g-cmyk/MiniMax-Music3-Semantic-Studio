@@ -22,7 +22,7 @@ EXPECTED_SHA256 = {
     "web/audio_effects_core.js": "8cf8ef8ff5857d1e3a03bc71f583ea0536f886ca6a1c483bb390d8e7102f4cdc",
     "web/audio_effects_dsp.js": "ee2ac4d00ec2f3b96e5f4c1121acdb74aa3b9f6ab351400ff4f9720a0b74ea12",
     "web/audio_draft_core.js": "65e690943382dd3daeac9af78519b2e34b8add77584131542b69b957e2ca1315",
-    "tests/test_audio_effects_dsp.py": "c45ade1fcf49b6992f2ef21de14bbba85c792ab1fd2251cfa5b2ebd45051ce63",
+    "tests/test_audio_effects_dsp.py": "cac0f3632ffe2353b1486e98667844f386422e762109c518b465901ffb837c41",
     "tests/test_audio_render.py": "57e8bdb9ac4f8a66e2678b72af45f2003c1747582bc5370a701032149db8a2ee",
     "tests/js/audio_effects_core.test.mjs": "31ce63b78461ae540f14d8b97419bcb3539f9029dcb55244f5bcfe731bde1b8f",
     "tests/js/audio_effects_dsp.test.mjs": "d4170f49083a5e3801756b3049230f3143ab086569038a122c4caaeeec9a188c",
