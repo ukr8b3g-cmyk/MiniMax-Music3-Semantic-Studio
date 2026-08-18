@@ -9,6 +9,8 @@ Only the frequently adjusted generation values are mirrored into the Timeline so
 - CFG
 - Duration
 
-Music Seed and Top-K remain in the Generation workspace. Auto Sync with Timeline also remains in Generation and is not promoted to the Timeline front. A manual Duration edit is treated as an explicit override and disables Auto Sync when the draft is synchronized.
+Music Seed and Top-K remain in the Generation workspace. Auto Sync with Timeline also remains in Generation and is not promoted to the Timeline front.
 
-The quick controls synchronize back into the existing Generation draft before Save to Node, so the stored node widgets and existing generation contract remain unchanged.
+While Auto Sync remains enabled, the front Duration display follows the current Song Timeline total. A manual Duration edit is an explicit override: it disables Auto Sync when committed, updates the existing Generation draft, and uses the same Semantic undo/redo history. CFG follows the same Generation draft and history rather than maintaining a separate value.
+
+The stored node widgets and existing generation contract remain unchanged.
