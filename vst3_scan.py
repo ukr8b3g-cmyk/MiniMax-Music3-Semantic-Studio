@@ -73,10 +73,17 @@ def _iter_vst3_entries(root: Path) -> Iterable[Path]:
         return []
     entries: list[Path] = []
     try:
-        for path in root.rglob("*"):
-            if path.suffix.lower() != ".vst3":
-                continue
-            entries.append(path)
+        for current, dirs, files in os.walk(root):
+            base = Path(current)
+            vst3_dirs = [name for name in dirs if Path(name).suffix.lower() == ".vst3"]
+            for name in vst3_dirs:
+                entries.append(base / name)
+            # A .vst3 directory is a complete bundle. Do not descend into it,
+            # otherwise Contents/x86_64-win/<name>.vst3 can be double-counted.
+            dirs[:] = [name for name in dirs if Path(name).suffix.lower() != ".vst3"]
+            for name in files:
+                if Path(name).suffix.lower() == ".vst3":
+                    entries.append(base / name)
     except OSError:
         return []
     return entries
