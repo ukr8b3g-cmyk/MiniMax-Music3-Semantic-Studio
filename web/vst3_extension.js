@@ -52,8 +52,6 @@ function mountPanel(dialog) {
   side.dataset.m3ssVst3Phase2dMounted = "1";
   ensureStyles();
 
-  // Prime the hidden core Master renderer once so the shared project/commit
-  // context is available even if VST3 is the first workspace opened.
   dialog._m3ssSingleAudioContext?.();
   const contextProvider = () => dialog._m3ssSingleAudioContext?.() || inspectorBody._m3ssEffectsContext || null;
   const panel = createVst3ReleasePanel({ contextProvider });
@@ -81,12 +79,13 @@ function mountPanel(dialog) {
 
   const showVst3 = () => {
     dialog._m3ssSingleAudioContext?.();
+    dialog._m3ssSetWorkspaceMode?.("vst3");
     for (const tab of tabs.querySelectorAll(".m3ssv2-workspace-tab")) {
       const active = tab === vstTab;
       tab.classList.toggle("is-active", active);
       tab.setAttribute("aria-selected", active ? "true" : "false");
     }
-    dialog.dataset.m3ssWorkspaceMode = "vst3";
+    if (!dialog._m3ssSetWorkspaceMode) dialog.dataset.m3ssWorkspaceMode = "vst3";
     inspectorBody.hidden = true;
     panel.hidden = false;
     panel.refreshFromProject?.();
@@ -114,8 +113,6 @@ function mountPanel(dialog) {
     showCoreInspector();
   });
 
-  // VST3 mutations now use the Audio Editor's own project commit function, so
-  // the existing Undo/Redo buttons also restore VST3 rack and captured state.
   for (const control of dialog.querySelectorAll(".m3ssv2-meta-toolbar button")) {
     const label = String(control.textContent || "").trim();
     if (label !== "Undo" && label !== "Redo") continue;
