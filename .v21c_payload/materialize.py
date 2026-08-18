@@ -18,7 +18,7 @@ PAYLOAD_TARGETS = {
 
 EXPECTED_SHA256 = {
     "audio_effects_dsp.py": "bf88a1a51b0836bc19ff2583a32164cdb96e2df89309895aafc4b2afab8536c9",
-    "audio_render.py": "777cf7665298324f5a80957e1461a557e1391e30e12918406a392e6008cd0450",
+    "audio_render.py": "07af4a3f31fff814e815d6de0d61b960812efad1be0885933e5400eb19b322ce",
     "web/audio_effects_core.js": "8cf8ef8ff5857d1e3a03bc71f583ea0536f886ca6a1c483bb390d8e7102f4cdc",
     "web/audio_effects_dsp.js": "ee2ac4d00ec2f3b96e5f4c1121acdb74aa3b9f6ab351400ff4f9720a0b74ea12",
     "web/audio_draft_core.js": "65e690943382dd3daeac9af78519b2e34b8add77584131542b69b957e2ca1315",
