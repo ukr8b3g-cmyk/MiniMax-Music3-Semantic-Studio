@@ -2,8 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   collectInstrumentRows,
+  ensureInstrumentCatalog,
   fitTimelineScale,
+  removeInstrumentFromProject,
   reorderSections,
+  resetInstrumentCatalog,
   resizeSectionDurations,
   sectionHasInstrument,
   sectionPalette,
@@ -71,6 +74,32 @@ test('instrument rows preserve first appearance and toggle section membership', 
   assert.equal(sectionHasInstrument(sections[2], 'piano'), true);
   assert.equal(toggleSectionInstrument(sections[2], 'PIANO'), false);
   assert.equal(sectionHasInstrument(sections[2], 'Piano'), false);
+});
+
+test('instrument catalog keeps a fully bypassed instrument row until explicit project removal', () => {
+  const project = normalizeProject(factoryProject());
+  const instrument = project.timeline.sections[0].instruments[0];
+  const catalog = ensureInstrumentCatalog(project);
+  assert.equal(catalog.some((item) => item.toLowerCase() === instrument.toLowerCase()), true);
+
+  for (const section of project.timeline.sections) {
+    section.instruments = section.instruments.filter((item) => item.toLowerCase() !== instrument.toLowerCase());
+  }
+  const normalized = normalizeProject(project);
+  assert.equal(normalized.timeline.sections.some((section) => sectionHasInstrument(section, instrument)), false);
+  assert.equal(collectInstrumentRows(normalized.timeline.sections, normalized.timeline.instrument_catalog).some((item) => item.toLowerCase() === instrument.toLowerCase()), true);
+
+  removeInstrumentFromProject(normalized, instrument);
+  const removed = normalizeProject(normalized);
+  assert.equal(collectInstrumentRows(removed.timeline.sections, removed.timeline.instrument_catalog).some((item) => item.toLowerCase() === instrument.toLowerCase()), false);
+});
+
+test('reset instrument catalog drops stale bypass-only rows and rebuilds from active sections', () => {
+  const project = normalizeProject(factoryProject());
+  project.timeline.instrument_catalog = ['obsolete instrument'];
+  const rebuilt = resetInstrumentCatalog(project);
+  assert.equal(rebuilt.includes('obsolete instrument'), false);
+  assert.equal(rebuilt.includes('piano'), true);
 });
 
 test('instrument membership remains section-local through project normalization', () => {
