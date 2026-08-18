@@ -7,6 +7,11 @@ from pathlib import Path
 from threading import Event, Thread
 from typing import Any, TextIO
 
+try:
+    from .vst3_window import start_native_editor_window_manager
+except ImportError:  # Executed directly by the helper subprocess.
+    from vst3_window import start_native_editor_window_manager
+
 MAX_STATE_BYTES = 32 * 1024 * 1024
 
 
@@ -102,7 +107,14 @@ def run(input_path: Path, output_path: Path) -> None:
     _restore_state(plugin, payload)
     close_event = Event()
     _start_close_watcher(close_event)
-    plugin.show_editor(close_event)
+    window_manager_stop = Event()
+    window_manager = start_native_editor_window_manager(plugin_name, window_manager_stop)
+    try:
+        plugin.show_editor(close_event)
+    finally:
+        window_manager_stop.set()
+        if window_manager is not None:
+            window_manager.join(timeout=0.75)
     state_kind, state = _capture_state(plugin)
 
     result = {
