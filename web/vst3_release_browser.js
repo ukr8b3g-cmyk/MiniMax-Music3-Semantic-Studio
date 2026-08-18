@@ -122,6 +122,8 @@ export function createVst3ReleasePanel({ contextProvider = null } = {}) {
   let statusTimer = null;
   let selectedRackId = null;
   let currentPresets = [];
+  let presetsForKey = "";
+  let presetRequestSerial = 0;
   let chooserOpen = false;
   const openingIds = new Set();
   const closingIds = new Set();
@@ -132,12 +134,23 @@ export function createVst3ReleasePanel({ contextProvider = null } = {}) {
     return value?.project && typeof value.commit === "function" ? value : null;
   };
 
+  const selectedEffect = () => {
+    const ctx = context();
+    return selectedRackId && ctx?.project ? findPipelineEffect(ctx.project, selectedRackId) : null;
+  };
+
   function setStatus(text = "", kind = "", timeout = 0) {
     clearTimeout(statusTimer);
     inlineStatus.textContent = text;
     inlineStatus.hidden = !text;
     inlineStatus.className = `m3ssv2-vst3-inline-status${kind ? ` is-${kind}` : ""}`;
     if (text && timeout > 0) statusTimer = setTimeout(() => setStatus(), timeout);
+  }
+
+  function invalidatePresets() {
+    presetRequestSerial += 1;
+    currentPresets = [];
+    presetsForKey = "";
   }
 
   function setNativeOpenFlag() {
@@ -171,7 +184,7 @@ export function createVst3ReleasePanel({ contextProvider = null } = {}) {
     search.value = "";
     updateAddControl();
     renderRack();
-    refreshPresets();
+    void refreshPresets();
   }
 
   async function openChooser() {
@@ -204,6 +217,7 @@ export function createVst3ReleasePanel({ contextProvider = null } = {}) {
       const effect = createPluginEffect(plugin);
       ctx.commit(() => appendPipelineEffect(ctx.project, effect));
       selectedRackId = effect.id;
+      invalidatePresets();
       closeChooser();
       setStatus(`${plugin.name || "VST3"} added`, "saved", 2200);
     };
@@ -222,16 +236,26 @@ export function createVst3ReleasePanel({ contextProvider = null } = {}) {
   }
 
   async function refreshPresets() {
-    const effect = selectedRackId ? findPipelineEffect(context()?.project, selectedRackId) : null;
-    if (!effect || String(effect.type || "") !== VST3_TYPE) {
-      currentPresets = [];
-      renderPresetBar();
-      return;
-    }
+    const effect = selectedEffect();
+    const key = effect && String(effect.type || "") === VST3_TYPE ? effectPluginKey(effect) : "";
+    const request = ++presetRequestSerial;
+
+    currentPresets = [];
+    presetsForKey = "";
+    renderPresetBar();
+    if (!key) return;
+
     try {
-      currentPresets = await listVst3Presets(effectPluginKey(effect));
+      const rows = await listVst3Presets(key);
+      if (request !== presetRequestSerial) return;
+      const latest = selectedEffect();
+      if (!latest || effectPluginKey(latest) !== key) return;
+      currentPresets = rows;
+      presetsForKey = key;
     } catch (error) {
+      if (request !== presetRequestSerial) return;
       currentPresets = [];
+      presetsForKey = "";
       setStatus(`Preset library unavailable: ${error}`, "error");
     }
     renderPresetBar();
@@ -239,16 +263,19 @@ export function createVst3ReleasePanel({ contextProvider = null } = {}) {
 
   function renderPresetBar() {
     presetBar.replaceChildren();
-    const effect = selectedRackId ? findPipelineEffect(context()?.project, selectedRackId) : null;
+    const effect = selectedEffect();
     if (!effect || String(effect.type || "") !== VST3_TYPE) {
       presetBar.hidden = true;
       return;
     }
+
+    const key = effectPluginKey(effect);
+    const presets = presetsForKey === key ? currentPresets : [];
     presetBar.hidden = false;
     const title = el("strong", "m3ssv2-vst3-preset-title", effectLabel(effect));
     const presetSelect = select([
       { value: "", label: "Preset…" },
-      ...currentPresets.map((preset) => ({ value: preset.id, label: preset.name })),
+      ...presets.map((preset) => ({ value: preset.id, label: preset.name })),
     ], "");
     presetSelect.className = "m3ssv2-vst3-preset-select";
     const load = button("Load", "m3ssv2-button secondary m3ssv2-vst3-mini");
@@ -264,22 +291,30 @@ export function createVst3ReleasePanel({ contextProvider = null } = {}) {
       load.disabled = !presetSelect.value;
       remove.disabled = !presetSelect.value;
     };
+
     load.onclick = () => {
-      const preset = currentPresets.find((item) => item.id === presetSelect.value);
+      const preset = presets.find((item) => item.id === presetSelect.value);
       const latest = context();
-      if (!preset || !latest) return;
-      latest.commit(() => mutatePipelineEffect(latest.project, effect.id, (target) => {
-        target.params ||= {};
-        for (const key of ["state_kind", "state_b64", "state_bytes", "plugin_identifier", "plugin_version", "manufacturer"]) {
-          if (preset[key] !== undefined) target.params[key] = clone(preset[key]);
+      const target = latest?.project ? findPipelineEffect(latest.project, effect.id) : null;
+      if (!preset || !latest || !target) return;
+      if (String(preset.plugin_key || "") !== effectPluginKey(target)) {
+        setStatus("Preset does not belong to this VST3.", "error", 2600);
+        void refreshPresets();
+        return;
+      }
+      latest.commit(() => mutatePipelineEffect(latest.project, effect.id, (item) => {
+        item.params ||= {};
+        for (const field of ["state_kind", "state_b64", "state_bytes", "plugin_identifier", "plugin_version", "manufacturer"]) {
+          if (preset[field] !== undefined) item.params[field] = clone(preset[field]);
         }
-        target.params.phase = "2D";
+        item.params.phase = "2D";
       }));
       renderAll();
       setStatus(`${preset.name} loaded`, "saved", 2200);
     };
+
     save.onclick = async () => {
-      const latest = findPipelineEffect(context()?.project, effect.id);
+      const latest = selectedEffect();
       if (!latest?.params?.state_b64) return setStatus("Open the Plugin UI and capture state before saving a preset", "error");
       const name = String(prompt("Preset name", `${effectLabel(latest)} Preset`) || "").trim();
       if (!name) return;
@@ -291,9 +326,11 @@ export function createVst3ReleasePanel({ contextProvider = null } = {}) {
         setStatus(`Preset save failed: ${error}`, "error");
       }
     };
+
     remove.onclick = async () => {
-      const preset = currentPresets.find((item) => item.id === presetSelect.value);
-      if (!preset || !confirm(`Delete preset “${preset.name}”?`)) return;
+      const preset = presets.find((item) => item.id === presetSelect.value);
+      if (!preset || String(preset.plugin_key || "") !== key) return;
+      if (!confirm(`Delete preset “${preset.name}”?`)) return;
       try {
         await deleteVst3Preset(preset.id);
         await refreshPresets();
@@ -302,17 +339,19 @@ export function createVst3ReleasePanel({ contextProvider = null } = {}) {
         setStatus(`Preset delete failed: ${error}`, "error");
       }
     };
+
     reset.onclick = () => {
       const latest = context();
       if (!latest) return;
       latest.commit(() => mutatePipelineEffect(latest.project, effect.id, (target) => {
         target.params ||= {};
-        for (const key of ["state_kind", "state_b64", "state_bytes", "plugin_identifier", "plugin_version", "manufacturer"]) delete target.params[key];
+        for (const field of ["state_kind", "state_b64", "state_bytes", "plugin_identifier", "plugin_version", "manufacturer"]) delete target.params[field];
         target.params.phase = "2D";
       }));
       renderAll();
       setStatus("Default plugin state restored", "saved", 2200);
     };
+
     presetBar.append(title, presetSelect, load, save, remove, reset);
   }
 
@@ -394,9 +433,11 @@ export function createVst3ReleasePanel({ contextProvider = null } = {}) {
 
     const name = button(effectLabel(effect), "m3ssv2-fx-name m3ssv2-vst3-rack-name");
     name.onclick = () => {
+      if (selectedRackId === effect.id) return;
       selectedRackId = effect.id;
+      invalidatePresets();
       renderRack();
-      refreshPresets();
+      void refreshPresets();
     };
 
     const ui = button(opening ? (closing ? "Closing…" : "Close UI") : "Open UI", `m3ssv2-button secondary m3ssv2-vst3-mini m3ssv2-vst3-open-ui${opening ? " is-active" : ""}`);
@@ -412,6 +453,7 @@ export function createVst3ReleasePanel({ contextProvider = null } = {}) {
       ctx.commit(() => movePipelineEffect(ctx.project, effect.id, -1, (item) => String(item?.type || "") === VST3_TYPE));
       renderAll();
     };
+
     const down = button("↓", "m3ssv2-fx-icon");
     down.disabled = opening || index === effects.length - 1;
     down.title = "Move down";
@@ -421,6 +463,7 @@ export function createVst3ReleasePanel({ contextProvider = null } = {}) {
       ctx.commit(() => movePipelineEffect(ctx.project, effect.id, 1, (item) => String(item?.type || "") === VST3_TYPE));
       renderAll();
     };
+
     const remove = button("×", "m3ssv2-fx-icon is-danger");
     remove.disabled = opening;
     remove.title = "Remove VST3";
@@ -429,7 +472,9 @@ export function createVst3ReleasePanel({ contextProvider = null } = {}) {
       if (!ctx) return;
       ctx.commit(() => removePipelineEffect(ctx.project, effect.id));
       if (selectedRackId === effect.id) selectedRackId = null;
+      invalidatePresets();
       renderAll();
+      void refreshPresets();
     };
 
     head.append(power, name, ui, up, down, remove);
@@ -442,15 +487,18 @@ export function createVst3ReleasePanel({ contextProvider = null } = {}) {
   function renderRack() {
     racks.replaceChildren();
     const effects = vstEffects();
-    if (selectedRackId && !effects.some((effect) => effect.id === selectedRackId)) selectedRackId = null;
+    if (selectedRackId && !effects.some((effect) => effect.id === selectedRackId)) {
+      selectedRackId = null;
+      invalidatePresets();
+    }
     if (!effects.length) {
       racks.appendChild(el("div", "m3ssv2-vst3-rack-empty", "No VST3 effects. Use + Add VST3."));
       presetBar.hidden = true;
-    } else {
-      if (!selectedRackId) selectedRackId = effects[0].id;
-      effects.forEach((effect, index) => racks.appendChild(rackRow(effect, index, effects)));
-      renderPresetBar();
+      return;
     }
+    if (!selectedRackId) selectedRackId = effects[0].id;
+    effects.forEach((effect, index) => racks.appendChild(rackRow(effect, index, effects)));
+    renderPresetBar();
   }
 
   function renderAll() {
@@ -501,8 +549,9 @@ export function createVst3ReleasePanel({ contextProvider = null } = {}) {
   root.openAddVst3 = openChooser;
   root.closeAddVst3 = closeChooser;
   root.refreshFromProject = () => {
+    invalidatePresets();
     renderRack();
-    refreshPresets();
+    void refreshPresets();
   };
   root.persistVst3State = () => {
     if (openingIds.size) {
@@ -514,5 +563,6 @@ export function createVst3ReleasePanel({ contextProvider = null } = {}) {
 
   setNativeOpenFlag();
   renderAll();
+  void refreshPresets();
   return root;
 }
