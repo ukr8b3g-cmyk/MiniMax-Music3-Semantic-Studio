@@ -263,6 +263,10 @@ function installDialog(dialog) {
     state.rendering = true;
     syncTabState();
     try {
+      if (state.mode === "vst3") {
+        polishSingleAudioChrome(dialog);
+        return;
+      }
       if (state.mode === "effects") renderEffects();
       else if (state.mode === "edit") renderEdit();
       else if (state.mode === "mixer") renderMixer();
@@ -279,7 +283,7 @@ function installDialog(dialog) {
       return;
     }
     polishSingleAudioChrome(dialog);
-    if (state.rendering) return;
+    if (state.rendering || state.mode === "vst3") return;
     if (state.mode === "effects" && !body.querySelector(".m3ssv2-single-effects")) queueMicrotask(renderActive);
     else if (state.mode === "mixer" && !body.querySelector(".m3ssv2-single-mixer")) queueMicrotask(renderActive);
   });
@@ -313,6 +317,10 @@ function installDialog(dialog) {
 
   dialog._m3ssSingleAudioContext = () => projectContext();
   dialog._m3ssSingleAudioRefresh = () => queueMicrotask(renderActive);
+  dialog._m3ssSetWorkspaceMode = (mode) => {
+    state.mode = ["edit", "mixer", "effects", "sources", "vst3"].includes(mode) ? mode : "edit";
+    renderActive();
+  };
   queueMicrotask(renderActive);
 }
 
