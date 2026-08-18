@@ -1,5 +1,8 @@
 # MiniMax Music3 Semantic Studio
 
+<img width="1908" height="1030" alt="{5F649661-FFAD-4F43-8499-446F319536FE}" src="https://github.com/user-attachments/assets/4dc442f5-9202-4b9e-9114-f15eaba0b175" />
+
+
 **Music3 Semantic Studio** is an external ComfyUI custom-node package for MiniMax Music 3 generation design and non-destructive post-generation audio editing.
 
 Current status:
