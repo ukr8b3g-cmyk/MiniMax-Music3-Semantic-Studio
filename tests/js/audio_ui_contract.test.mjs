@@ -52,7 +52,7 @@ test("VST3 opens directly as one rack with an explicit Add VST3 chooser", () => 
   assert.match(vst, /m3ssv2-vst3-chooser-pane/);
   assert.match(vst, /Search installed VST3/);
   assert.match(vst, /ctx\.commit\(\(\) => appendPipelineEffect/);
-  assert.match(vst, /selectedRackId = effect\.id;\s*closeChooser\(\);/s);
+  assert.match(vst, /selectedRackId = effect\.id;[\s\S]*?closeChooser\(\);/);
   assert.doesNotMatch(vst, /button\("Plugins"/);
   assert.doesNotMatch(vst, /button\("Rack"/);
   assert.doesNotMatch(vst, /Favorites/);
@@ -103,6 +103,18 @@ test("VST3 preset library uses IndexedDB rather than localStorage for state blob
   assert.match(presets, /createObjectStore/);
   assert.match(presets, /plugin_key/);
   assert.doesNotMatch(presets, /localStorage/);
+});
+
+test("VST3 preset results are scoped to the selected plugin and stale async reads are discarded", () => {
+  const vst = source("web/vst3_release_browser.js");
+  assert.match(vst, /let presetsForKey = ""/);
+  assert.match(vst, /let presetRequestSerial = 0/);
+  assert.match(vst, /const request = \+\+presetRequestSerial/);
+  assert.match(vst, /if \(request !== presetRequestSerial\) return/);
+  assert.match(vst, /effectPluginKey\(latest\) !== key/);
+  assert.match(vst, /presetsForKey === key \? currentPresets : \[\]/);
+  assert.match(vst, /preset\.plugin_key \|\| ""/);
+  assert.match(vst, /Preset does not belong to this VST3/);
 });
 
 test("VST3 release layout cannot reintroduce clipped filter columns or secondary navigation", () => {
