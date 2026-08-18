@@ -25,8 +25,8 @@ jobs:
       - name: Run Audio Editor unit and contract tests
         run: npm run test:audio
 
-  python-syntax:
-    name: Python syntax
+  python-release:
+    name: Python release tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,3 +35,11 @@ jobs:
           python-version: '3.12'
       - name: Compile Python sources
         run: python -m compileall -q .
+      - name: Install lightweight test dependency
+        run: python -m pip install --disable-pip-version-check pytest
+      - name: Run schema and VST3 scanner tests
+        run: >-
+          python -m pytest -q
+          tests/test_audio_edit_project.py
+          tests/test_semantic_project.py
+          tests/test_vst3_scan.py
