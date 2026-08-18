@@ -20,28 +20,17 @@ function ensureProjectContainers(project) {
   return { track, master: project.master };
 }
 
-/** Read the historical Track -> Master effect chain without mutating it. */
-export function pipelineEffects(project) {
+function pipelineLocations(project) {
   const { track, master } = ensureProjectContainers(project);
   return [
-    ...(track?.effects || []),
-    ...(master?.effects || []),
+    ...(track?.effects || []).map((effect, index) => ({ effect, list: track.effects, index, stage: "input" })),
+    ...(master?.effects || []).map((effect, index) => ({ effect, list: master.effects, index, stage: "output" })),
   ];
 }
 
-/**
- * Canonicalize only inside an editor commit. The exact historical order is
- * retained, while future edits live in one internal list. edit_schema_version
- * intentionally remains 2.
- */
-export function canonicalizePipelineEffects(project) {
-  const { track, master } = ensureProjectContainers(project);
-  if (!track) return [];
-  if (master.effects.length) {
-    track.effects = [...track.effects, ...master.effects];
-    master.effects = [];
-  }
-  return track.effects;
+/** Read the historical internal order without exposing Track/Master to the UI. */
+export function pipelineEffects(project) {
+  return pipelineLocations(project).map(({ effect }) => effect);
 }
 
 export function pipelineBuiltinEffects(project) {
@@ -53,32 +42,43 @@ export function pipelineVst3Effects(project) {
 }
 
 export function findPipelineEffect(project, effectId) {
-  return pipelineEffects(project).find((effect) => effect?.id === effectId) || null;
+  return pipelineLocations(project).find(({ effect }) => effect?.id === effectId)?.effect || null;
 }
 
+/** Parameter/state edits stay in their historical internal stage. */
 export function mutatePipelineEffect(project, effectId, fn) {
-  const all = canonicalizePipelineEffects(project);
-  const effect = all.find((item) => item?.id === effectId);
-  if (!effect) return false;
-  fn?.(effect, all);
+  const location = pipelineLocations(project).find(({ effect }) => effect?.id === effectId);
+  if (!location) return false;
+  fn?.(location.effect, location.list);
   return true;
 }
 
+/** New release effects are appended to the end of the visible pipeline. */
 export function appendPipelineEffect(project, effect) {
-  canonicalizePipelineEffects(project).push(effect);
+  const { master } = ensureProjectContainers(project);
+  if (!master) return null;
+  master.effects.push(effect);
   return effect;
 }
 
 export function removePipelineEffect(project, effectId) {
-  const all = canonicalizePipelineEffects(project);
-  const index = all.findIndex((effect) => effect?.id === effectId);
-  if (index < 0) return false;
-  all.splice(index, 1);
+  const location = pipelineLocations(project).find(({ effect }) => effect?.id === effectId);
+  if (!location) return false;
+  location.list.splice(location.index, 1);
   return true;
 }
 
+/**
+ * Reordering is the only operation allowed to move an effect across the hidden
+ * internal stage boundary. We repartition at the previous boundary so the
+ * combined user-visible order is exact while untouched projects remain bit-for-
+ * bit structurally compatible.
+ */
 export function movePipelineEffect(project, effectId, direction, predicate = null) {
-  const all = canonicalizePipelineEffects(project);
+  const { track, master } = ensureProjectContainers(project);
+  if (!track || !master) return false;
+  const boundary = track.effects.length;
+  const all = [...track.effects, ...master.effects];
   const eligible = all
     .map((effect, index) => ({ effect, index }))
     .filter(({ effect }) => !predicate || predicate(effect));
@@ -89,6 +89,8 @@ export function movePipelineEffect(project, effectId, direction, predicate = nul
   const a = eligible[position].index;
   const b = eligible[targetPosition].index;
   [all[a], all[b]] = [all[b], all[a]];
+  track.effects = all.slice(0, boundary);
+  master.effects = all.slice(boundary);
   return true;
 }
 
