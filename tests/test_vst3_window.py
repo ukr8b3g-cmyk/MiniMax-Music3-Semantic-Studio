@@ -75,6 +75,8 @@ def test_windows_manager_frames_and_centres_borderless_window():
     user32.GetWindowLongPtrW.restype = ctypes.c_ssize_t
     user32.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(RECT)]
     user32.GetWindowRect.restype = wintypes.BOOL
+    user32.GetClientRect.argtypes = [wintypes.HWND, ctypes.POINTER(RECT)]
+    user32.GetClientRect.restype = wintypes.BOOL
     user32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
     user32.GetWindowTextW.restype = ctypes.c_int
     user32.DestroyWindow.argtypes = [wintypes.HWND]
@@ -113,6 +115,11 @@ def test_windows_manager_frames_and_centres_borderless_window():
         rect = RECT()
         assert user32.GetWindowRect(hwnd, ctypes.byref(rect))
         assert int(rect.left) > 24 or int(rect.top) > 24
+
+        client = RECT()
+        assert user32.GetClientRect(hwnd, ctypes.byref(client))
+        assert int(client.right - client.left) == 460
+        assert int(client.bottom - client.top) == 510
     finally:
         vst3_window.WINDOW_SEARCH_TIMEOUT_SECONDS = old_timeout
         vst3_window.WINDOW_SEARCH_INTERVAL_SECONDS = old_interval
