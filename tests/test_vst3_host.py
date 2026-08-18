@@ -1,3 +1,6 @@
+import base64
+
+import pytest
 import torch
 
 from vst3_host import apply_effect_chain, apply_vst3_effect, effect_chain_tail_samples
@@ -5,10 +8,13 @@ from vst3_host import apply_effect_chain, apply_vst3_effect, effect_chain_tail_s
 
 class FakeEffect:
     is_effect = True
+    identifier = "fake.vst3.test"
 
     def __init__(self, factor=0.5):
         self.factor = factor
         self.calls = 0
+        self.preset_data = b""
+        self.raw_state = b""
 
     def __call__(self, audio, sample_rate, buffer_size=8192, reset=True):
         self.calls += 1
@@ -81,9 +87,38 @@ def test_vst3_rejects_instrument_plugin():
         is_effect = False
 
     audio = torch.ones((1, 1, 8))
-    try:
+    with pytest.raises(ValueError, match='not an audio effect'):
         apply_vst3_effect(audio, 44100, vst_effect(), owner='Track', loader=lambda *_: FakeInstrument())
-    except ValueError as exc:
-        assert 'not an audio effect' in str(exc)
-    else:
-        raise AssertionError('instrument VST3 should be rejected')
+
+
+def test_phase2b_restores_preset_data_before_processing():
+    plugin = FakeEffect(0.5)
+    effect = vst_effect()
+    effect['params'].update({
+        'state_kind': 'preset_data',
+        'state_b64': base64.b64encode(b'native-ui-state').decode('ascii'),
+        'plugin_identifier': plugin.identifier,
+    })
+    audio = torch.ones((1, 1, 8))
+    apply_vst3_effect(audio, 44100, effect, owner='Track', loader=lambda *_: plugin)
+    assert plugin.preset_data == b'native-ui-state'
+    assert plugin.calls == 1
+
+
+def test_phase2b_rejects_state_for_different_plugin_identifier():
+    plugin = FakeEffect()
+    effect = vst_effect()
+    effect['params'].update({
+        'state_kind': 'preset_data',
+        'state_b64': base64.b64encode(b'native-ui-state').decode('ascii'),
+        'plugin_identifier': 'different.plugin.identifier',
+    })
+    with pytest.raises(ValueError, match='no longer matches'):
+        apply_vst3_effect(torch.ones((1, 1, 8)), 44100, effect, owner='Master', loader=lambda *_: plugin)
+
+
+def test_phase2b_rejects_invalid_base64_state():
+    effect = vst_effect()
+    effect['params']['state_b64'] = 'not valid base64!'
+    with pytest.raises(ValueError, match='base64'):
+        apply_vst3_effect(torch.ones((1, 1, 8)), 44100, effect, owner='Track', loader=lambda *_: FakeEffect())
