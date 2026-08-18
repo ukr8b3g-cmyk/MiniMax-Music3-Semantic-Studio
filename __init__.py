@@ -14,15 +14,24 @@ async def comfy_entrypoint():
 
     from .audio_editor_node import MiniMaxMusic3SemanticStudioAudioEditor
     from .nodes import MiniMaxMusic3SemanticStudio
+    from .vst3_host import host_status
     from .vst3_scan import scan_vst3_plugins
 
-    route_path = "/m3ss/vst3/scan"
+    scan_route = "/m3ss/vst3/scan"
+    status_route = "/m3ss/vst3/host-status"
     if not getattr(PromptServer.instance, "_m3ss_vst3_scan_registered", False):
-        @PromptServer.instance.routes.get(route_path)
+        @PromptServer.instance.routes.get(scan_route)
         async def get_m3ss_vst3_plugins(request):
             return web.json_response(scan_vst3_plugins())
 
         PromptServer.instance._m3ss_vst3_scan_registered = True
+
+    if not getattr(PromptServer.instance, "_m3ss_vst3_host_status_registered", False):
+        @PromptServer.instance.routes.get(status_route)
+        async def get_m3ss_vst3_host_status(request):
+            return web.json_response(host_status())
+
+        PromptServer.instance._m3ss_vst3_host_status_registered = True
 
     class MiniMaxMusic3SemanticStudioExtension(ComfyExtension):
         @override
