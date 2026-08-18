@@ -41,8 +41,7 @@ function resolveDialogNode() {
 }
 
 function nativeEditorIsOpen(panel) {
-  return [...(panel.querySelectorAll?.(".m3ssv2-vst3-open-ui") || [])]
-    .some((control) => String(control.textContent || "").trim() === "Opening…");
+  return panel?.dataset?.m3ssVst3EditorOpen === "1";
 }
 
 function mountPanel(dialog) {
@@ -97,7 +96,7 @@ function mountPanel(dialog) {
     if (!nativeEditorIsOpen(panel)) return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    alert("Close the native VST3 Plugin UI first. Its latest state is captured when that window closes.");
+    alert("Use Close UI in the VST3 rack first. The plugin state is captured when the native window closes.");
   }, true);
 
   dialog.addEventListener("click", (event) => {
