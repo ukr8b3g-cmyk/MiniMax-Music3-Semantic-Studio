@@ -42,23 +42,23 @@ The old Track/Master owner switch is not shown.
 
 ## VST3
 
-One browser and one rack only:
+VST3 is also one rack. There is no secondary `Plugins | Rack` navigation.
 
-- `+ Add` only; no `+ Track` / `+ Master`
-- Search
-- Favorites
-- Recent
-- Vendor filter
-- Category filter
+Normal VST3 view:
+
+- `+ Add VST3`
+- added VST3 effects immediately visible in the rack
+- the same power-state grammar as built-in Effects (`ON` / `BYPASS`)
 - Open UI / Close UI
-- On / Bypass
 - Reorder
 - Remove
 - Native state capture and restore
 - Named VST3 preset library stored in browser IndexedDB
 - Preset Load is an Audio Editor Undo/Redo operation
 
-The VST3 scanner exposes a release category derived from VST3 module metadata, with conservative name-based fallback classification.
+`+ Add VST3` temporarily opens a compact installed-effect chooser containing only Search, the installed VST3 list, and Add. Adding an effect closes the chooser and returns directly to the rack with the new effect selected. Favorites, Recent, Vendor and Category filter controls are not part of the Version 1.0 UI.
+
+The VST3 scanner still records vendor/category metadata internally and exposes the detected effect count for status and future compatibility.
 
 ### Draft vs Queue
 
@@ -77,7 +77,7 @@ The Audio Editor project commit history is authoritative for:
 
 Undo/Redo is temporarily blocked while a Native VST3 editor is open so the effect target cannot disappear while state capture is pending.
 
-Favorites, Recent and preset-library creation/deletion are library/preferences operations rather than audio-project edits and are not part of project Undo/Redo. Loading a preset changes the audio project and is undoable.
+Preset-library creation/deletion is a library operation rather than an audio-project edit. Loading a preset changes the audio project and is undoable.
 
 ## Explicitly out of scope for Version 1.0
 
