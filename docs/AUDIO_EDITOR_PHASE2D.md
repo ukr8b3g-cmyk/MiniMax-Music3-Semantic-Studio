@@ -12,7 +12,7 @@ Edit | Mixer | Effects | VST3
 
 There is no user-facing Track/Master concept and no multi-track workflow in Version 1.0.
 
-Internal `tracks[0]` and `master` fields remain in `edit_schema_version=2` for compatibility. Existing Track effects followed by existing Master effects are read as one ordered pipeline; canonicalization retains that historical order.
+Internal `tracks[0]` and `master` fields remain in `edit_schema_version=2` for compatibility. Existing input-stage effects followed by existing output-stage effects are displayed as one ordered pipeline, but ordinary parameter/state edits keep each effect in its historical internal stage. New release effects append to the pipeline end. Only an explicit reorder may move an effect across the hidden internal boundary.
 
 ## Mixer
 
