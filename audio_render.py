@@ -8,10 +8,10 @@ import torch
 
 try:
     from .audio_edit_project import SourceInfo, normalize_edit_project, project_timeline_duration
-    from .audio_effects_dsp import apply_effect_chain, effect_chain_tail_samples
+    from .vst3_host import apply_effect_chain, effect_chain_tail_samples
 except ImportError:  # Allows pure-module tests outside ComfyUI package loading.
     from audio_edit_project import SourceInfo, normalize_edit_project, project_timeline_duration
-    from audio_effects_dsp import apply_effect_chain, effect_chain_tail_samples
+    from vst3_host import apply_effect_chain, effect_chain_tail_samples
 
 
 @dataclass(frozen=True)
