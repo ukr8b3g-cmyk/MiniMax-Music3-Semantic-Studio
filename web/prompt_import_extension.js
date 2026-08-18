@@ -18,7 +18,9 @@ function normalizeNodeActions(node) {
   removeWidget(node, "Studio Summary");
 
   const importPrompt = getNodeWidget(node, "Import Prompt");
-  const openStudio = getNodeWidget(node, "Open Semantic Studio");
+  const importIndex = importPrompt ? node.widgets.indexOf(importPrompt) : -1;
+  const openStudio = getNodeWidget(node, "Open Semantic Studio")
+    || (importIndex > 0 ? [...node.widgets.slice(0, importIndex)].reverse().find((widget) => widget?.type === "button" && !widget?.hidden) : null);
   let divider = getNodeWidget(node, DIVIDER_NAME);
   if (!divider && openStudio) {
     divider = node.addWidget?.("button", DIVIDER_NAME, null, () => {}, { serialize: false });
@@ -30,8 +32,8 @@ function normalizeNodeActions(node) {
   }
 
   if (!importPrompt || !openStudio || !divider) return;
-  node.widgets = node.widgets.filter((widget) => ![importPrompt, divider, openStudio].includes(widget));
-  node.widgets.push(importPrompt, divider, openStudio);
+  const remaining = node.widgets.filter((widget) => ![importPrompt, divider, openStudio].includes(widget));
+  node.widgets.splice(0, node.widgets.length, ...remaining, importPrompt, divider, openStudio);
   node.setSize?.([
     Math.max(node.size?.[0] || 360, 360),
     Math.max(150, Math.min(node.computeSize?.()[1] || node.size?.[1] || 190, 230)),
