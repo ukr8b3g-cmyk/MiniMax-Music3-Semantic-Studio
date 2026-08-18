@@ -1,5 +1,5 @@
 import { api } from "../../scripts/api.js";
-import { el, button } from "./audio_editor_core.js";
+import { el, button, input } from "./audio_editor_core.js";
 import { getNodeWidget } from "./node_compact.js";
 
 const VST3_TYPE = "vst3";
@@ -116,11 +116,7 @@ function effectLabel(effect) {
 }
 
 function stateLabel(effect) {
-  const bytes = Number(effect?.params?.state_bytes) || 0;
-  if (!effect?.params?.state_b64) return "Default plugin state";
-  if (bytes >= 1024 * 1024) return `Native state saved · ${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
-  if (bytes >= 1024) return `Native state saved · ${(bytes / 1024).toFixed(1)} KiB`;
-  return `Native state saved${bytes ? ` · ${bytes} B` : ""}`;
+  return effect?.params?.state_b64 ? "Saved" : "Default";
 }
 
 function rackSection(title, owner, state, options) {
@@ -129,25 +125,34 @@ function rackSection(title, owner, state, options) {
   } = options;
   const section = el("section", "m3ssv2-vst3-rack-section");
   const effects = state[owner];
-  section.appendChild(el("strong", "m3ssv2-vst3-rack-title", `${title} · ${effects.length}`));
+  const titleRow = el("div", "m3ssv2-vst3-rack-title-row");
+  titleRow.append(
+    el("strong", "m3ssv2-vst3-rack-title", title),
+    el("span", "m3ssv2-vst3-rack-count", String(effects.length)),
+  );
+  section.appendChild(titleRow);
   if (!effects.length) {
-    section.appendChild(el("div", "m3ssv2-vst3-empty", "No VST3 effects in this rack."));
+    section.appendChild(el("div", "m3ssv2-vst3-rack-empty", "No VST3 effects"));
     return section;
   }
+
   effects.forEach((effect, index) => {
     const opening = openingIds.has(effect.id);
     const closing = closingIds.has(effect.id);
     const anotherOpen = openingIds.size > 0 && !opening;
-    const row = el("div", `m3ssv2-vst3-rack-row${effect.enabled === false ? " is-bypassed" : ""}`);
+    const row = el("div", `m3ssv2-vst3-rack-row${effect.enabled === false ? " is-bypassed" : ""}${opening ? " is-selected" : ""}`);
     const main = el("div", "m3ssv2-vst3-main");
+    const meta = `${effect.enabled === false ? "BYPASS" : "ON"} · ${stateLabel(effect)}`;
     main.append(
       el("strong", "m3ssv2-vst3-name", effectLabel(effect)),
-      el("div", "m3ssv2-vst3-meta", `${effect.enabled === false ? "BYPASS" : "ON"} · ${stateLabel(effect)} · rack ${index + 1}`),
+      el("div", "m3ssv2-vst3-meta", meta),
     );
+    main.title = effect?.params?.path || "";
 
+    const actions = el("div", "m3ssv2-vst3-rack-actions");
     const uiButton = button(
       opening ? (closing ? "Closing…" : "Close UI") : "Open UI",
-      "m3ssv2-button secondary m3ssv2-vst3-mini m3ssv2-vst3-open-ui",
+      `m3ssv2-button secondary m3ssv2-vst3-mini m3ssv2-vst3-open-ui${opening ? " is-active" : ""}`,
     );
     uiButton.disabled = !hostReady || closing || anotherOpen;
     uiButton.title = !hostReady
@@ -156,12 +161,15 @@ function rackSection(title, owner, state, options) {
         ? "Close the native plugin window and capture its current state"
         : anotherOpen
           ? "Close the currently open VST3 interface first"
-          : "Open this plugin's original VST3 interface in an isolated native window";
+          : "Open the plugin's native interface";
     uiButton.onclick = () => opening ? onCloseUi(effect) : onOpenUi(effect);
 
-    const power = button(effect.enabled === false ? "Enable" : "Bypass", "m3ssv2-button secondary m3ssv2-vst3-mini");
+    const power = button(effect.enabled === false ? "Enable" : "Bypass", `m3ssv2-button secondary m3ssv2-vst3-mini${effect.enabled === false ? "" : " is-active"}`);
+    power.setAttribute("aria-pressed", effect.enabled === false ? "false" : "true");
     power.onclick = () => { effect.enabled = effect.enabled === false; markDirty(); rerender(); };
+
     const up = button("↑", "m3ssv2-button secondary m3ssv2-vst3-icon");
+    up.title = "Move up";
     up.disabled = index === 0;
     up.onclick = () => {
       if (index <= 0) return;
@@ -170,6 +178,7 @@ function rackSection(title, owner, state, options) {
       rerender();
     };
     const down = button("↓", "m3ssv2-button secondary m3ssv2-vst3-icon");
+    down.title = "Move down";
     down.disabled = index === effects.length - 1;
     down.onclick = () => {
       if (index >= effects.length - 1) return;
@@ -181,7 +190,8 @@ function rackSection(title, owner, state, options) {
     remove.title = opening ? "Close Plugin UI before removing this VST3" : "Remove VST3 from rack";
     remove.disabled = opening;
     remove.onclick = () => { effects.splice(index, 1); markDirty(); rerender(); };
-    row.append(main, uiButton, power, up, down, remove);
+    actions.append(uiButton, power, up, down, remove);
+    row.append(main, actions);
     section.appendChild(row);
   });
   return section;
@@ -190,23 +200,20 @@ function rackSection(title, owner, state, options) {
 function pluginRow(plugin, { hostReady, canEdit, onAdd }) {
   const row = el("div", "m3ssv2-vst3-row");
   const main = el("div", "m3ssv2-vst3-main");
-  const title = el("strong", "m3ssv2-vst3-name", plugin.name || "Unnamed VST3");
-  const meta = el("div", "m3ssv2-vst3-meta");
-  const kind = plugin.kind === "effect" ? "Effect" : "Unclassified";
-  meta.textContent = [plugin.vendor, kind, hostReady ? "Host + Native UI ready" : "Detected · host unavailable"].filter(Boolean).join(" · ");
-  const path = el("div", "m3ssv2-vst3-path", plugin.path || "");
-  path.title = plugin.path || "";
-  main.append(title, meta, path);
-  const badge = el("span", `m3ssv2-vst3-badge ${plugin.kind === "effect" ? "is-effect" : "is-unknown"}`, kind);
-  row.append(main, badge);
+  const name = String(plugin.name || "Unnamed VST3");
+  const vendor = String(plugin.vendor || "").trim();
+  main.appendChild(el("strong", "m3ssv2-vst3-name", name));
+  if (vendor) main.appendChild(el("div", "m3ssv2-vst3-meta", vendor));
+  main.title = [plugin.vendor, plugin.path].filter(Boolean).join(" · ");
+  row.appendChild(main);
   if (canEdit) {
     const actions = el("div", "m3ssv2-vst3-add-actions");
     const track = button("+ Track", "m3ssv2-button secondary m3ssv2-vst3-mini");
     const master = button("+ Master", "m3ssv2-button secondary m3ssv2-vst3-mini");
     track.disabled = !hostReady;
     master.disabled = !hostReady;
-    track.title = hostReady ? "Append to Main Track VST3 rack" : "VST3 host is unavailable";
-    master.title = hostReady ? "Append to Master VST3 rack" : "VST3 host is unavailable";
+    track.title = hostReady ? "Add to Main Track VST3 rack" : "VST3 host is unavailable";
+    master.title = hostReady ? "Add to Master VST3 rack" : "VST3 host is unavailable";
     track.onclick = () => onAdd("track", plugin);
     master.onclick = () => onAdd("master", plugin);
     actions.append(track, master);
@@ -215,55 +222,117 @@ function pluginRow(plugin, { hostReady, canEdit, onAdd }) {
   return row;
 }
 
+function pluginMatches(plugin, query) {
+  if (!query) return true;
+  const haystack = [plugin?.name, plugin?.vendor, plugin?.path, plugin?.kind]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return haystack.includes(query.toLowerCase());
+}
+
 export function createVst3BrowserPanel({ node = null } = {}) {
   const root = el("section", "m3ssv2-vst3-panel");
-  const head = el("div", "m3ssv2-vst3-head");
-  const heading = el("div", "");
-  heading.append(
-    el("h3", "", "VST3 Plugins · Phase 2B"),
-    el("p", "m3ssv2-vst3-note", "Open the plugin's original native UI. Use Close UI here if the plugin window's own close button does not work. State is captured when the native window closes."),
-  );
-  const rescan = button("Rescan", "m3ssv2-button secondary");
-  head.append(heading, rescan);
+  root.dataset.m3ssVst3View = "plugins";
 
-  const host = el("div", "m3ssv2-vst3-host", "VST3 host status not checked yet.");
-  const editorStatus = el("div", "m3ssv2-vst3-editor-status", "Native Plugin UI: idle");
-  const status = el("div", "m3ssv2-vst3-status", "Not scanned yet.");
-  const roots = el("div", "m3ssv2-vst3-roots");
-  const racks = el("div", "m3ssv2-vst3-racks");
+  const head = el("div", "m3ssv2-vst3-head");
+  const viewTabs = el("nav", "m3ssv2-vst3-view-tabs");
+  const pluginsTab = button("Plugins", "m3ssv2-vst3-view-tab is-active");
+  const rackTab = button("Rack", "m3ssv2-vst3-view-tab");
+  pluginsTab.setAttribute("aria-selected", "true");
+  rackTab.setAttribute("aria-selected", "false");
+  viewTabs.append(pluginsTab, rackTab);
+
+  const summary = el("div", "m3ssv2-vst3-summary");
+  const hostDot = el("span", "m3ssv2-vst3-host-dot");
+  const hostText = el("span", "m3ssv2-vst3-host-text", "Checking…");
+  const countText = el("span", "m3ssv2-vst3-count", "0 plugins");
+  summary.append(hostDot, hostText, countText);
+  const rescan = button("Rescan", "m3ssv2-button secondary m3ssv2-vst3-rescan");
+  head.append(viewTabs, summary, rescan);
+
+  const searchWrap = el("div", "m3ssv2-vst3-search-wrap");
+  const search = input("search", "");
+  search.className = "m3ssv2-vst3-search";
+  search.placeholder = "Search VST3…";
+  search.autocomplete = "off";
+  searchWrap.appendChild(search);
+
+  const inlineStatus = el("div", "m3ssv2-vst3-inline-status");
+  inlineStatus.hidden = true;
+
+  const pluginsPane = el("div", "m3ssv2-vst3-pane m3ssv2-vst3-plugins-pane");
   const list = el("div", "m3ssv2-vst3-list");
-  root.append(head, host, editorStatus, status, roots, racks, list);
+  pluginsPane.appendChild(list);
+
+  const rackPane = el("div", "m3ssv2-vst3-pane m3ssv2-vst3-rack-pane");
+  rackPane.hidden = true;
+  const racks = el("div", "m3ssv2-vst3-racks");
+  rackPane.appendChild(racks);
+
+  root.append(head, searchWrap, inlineStatus, pluginsPane, rackPane);
 
   const state = initialRackState(node);
   let scanning = false;
   let hostReady = false;
+  let hostDetail = "";
   let lastPlugins = [];
   let rackDirty = false;
+  let statusTimer = null;
   const openingIds = new Set();
   const closingIds = new Set();
+  const forcedCloseIds = new Set();
   const markDirty = () => { rackDirty = true; };
+
+  const rackCount = () => state.track.length + state.master.length;
+
+  function updateRackTab() {
+    const count = rackCount();
+    rackTab.textContent = count ? `Rack ${count}` : "Rack";
+  }
+
+  function setStatus(text = "", kind = "", timeout = 0) {
+    clearTimeout(statusTimer);
+    inlineStatus.textContent = text;
+    inlineStatus.hidden = !text;
+    inlineStatus.className = `m3ssv2-vst3-inline-status${kind ? ` is-${kind}` : ""}`;
+    if (text && timeout > 0) statusTimer = setTimeout(() => setStatus(), timeout);
+  }
 
   function setNativeOpenFlag() {
     root.dataset.m3ssVst3EditorOpen = openingIds.size ? "1" : "0";
   }
 
+  function setView(view) {
+    const next = view === "rack" ? "rack" : "plugins";
+    root.dataset.m3ssVst3View = next;
+    const pluginsActive = next === "plugins";
+    pluginsTab.classList.toggle("is-active", pluginsActive);
+    rackTab.classList.toggle("is-active", !pluginsActive);
+    pluginsTab.setAttribute("aria-selected", pluginsActive ? "true" : "false");
+    rackTab.setAttribute("aria-selected", pluginsActive ? "false" : "true");
+    pluginsPane.hidden = !pluginsActive;
+    searchWrap.hidden = !pluginsActive;
+    rackPane.hidden = pluginsActive;
+    if (pluginsActive) queueMicrotask(() => search.focus?.());
+  }
+
   async function onCloseUi(effect) {
     if (!openingIds.has(effect.id) || closingIds.has(effect.id)) return;
     closingIds.add(effect.id);
-    editorStatus.textContent = `Closing ${effectLabel(effect)}… Capturing native plugin state.`;
-    editorStatus.classList.add("is-busy");
+    setStatus(`Closing ${effectLabel(effect)}…`, "busy");
     renderRacks();
     try {
       const result = await closeVst3NativeEditor();
       if (result?.forced) {
-        editorStatus.textContent = `${effectLabel(effect)} was force-closed. Latest state may not have been captured.`;
-        editorStatus.classList.add("is-error");
+        forcedCloseIds.add(effect.id);
+        setStatus("Plugin UI force-closed. Latest state may not have been captured.", "error");
       } else {
-        editorStatus.textContent = `${effectLabel(effect)} close requested… waiting for state capture.`;
+        setStatus("Closing Plugin UI…", "busy");
       }
     } catch (error) {
-      editorStatus.textContent = `Close Plugin UI failed: ${error}`;
-      editorStatus.classList.add("is-error");
+      closingIds.delete(effect.id);
+      setStatus(`Close UI failed: ${error}`, "error");
     } finally {
       renderRacks();
     }
@@ -273,9 +342,7 @@ export function createVst3BrowserPanel({ node = null } = {}) {
     if (!hostReady || openingIds.size || openingIds.has(effect.id)) return;
     openingIds.add(effect.id);
     setNativeOpenFlag();
-    editorStatus.textContent = `Native UI open: ${effectLabel(effect)}. Use Close UI here if the plugin window cannot close itself.`;
-    editorStatus.classList.add("is-busy");
-    editorStatus.classList.remove("is-error", "is-saved");
+    setStatus(`${effectLabel(effect)} · Native UI open`, "busy");
     renderRacks();
     try {
       const result = await openVst3NativeEditor(effect);
@@ -288,18 +355,18 @@ export function createVst3BrowserPanel({ node = null } = {}) {
       effect.params.manufacturer = result.manufacturer || effect.params.vendor || "";
       effect.params.phase = "2B";
       markDirty();
-      editorStatus.textContent = `${effectLabel(effect)} · native state captured. Save Edits, then Queue to render it.`;
-      editorStatus.classList.remove("is-error");
-      editorStatus.classList.add("is-saved");
+      setStatus(`${effectLabel(effect)} · State captured`, "saved", 3500);
     } catch (error) {
-      editorStatus.textContent = `Native Plugin UI failed: ${error}`;
-      editorStatus.classList.remove("is-saved");
-      editorStatus.classList.add("is-error");
+      if (forcedCloseIds.has(effect.id)) {
+        setStatus("Plugin UI force-closed. Latest state was not captured.", "error");
+      } else {
+        setStatus(`Plugin UI failed: ${error}`, "error");
+      }
     } finally {
       openingIds.delete(effect.id);
       closingIds.delete(effect.id);
+      forcedCloseIds.delete(effect.id);
       setNativeOpenFlag();
-      editorStatus.classList.remove("is-busy");
       renderRacks();
     }
   }
@@ -309,24 +376,31 @@ export function createVst3BrowserPanel({ node = null } = {}) {
       markDirty, rerender: renderRacks, hostReady, openingIds, closingIds, onOpenUi, onCloseUi,
     };
     racks.replaceChildren(
-      el("div", "m3ssv2-vst3-rack-note", "Open UI uses the plugin's original VST3 window. If its own × does not work, use Close UI in this rack. Browser Draft still does not host VST3."),
-      rackSection("Main Track VST3", "track", state, options),
-      rackSection("Master VST3", "master", state, options),
+      rackSection("Track", "track", state, options),
+      rackSection("Master", "master", state, options),
     );
+    updateRackTab();
   };
 
   const renderPlugins = () => {
     list.replaceChildren();
-    if (!lastPlugins.length) {
-      list.appendChild(el("div", "m3ssv2-vst3-empty", "No VST3 effect candidates were found in the standard Windows VST3 folder."));
+    const query = String(search.value || "").trim();
+    const filtered = lastPlugins.filter((plugin) => pluginMatches(plugin, query));
+    if (!filtered.length) {
+      list.appendChild(el(
+        "div",
+        "m3ssv2-vst3-empty",
+        lastPlugins.length ? "No matching VST3 plugins" : "No VST3 effects found",
+      ));
       return;
     }
     const onAdd = (owner, plugin) => {
       state[owner].push(pluginEffect(plugin));
       markDirty();
       renderRacks();
+      setStatus(`${plugin.name || "VST3"} added to ${owner === "master" ? "Master" : "Track"}`, "saved", 1800);
     };
-    for (const plugin of lastPlugins) {
+    for (const plugin of filtered) {
       list.appendChild(pluginRow(plugin, { hostReady, canEdit: !!node, onAdd }));
     }
   };
@@ -335,43 +409,45 @@ export function createVst3BrowserPanel({ node = null } = {}) {
     if (scanning) return;
     scanning = true;
     rescan.disabled = true;
-    status.textContent = "Scanning installed VST3 plugins…";
-    host.textContent = "Checking VST3 host…";
-    roots.replaceChildren();
-    list.replaceChildren();
+    hostText.textContent = "Checking…";
+    hostDot.classList.remove("is-ready", "is-error");
+    list.replaceChildren(el("div", "m3ssv2-vst3-empty", "Scanning VST3…"));
     try {
       const [result, hostResult] = await Promise.all([scanVst3Plugins(), readVst3HostStatus()]);
       hostReady = !!hostResult?.ready;
-      host.textContent = hostReady
-        ? `Host ready · ${hostResult.backend || "pedalboard"} ${hostResult.version || ""} · Native UI ready`.trim()
-        : String(hostResult?.message || "VST3 host is unavailable.");
-      host.classList.toggle("is-ready", hostReady);
-      host.classList.toggle("is-missing", !hostReady);
+      hostDetail = String(hostResult?.message || "");
+      hostText.textContent = hostReady ? "Ready" : "Unavailable";
+      hostDot.classList.toggle("is-ready", hostReady);
+      hostDot.classList.toggle("is-error", !hostReady);
+      summary.title = hostDetail;
       lastPlugins = Array.isArray(result.plugins) ? result.plugins : [];
-      status.textContent = `${lastPlugins.length} VST3 effect candidate${lastPlugins.length === 1 ? "" : "s"} detected.`;
-      const scanRoots = Array.isArray(result.roots) ? result.roots : [];
-      if (scanRoots.length) {
-        roots.appendChild(el("strong", "", "Scan folders"));
-        for (const path of scanRoots) roots.appendChild(el("div", "m3ssv2-vst3-root-path", path));
-      }
+      countText.textContent = `${lastPlugins.length} plugin${lastPlugins.length === 1 ? "" : "s"}`;
       renderRacks();
       renderPlugins();
+      if (!hostReady) setStatus(hostDetail || "VST3 host unavailable", "error");
+      else if (inlineStatus.classList.contains("is-error")) setStatus();
     } catch (error) {
-      status.textContent = `VST3 scan failed: ${error}`;
-      list.appendChild(el("div", "m3ssv2-vst3-empty", "Restart ComfyUI after updating the custom node, then try Rescan again."));
+      hostReady = false;
+      hostText.textContent = "Error";
+      hostDot.classList.add("is-error");
+      setStatus(`VST3 scan failed: ${error}`, "error");
+      list.replaceChildren(el("div", "m3ssv2-vst3-empty", "VST3 scan failed"));
     } finally {
       scanning = false;
       rescan.disabled = false;
     }
   }
 
+  pluginsTab.onclick = () => setView("plugins");
+  rackTab.onclick = () => setView("rack");
+  search.oninput = renderPlugins;
   rescan.onclick = runScan;
   root.runScan = runScan;
+  root.setVst3View = setView;
   root.persistVst3State = () => {
     if (!rackDirty) return true;
     if (openingIds.size) {
-      editorStatus.textContent = "Use Close UI before Save Edits so the latest VST3 state can be captured.";
-      editorStatus.classList.add("is-error");
+      setStatus("Close Plugin UI before Save Edits", "error");
       return false;
     }
     const saved = persistRackState(node, state);
@@ -380,5 +456,6 @@ export function createVst3BrowserPanel({ node = null } = {}) {
   };
   setNativeOpenFlag();
   renderRacks();
+  setView("plugins");
   return root;
 }
