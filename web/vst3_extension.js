@@ -3,7 +3,7 @@ import { NODE_ID, nodeClass } from "./audio_editor_core.js";
 import { createVst3BrowserPanel } from "./vst3_browser.js";
 
 const STYLE_ID = "m3ss-vst3-browser-style";
-const BRIDGE_EXTENSION = "minimax.music3.vst3.phase2b.bridge";
+const BRIDGE_EXTENSION = "minimax.music3.vst3.phase2c.bridge";
 let pendingNode = null;
 
 function ensureStyles() {
@@ -48,8 +48,8 @@ function mountPanel(dialog) {
   const side = dialog?.querySelector?.(".m3ssv2-side");
   const tabs = side?.querySelector?.(".m3ssv2-inspector-tabs");
   const inspectorBody = side?.querySelector?.(".m3ssv2-inspector-body");
-  if (!side || !tabs || !inspectorBody || side.dataset.m3ssVst3Phase2bMounted === "1") return;
-  side.dataset.m3ssVst3Phase2bMounted = "1";
+  if (!side || !tabs || !inspectorBody || side.dataset.m3ssVst3Phase2cMounted === "1") return;
+  side.dataset.m3ssVst3Phase2cMounted = "1";
   ensureStyles();
 
   const node = resolveDialogNode();
@@ -60,16 +60,29 @@ function mountPanel(dialog) {
 
   const vstTab = document.createElement("button");
   vstTab.type = "button";
-  vstTab.className = "m3ssv2-inspector-tab m3ssv2-vst3-tab";
+  vstTab.className = "m3ssv2-inspector-tab m3ssv2-workspace-tab m3ssv2-vst3-tab";
+  vstTab.dataset.m3ssMode = "vst3";
+  vstTab.setAttribute("role", "tab");
+  vstTab.setAttribute("aria-selected", "false");
   vstTab.textContent = "VST3";
-  vstTab.title = "Installed Windows 64-bit VST3 effects and native plugin interfaces";
+  vstTab.title = "Installed VST3 effects";
   tabs.appendChild(vstTab);
 
-  const coreTabs = [...tabs.querySelectorAll(".m3ssv2-inspector-tab")].filter((tab) => tab !== vstTab);
+  const placeVstTab = () => {
+    const effectsTab = tabs.querySelector('.m3ssv2-workspace-tab[data-m3ss-mode="effects"]');
+    if (effectsTab && effectsTab.nextElementSibling !== vstTab) effectsTab.after(vstTab);
+  };
+  placeVstTab();
+  const tabObserver = new MutationObserver(placeVstTab);
+  tabObserver.observe(tabs, { childList: true });
 
   const showVst3 = () => {
-    for (const tab of coreTabs) tab.classList.remove("is-active");
-    vstTab.classList.add("is-active");
+    for (const tab of tabs.querySelectorAll(".m3ssv2-workspace-tab")) {
+      const active = tab === vstTab;
+      tab.classList.toggle("is-active", active);
+      tab.setAttribute("aria-selected", active ? "true" : "false");
+    }
+    dialog.dataset.m3ssWorkspaceMode = "vst3";
     inspectorBody.hidden = true;
     panel.hidden = false;
     if (panel.dataset.m3ssVst3Scanned !== "1") {
@@ -80,12 +93,17 @@ function mountPanel(dialog) {
 
   const showCoreInspector = () => {
     vstTab.classList.remove("is-active");
+    vstTab.setAttribute("aria-selected", "false");
     panel.hidden = true;
     inspectorBody.hidden = false;
   };
 
   vstTab.addEventListener("click", showVst3);
-  for (const tab of coreTabs) tab.addEventListener("click", showCoreInspector);
+  tabs.addEventListener("click", (event) => {
+    const tab = event.target?.closest?.(".m3ssv2-workspace-tab");
+    if (!tab || tab === vstTab) return;
+    showCoreInspector();
+  });
 
   // Save is blocked before the core handler if a native VST3 editor is still
   // open. Otherwise the core editor saves first, then the VST3 state is merged
