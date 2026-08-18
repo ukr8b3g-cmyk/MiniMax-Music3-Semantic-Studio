@@ -132,7 +132,7 @@ function installDialog(dialog) {
   for (const tab of originals) tab.hidden = true;
 
   const state = {
-    mode: "effects",
+    mode: "edit",
     rendering: false,
     effects: createEffectsRackState(),
   };
@@ -141,6 +141,8 @@ function installDialog(dialog) {
     const tab = document.createElement("button");
     tab.type = "button";
     tab.className = `m3ssv2-inspector-tab m3ssv2-workspace-tab ${className}`;
+    tab.dataset.m3ssMode = id;
+    tab.setAttribute("role", "tab");
     tab.textContent = label;
     tab.onclick = () => {
       state.mode = id;
@@ -150,23 +152,32 @@ function installDialog(dialog) {
     return tab;
   };
 
-  const effectsTab = makeTab("effects", tr("Effects", "エフェクト"), "is-effects");
+  // Stable top-level order follows the editor mental model:
+  // edit first, mixer second, built-in effects third, external VST3 next.
+  // The VST3 extension inserts itself immediately after Effects.
   const editTab = makeTab("edit", tr("Edit", "編集"), "is-edit");
   const mixerTab = makeTab("mixer", tr("Mixer", "ミキサー"), "is-mixer");
+  const effectsTab = makeTab("effects", tr("Effects", "エフェクト"), "is-effects");
   const sourcesTab = takeCount > 1
     ? makeTab("sources", tr("Sources", "ソース"), "is-sources")
     : null;
   tabs.classList.add("is-workspace-polished");
+  tabs.setAttribute("role", "tablist");
 
   const visibleTabs = new Map([
-    ["effects", effectsTab],
     ["edit", editTab],
     ["mixer", mixerTab],
+    ["effects", effectsTab],
     ...(sourcesTab ? [["sources", sourcesTab]] : []),
   ]);
 
   const syncTabState = () => {
-    for (const [id, tab] of visibleTabs) tab.classList.toggle("is-active", id === state.mode);
+    dialog.dataset.m3ssWorkspaceMode = state.mode;
+    for (const [id, tab] of visibleTabs) {
+      const active = id === state.mode;
+      tab.classList.toggle("is-active", active);
+      tab.setAttribute("aria-selected", active ? "true" : "false");
+    }
   };
 
   const officialClick = (tab) => {
