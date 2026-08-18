@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -32,13 +33,40 @@ def _read_moduleinfo(bundle: Path) -> dict[str, Any] | None:
     return None
 
 
+def _subcategory_values(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [item.strip() for item in value.replace("|", ",").split(",") if item.strip()]
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    return []
+
+
+def _release_category(name: str, subcategories: Iterable[str]) -> str:
+    values = " ".join(str(item) for item in subcategories).lower()
+    text = f"{name} {values}".lower()
+    if re.search(r"compress|limiter|gate|de[- ]?ess|dynamics|master", text):
+        return "Dynamics"
+    if re.search(r"chorus|flanger|phaser|modulat", text):
+        return "Modulation"
+    if re.search(r"delay|echo|reverb|room|space", text):
+        return "Space"
+    if re.search(r"pitch|harmoni|tune", text):
+        return "Pitch"
+    if re.search(r"\beq\b|equaliz|filter", text):
+        return "EQ / Filter"
+    if re.search(r"distort|saturat|drive|amp", text):
+        return "Color"
+    return "Other"
+
+
 def _plugin_metadata(bundle: Path) -> dict[str, str]:
     name = bundle.stem
     vendor = ""
     kind = "unknown"
+    categories: list[str] = []
     info = _read_moduleinfo(bundle)
     if not info:
-        return {"name": name, "vendor": vendor, "kind": kind}
+        return {"name": name, "vendor": vendor, "kind": kind, "category": _release_category(name, [])}
 
     factory = info.get("Factory Info")
     if isinstance(factory, dict):
@@ -52,20 +80,21 @@ def _plugin_metadata(bundle: Path) -> dict[str, str]:
             class_name = str(item.get("Name") or "").strip()
             if class_name:
                 name = class_name
-            subs = item.get("Sub Categories")
-            if isinstance(subs, str):
-                values = {x.strip().lower() for x in subs.replace("|", ",").split(",") if x.strip()}
-            elif isinstance(subs, list):
-                values = {str(x).strip().lower() for x in subs if str(x).strip()}
-            else:
-                values = set()
+            subs = _subcategory_values(item.get("Sub Categories"))
+            categories.extend(subs)
+            values = {value.lower() for value in subs}
             if any("instrument" in value for value in values):
                 kind = "instrument"
                 break
             if any(value == "fx" or value.startswith("fx ") or "effect" in value for value in values):
                 kind = "effect"
 
-    return {"name": name, "vendor": vendor, "kind": kind}
+    return {
+        "name": name,
+        "vendor": vendor,
+        "kind": kind,
+        "category": _release_category(name, categories),
+    }
 
 
 def _iter_vst3_entries(root: Path) -> Iterable[Path]:
@@ -105,12 +134,12 @@ def scan_vst3_plugins(paths: Iterable[str | os.PathLike[str]] | None = None) -> 
             seen.add(key)
             metadata = _plugin_metadata(bundle)
             if metadata["kind"] == "instrument":
-                # Phase 1 intentionally exposes effects/candidates only.
                 continue
             plugins.append({
                 "name": metadata["name"],
                 "vendor": metadata["vendor"],
                 "kind": metadata["kind"],
+                "category": metadata["category"],
                 "path": str(bundle),
                 "status": "detected",
                 "validated": False,
