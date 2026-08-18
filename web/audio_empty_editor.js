@@ -7,6 +7,7 @@ import { currentUiLocale, installUiLocalization } from "./ui_i18n.js";
 
 const UNIFIED_STYLE_ID = "m3ss-v2-unified-style";
 const WORKSPACE_STYLE_ID = "m3ss-v2-workspace-polish";
+const PHASE2D_STYLE_ID = "m3ss-audio-phase2d-style";
 
 const JA = {
   "No source audio": "ソース音声なし",
@@ -19,35 +20,31 @@ const JA = {
   "Zoom": "ズーム",
   "Waveform": "波形表示",
   "Auto L/R": "自動 L/R",
-  "Main Track Waveform": "メイントラック波形",
-  "Main Track": "メイントラック",
+  "Audio Waveform": "オーディオ波形",
+  "Audio": "オーディオ",
   "Stereo": "ステレオ",
-  "Track Gain": "トラックゲイン",
-  "Track Pan": "トラックパン",
+  "Input Gain": "入力ゲイン",
+  "Pan": "パン",
   "Preview Peak": "プレビューピーク",
-  "Save Edits": "編集を保存",
-  "Cancel": "キャンセル",
   "Close": "閉じる",
   "No source audio is loaded yet.": "まだソース音声が読み込まれていません。",
   "Audio-dependent editing becomes available after the first Queue.": "最初のQueue後に音声編集機能が利用できます。",
-  "Drag to resize track height · double-click to reset": "ドラッグでトラックの高さを変更 · ダブルクリックでリセット",
+  "Drag to resize audio height · double-click to reset": "ドラッグでオーディオの高さを変更 · ダブルクリックでリセット",
 };
 
 const tr = (text) => currentUiLocale() === "ja" ? (JA[text] || text) : text;
 
 function ensureStyles() {
-  if (!document.getElementById(UNIFIED_STYLE_ID)) {
+  for (const [id, file] of [
+    [UNIFIED_STYLE_ID, "./audio_unified.css"],
+    [WORKSPACE_STYLE_ID, "./audio_workspace_polish.css"],
+    [PHASE2D_STYLE_ID, "./audio_phase2d.css"],
+  ]) {
+    if (document.getElementById(id)) continue;
     const link = document.createElement("link");
-    link.id = UNIFIED_STYLE_ID;
+    link.id = id;
     link.rel = "stylesheet";
-    link.href = new URL("./audio_unified.css", import.meta.url).href;
-    document.head.appendChild(link);
-  }
-  if (!document.getElementById(WORKSPACE_STYLE_ID)) {
-    const link = document.createElement("link");
-    link.id = WORKSPACE_STYLE_ID;
-    link.rel = "stylesheet";
-    link.href = new URL("./audio_workspace_polish.css", import.meta.url).href;
+    link.href = new URL(file, import.meta.url).href;
     document.head.appendChild(link);
   }
 }
@@ -73,13 +70,13 @@ function semanticStrip(node, host) {
   host.appendChild(strip);
 }
 
-function installEmptyTrackResize(main, waveArea) {
+function installEmptyAudioResize(main, waveArea) {
   const handle = el("div", "m3ssv2-track-height-handle");
   handle.setAttribute("role", "separator");
   handle.setAttribute("aria-orientation", "horizontal");
   handle.setAttribute("aria-valuemin", "260");
   handle.setAttribute("aria-valuemax", "760");
-  handle.title = tr("Drag to resize track height · double-click to reset");
+  handle.title = tr("Drag to resize audio height · double-click to reset");
   handle.tabIndex = 0;
   waveArea.after(handle);
   const defaultHeight = 430;
@@ -151,6 +148,7 @@ export function openEmptyAudioEditor(node, compactSummary) {
   });
   shell.window.classList.add("m3ssv2-dialog", "m3ssv2-phase-b", "m3ssv2-unified", "m3ssv2-mockup-ui", "m3ssv2-empty-editor");
   shell.window.dataset.m3ssEmptyEditor = "1";
+  shell.window.dataset.m3ssSingleAudio = "1";
 
   const root = el("div", "m3ssv2-root");
   const toolbar = el("div", "m3ssv2-toolbar m3ssv2-meta-toolbar");
@@ -170,10 +168,10 @@ export function openEmptyAudioEditor(node, compactSummary) {
   const fit = button("Fit"); fit.disabled = true;
   const zoom = input("range", 28, 8, 120, 1); zoom.disabled = true;
   const displayMode = select([{ value: "auto", label: tr("Auto L/R") }], "auto"); displayMode.disabled = true;
-  const trackInfo = el("span", "m3ssv2-track-info", tr("No source audio"));
+  const audioInfo = el("span", "m3ssv2-track-info", tr("No source audio"));
   const renderState = el("span", "m3ssv2-render-state", tr("Queue the workflow once to load audio."));
   toolbar.append(
-    field(tr("Preview"), preview), undo, redo, fit, field(tr("Zoom"), zoom), field(tr("Waveform"), displayMode), trackInfo, renderState,
+    field(tr("Preview"), preview), undo, redo, fit, field(tr("Zoom"), zoom), field(tr("Waveform"), displayMode), audioInfo, renderState,
   );
 
   const commandDock = el("div", "m3ssv2-command-dock");
@@ -187,29 +185,29 @@ export function openEmptyAudioEditor(node, compactSummary) {
   main.appendChild(commandDock);
 
   const waveHead = el("div", "m3ssv2-wave-head");
-  waveHead.append(el("strong", "", tr("Main Track Waveform")), el("span", "m3ssv2-wave-note", tr("Queue the workflow once to load audio.")));
+  waveHead.append(el("strong", "", tr("Audio Waveform")), el("span", "m3ssv2-wave-note", tr("Queue the workflow once to load audio.")));
   main.appendChild(waveHead);
 
   const waveArea = el("div", "m3ssv2-wave-area");
-  const trackStrip = el("aside", "m3ssv2-track-strip");
-  trackStrip.append(el("strong", "m3ssv2-track-name", tr("Main Track")), el("span", "m3ssv2-channel-badge", tr("Stereo")));
+  const audioStrip = el("aside", "m3ssv2-track-strip");
+  audioStrip.append(el("strong", "m3ssv2-track-name", tr("Audio")), el("span", "m3ssv2-channel-badge", tr("Stereo")));
   const row = el("div", "m3ssv2-track-button-row");
-  for (const label of ["M", "S"]) { const control = button(label, "m3ssv2-track-mini-button"); control.disabled = true; row.appendChild(control); }
+  const mute = button("M", "m3ssv2-track-mini-button"); mute.disabled = true; row.appendChild(mute);
   const gain = input("range", 0, -24, 12, .1); gain.disabled = true;
   const pan = input("range", 0, -1, 1, .01); pan.disabled = true;
-  trackStrip.append(row, el("span", "m3ssv2-track-mini-label", tr("Track Gain")), gain, el("span", "m3ssv2-track-value", "0.0 dB"), el("span", "m3ssv2-track-mini-label", tr("Track Pan")), pan, el("span", "m3ssv2-track-value", "C"));
+  audioStrip.append(row, el("span", "m3ssv2-track-mini-label", tr("Input Gain")), gain, el("span", "m3ssv2-track-value", "0.0 dB"), el("span", "m3ssv2-track-mini-label", tr("Pan")), pan, el("span", "m3ssv2-track-value", "C"));
   const meter = el("div", "m3ssv2-empty-meter");
   meter.append(el("div", "m3ssv2-empty-meter-rail"), el("div", "m3ssv2-empty-meter-rail"));
-  trackStrip.append(el("strong", "m3ssv2-peak-title", tr("Preview Peak")), meter);
+  audioStrip.append(el("strong", "m3ssv2-peak-title", tr("Preview Peak")), meter);
 
   const emptyWave = el("section", "m3ssv2-empty-wave");
   semanticStrip(node, emptyWave);
   const center = el("div", "m3ssv2-empty-center");
   center.append(el("strong", "", tr("No source audio is loaded yet.")), el("span", "", tr("Queue the workflow once to load audio.")));
   emptyWave.appendChild(center);
-  waveArea.append(trackStrip, emptyWave);
+  waveArea.append(audioStrip, emptyWave);
   main.appendChild(waveArea);
-  installEmptyTrackResize(main, waveArea);
+  installEmptyAudioResize(main, waveArea);
 
   const statusDock = el("div", "m3ssv2-time-dock");
   const position = el("section", "m3ssv2-time-panel");
@@ -221,25 +219,23 @@ export function openEmptyAudioEditor(node, compactSummary) {
 
   const tabs = el("nav", "m3ssv2-inspector-tabs is-workspace-polished");
   const body = el("div", "m3ssv2-inspector-body");
-  const effects = emptyTab("Effects", "is-effects");
   const edit = emptyTab("Edit", "is-edit");
   const mixer = emptyTab("Mixer", "is-mixer");
-  tabs.append(effects, edit, mixer);
+  const effects = emptyTab("Effects", "is-effects");
+  tabs.append(edit, mixer, effects);
   side.append(tabs, body);
 
   const show = (mode) => {
-    for (const [buttonNode, id] of [[effects, "effects"], [edit, "edit"], [mixer, "mixer"]]) buttonNode.classList.toggle("is-active", id === mode);
+    for (const [buttonNode, id] of [[edit, "edit"], [mixer, "mixer"], [effects, "effects"]]) buttonNode.classList.toggle("is-active", id === mode);
     body.replaceChildren();
     const note = el("div", "m3ssv2-empty-inspector-note");
-    if (mode === "effects") note.textContent = tr("Audio-dependent editing becomes available after the first Queue.");
-    else if (mode === "edit") note.textContent = tr("No source audio is loaded yet.");
-    else note.textContent = tr("Audio-dependent editing becomes available after the first Queue.");
+    note.textContent = mode === "edit" ? tr("No source audio is loaded yet.") : tr("Audio-dependent editing becomes available after the first Queue.");
     body.appendChild(note);
   };
-  effects.onclick = () => show("effects");
   edit.onclick = () => show("edit");
   mixer.onclick = () => show("mixer");
-  show("effects");
+  effects.onclick = () => show("effects");
+  show("edit");
 
   cleanupSplitter = installCssSizeDrag({
     handle: paneSplitter,
