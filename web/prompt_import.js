@@ -1,6 +1,7 @@
 import { createStudioWindow } from "./studio_shell.js";
 import { analyzePromptImport, applyPromptImport } from "./prompt_import_core.js";
 import { el, button, textarea, selectInput } from "./semantic_studio_core.js";
+import { resetInstrumentCatalog } from "./semantic_timeline.js";
 
 const STYLE_ID = "m3ss-prompt-import-style";
 
@@ -143,6 +144,7 @@ export function openPromptImporter({
   apply.onclick = () => {
     if (!analysis || analysisStale) return;
     const next = applyPromptImport(project, analysis, mode);
+    if (mode === "replace") resetInstrumentCatalog(next);
     onApply?.(next, analysis, { mode });
     shell.close();
   };
