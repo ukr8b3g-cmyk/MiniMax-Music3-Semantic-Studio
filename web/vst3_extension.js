@@ -30,6 +30,16 @@ function installOpenHook(node, attempt = 0) {
   node._m3ssVst3OpenHookInstalled = true;
 }
 
+function resolveDialogNode() {
+  if (pendingNode) {
+    const node = pendingNode;
+    pendingNode = null;
+    return node;
+  }
+  const matches = (app.graph?._nodes || []).filter((node) => nodeClass(node) === NODE_ID);
+  return matches.length === 1 ? matches[0] : null;
+}
+
 function mountPanel(dialog) {
   const side = dialog?.querySelector?.(".m3ssv2-side");
   const tabs = side?.querySelector?.(".m3ssv2-inspector-tabs");
@@ -38,8 +48,7 @@ function mountPanel(dialog) {
   side.dataset.m3ssVst3Phase2aMounted = "1";
   ensureStyles();
 
-  const node = pendingNode;
-  pendingNode = null;
+  const node = resolveDialogNode();
   const panel = createVst3BrowserPanel({ node });
   panel.classList.add("m3ssv2-vst3-tab-panel");
   panel.hidden = true;
