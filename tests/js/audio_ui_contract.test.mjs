@@ -16,6 +16,7 @@ test("Audio Editor top-level workspace remains Edit, Mixer, Effects before VST3"
   assert.match(workspace, /m3ssSingleAudio\s*=\s*"1"/);
   assert.match(workspace, /renderSingleMixer/);
   assert.match(workspace, /renderSingleEffectsRack/);
+  assert.match(workspace, /_m3ssSetWorkspaceMode/);
   assert.doesNotMatch(workspace, /trackTitle\.textContent\s*=\s*tr\("Track"/);
   assert.doesNotMatch(workspace, /masterTitle\.textContent\s*=\s*tr\("Master"/);
 
@@ -24,13 +25,20 @@ test("Audio Editor top-level workspace remains Edit, Mixer, Effects before VST3"
   assert.match(vst, /dataset\.m3ssMode\s*=\s*"vst3"/);
   assert.match(vst, /data-m3ss-mode="effects"/);
   assert.match(vst, /effectsTab\.after\(vstTab\)/);
+  assert.match(vst, /_m3ssSetWorkspaceMode\?\.\("vst3"\)/);
 });
 
-test("Single audio pipeline preserves historical Track then Master effect order internally", () => {
+test("Single audio pipeline preserves historical internal stages until explicit reorder", () => {
   const pipeline = source("web/audio_single_pipeline.js");
-  assert.match(pipeline, /\.\.\.\(track\?\.effects \|\| \[\]\),\s*\.\.\.\(master\?\.effects \|\| \[\]\)/s);
-  assert.match(pipeline, /track\.effects = \[\.\.\.track\.effects, \.\.\.master\.effects\]/);
-  assert.match(pipeline, /master\.effects = \[\]/);
+  assert.match(pipeline, /pipelineLocations/);
+  assert.match(pipeline, /stage:\s*"input"/);
+  assert.match(pipeline, /stage:\s*"output"/);
+  assert.match(pipeline, /location\.list\.splice/);
+  assert.match(pipeline, /master\.effects\.push\(effect\)/);
+  assert.doesNotMatch(pipeline, /track\.effects = \[\.\.\.track\.effects, \.\.\.master\.effects\]/);
+  assert.match(pipeline, /const boundary = track\.effects\.length/);
+  assert.match(pipeline, /track\.effects = all\.slice\(0, boundary\)/);
+  assert.match(pipeline, /master\.effects = all\.slice\(boundary\)/);
   assert.match(pipeline, /Input Gain \(dB\)/);
   assert.match(pipeline, /Output Gain \(dB\)/);
   assert.doesNotMatch(pipeline, /Track Effects/);
@@ -64,6 +72,14 @@ test("VST3 mutations use Audio Editor project commit for Undo and Redo", () => {
   assert.match(bridge, /panel\.refreshFromProject/);
 });
 
+test("VST3 preset library uses IndexedDB rather than localStorage for state blobs", () => {
+  const presets = source("web/vst3_preset_store.js");
+  assert.match(presets, /indexedDB\.open/);
+  assert.match(presets, /createObjectStore/);
+  assert.match(presets, /plugin_key/);
+  assert.doesNotMatch(presets, /localStorage/);
+});
+
 test("Phase 2D keeps the experienced-user visual language compact", () => {
   const css = source("web/audio_workspace_polish.css");
   assert.match(css, /\.m3ssv2-workspace-tab\.is-active/);
@@ -73,4 +89,16 @@ test("Phase 2D keeps the experienced-user visual language compact", () => {
   assert.match(phase2d, /m3ssv2-vst3-filters/);
   assert.match(phase2d, /m3ssv2-vst3-preset-bar/);
   assert.match(phase2d, /nth-child\(2\)\{display:none!important\}/);
+});
+
+test("Release chrome hides schema and Track/Master wording from normal summaries", () => {
+  const summary = source("web/node_compact.js");
+  assert.match(summary, /releaseSummary/);
+  assert.match(summary, /schema\\s\*\\d\+/i);
+  const empty = source("web/audio_empty_editor.js");
+  assert.match(empty, /Audio Waveform/);
+  assert.match(empty, /Input Gain/);
+  assert.doesNotMatch(empty, /Main Track Waveform/);
+  assert.doesNotMatch(empty, /Track Gain/);
+  assert.doesNotMatch(empty, /Track Pan/);
 });
