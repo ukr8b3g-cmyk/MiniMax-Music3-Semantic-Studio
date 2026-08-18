@@ -29,11 +29,24 @@
 .m3ss-timeline-accordion-body{padding:0 0 4px}
 .m3ss-timeline-accordion-body .m3ss-center-head{margin-top:0;border-top:0}
 
-/* Keep the whole cell clickable but make the actual arrangement state read as a musical lane. */
-.m3ss-final-polish .m3ss-tl-instrument-cell{background:rgba(255,255,255,.012)!important;border-color:rgba(255,255,255,.035)!important}
-.m3ss-final-polish .m3ss-tl-instrument-cell::after{content:"";position:absolute;left:5px;right:5px;top:50%;height:5px;transform:translateY(-50%);border-radius:999px;background:rgba(92,111,128,.13);pointer-events:none}
-.m3ss-final-polish .m3ss-tl-instrument-cell.is-active::after{background:var(--m3ss-section-accent);box-shadow:0 0 7px color-mix(in srgb,var(--m3ss-section-accent) 40%,transparent)}
-.m3ss-final-polish .m3ss-tl-instrument-cell.is-active{background:color-mix(in srgb,var(--m3ss-section-fill) 18%,transparent)!important}
+/* Keep the whole cell clickable while preserving visible section boundaries even
+   when the same instrument is enabled in several adjacent sections. */
+.m3ss-final-polish .m3ss-tl-instrument-cell{
+  background:rgba(255,255,255,.012)!important;
+  border-color:rgba(255,255,255,.06)!important;
+  box-shadow:inset -1px 0 rgba(255,255,255,.055);
+}
+.m3ss-final-polish .m3ss-tl-instrument-cell::after{
+  content:"";position:absolute;left:7px;right:7px;top:50%;height:5px;transform:translateY(-50%);
+  border-radius:999px;background:rgba(92,111,128,.13);pointer-events:none;
+}
+.m3ss-final-polish .m3ss-tl-instrument-cell.is-active::after{
+  background:var(--m3ss-section-accent);
+  box-shadow:0 0 7px color-mix(in srgb,var(--m3ss-section-accent) 40%,transparent);
+}
+.m3ss-final-polish .m3ss-tl-instrument-cell.is-active{
+  background:color-mix(in srgb,var(--m3ss-section-fill) 18%,transparent)!important;
+}
 
 .m3ss-generation-view{display:grid;align-content:start;gap:14px;padding:12px 14px 18px;overflow:auto}
 .m3ss-generation-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:13px 15px;border:1px solid rgba(181,132,220,.22);border-radius:10px;background:linear-gradient(105deg,rgba(76,46,104,.28),rgba(19,25,36,.72))}

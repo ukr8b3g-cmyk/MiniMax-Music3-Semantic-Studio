@@ -1,6 +1,6 @@
 # Phase B.2 — Unified Waveform Audio Editor
 
-Status: implemented in frontend/backend with pure-module tests; ComfyUI visual/audio integration verification pending.
+Status: implemented in frontend/backend with pure-module tests; V2.1-C Reverb + Stereo Delay is implemented; ComfyUI visual/audio integration verification pending.
 
 Phase B.2 replaces the clip-lane-first interaction with an Audacity-style unified waveform surface while preserving immutable source AUDIO and authoritative Python rendering.
 
@@ -89,14 +89,14 @@ Draft render order mirrors Python:
 9. track gain
 10. track pan
 11. track mute/solo
-12. track effects boundary
+12. track effects in rack order
 13. mix tracks
-14. master effects boundary
+14. master effects in rack order
 15. master channel mode
 16. master gain
 17. peak normalization
 
-Draft Preview updates after editing commands and after an envelope gesture is committed. Mute, envelope, Cut, Paste, Split, and track controls can therefore be auditioned without Queue.
+Draft Preview updates after editing commands and after an envelope gesture is committed. Mute, envelope, Cut, Paste, Split, track controls, and supported V2.1-C effects can therefore be auditioned without Queue.
 
 The browser preview is not authoritative. PCM16 browser playback may differ at clipping/extreme gain boundaries. **Save Edits -> Queue** always rerenders from original connected AUDIO tensors in Python/PyTorch.
 
@@ -132,6 +132,7 @@ Optional selection/split/paste snap supports Off, 1/4, 1/8 and 1/16 using the up
 - Cut & Leave Gap
 - Mute track / Mute selected clip
 - Crossfade Next
+- Selection Loop audition
 
 The internal clipboard stores declarative clip slices, immutable source references, and copied track-envelope automation. It does not place PCM audio on the operating-system clipboard.
 
@@ -158,6 +159,35 @@ The internal clipboard stores declarative clip slices, immutable source referenc
 
 Schema 1 is accepted and migrated automatically with neutral track controls. Existing clip fields and unknown data are preserved.
 
-## V2.1 boundary
+## V2.1-C DSP
 
-Effects arrays are normalized and persisted, but enabled effects fail explicitly until the V2.1 DSP renderer is implemented. No EQ, compressor, limiter, delay, reverb, pitch shift, or time stretch is silently simulated.
+Track and Master `effects[]` execute in rack order in both Browser Draft and the authoritative Python/PyTorch renderer.
+
+Implemented effects:
+
+- Gain / Amplify
+- High-Pass Filter
+- Low-Pass Filter
+- EQ (3-Band)
+- Compressor
+- Limiter, including Auto Level authoring assistance
+- Stereo Width
+- Reverb
+- Stereo Delay, including Ping-Pong
+
+Reverb and Delay report bounded effect tails so Track and Master spatial effects are not truncated at the semantic timeline boundary. Reverb uses deterministic room-response processing inspired by established FreeVerb/Schroeder practice; Delay uses deterministic bounded feedback processing. No new mandatory Python runtime dependency is required.
+
+Enabled unknown future effect types still fail explicitly rather than being silently ignored. Pitch Shift / Time Stretch remain future work and are not part of V2.1-C.
+
+## Remaining ComfyUI verification
+
+Still required on a real ComfyUI workflow:
+
+- source decode -> editor open / empty editor -> queued source transition
+- Draft playback after Mute/Envelope/Cut and supported effects
+- Save Edits -> Queue -> Rendered A comparison for each V2.1-C effect
+- rack-order comparison with multiple effects
+- Limiter Auto Level on representative generated songs
+- Selection Loop start/end behavior during long playback
+- Take 2 comping
+- long-duration performance and memory observation

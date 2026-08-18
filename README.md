@@ -7,7 +7,7 @@ Current status:
 - **V1 / Semantic Studio — Timeline / Lyrics / Generation UI implemented**
 - **English / Japanese UI — ComfyUI locale-aware labels implemented; other locales fall back to English**
 - **V2 / Phase B.2 — unified waveform editor, schema 2 track automation, browser Draft Preview, empty-editor mode, and simplified Effects/Edit/Mixer workspace implemented**
-- **V2.1-B — basic Track/Master DSP and selection-loop audition implemented; ComfyUI integration verification pending**
+- **V2.1-C — Track/Master DSP including Reverb + Stereo Delay and selection-loop audition implemented; ComfyUI integration verification pending**
 
 Neither V1 nor V2 patches ComfyUI core, MiniMax Music3 model code, KSampler, or VAE code.
 
@@ -63,7 +63,7 @@ The complete Song Timeline is an accordion that defaults open. Timeline order re
 4. Vocal Style
 5. Instruments
 
-Structure sections can be added after the current selection, resized, and reordered by drag/drop or Inspector arrows. Instrument lanes are semantic `section.instruments[]` guidance rather than stems; active lanes use a thicker rounded colored indicator for visibility.
+Structure sections can be added after the current selection, resized, and reordered by drag/drop or Inspector arrows. Instrument lanes are semantic `section.instruments[]` guidance rather than stems or audio analysis. Each section owns its own instrument membership. Adjacent active sections remain visually separated so a repeated instrument does not read as one unbroken stem; a continuous sequence simply means the same semantic instrument guidance is enabled in consecutive sections.
 
 Undo / Redo is available for structured project editing:
 
@@ -204,7 +204,7 @@ The final visual separation uses different roles/colors: thin cyan playhead, vio
 
 ### Draft Preview
 
-`Draft · Current Edits` renders current `edit_json` locally from decoded Take previews and reflects edits without a Queue round trip, including clip edits, Track Mute/Solo/Gain/Pan, Track Gain Envelope, supported V2.1-B effects, Master processing, and channel/normalization settings.
+`Draft · Current Edits` renders current `edit_json` locally from decoded Take previews and reflects edits without a Queue round trip, including clip edits, Track Mute/Solo/Gain/Pan, Track Gain Envelope, supported V2.1-C effects, Master processing, and channel/normalization settings.
 
 `Rendered A · Last Queue` remains available for A/B comparison. Draft Preview is not authoritative; **Save Edits -> Queue** runs the Python renderer against the original connected AUDIO tensors.
 
@@ -286,9 +286,9 @@ The Effects Rack supports:
 - separate Track and Master effect chains
 - preservation of unknown effect objects
 
-### V2.1-B basic DSP
+### V2.1-C DSP
 
-The following effects now execute in both Browser Draft and authoritative Python/PyTorch rendering:
+The following effects execute in both Browser Draft and authoritative Python/PyTorch rendering:
 
 - **Gain / Amplify**
 - **Compressor**
@@ -297,12 +297,14 @@ The following effects now execute in both Browser Draft and authoritative Python
 - **High-Pass Filter**
 - **Low-Pass Filter**
 - **Stereo Width**
+- **Reverb** — Room Size, Pre-delay, Reverberance, Damping, Low/High Tone, Wet/Dry, Wet Only
+- **Stereo Delay** — Delay Time, Feedback, Wet/Dry, optional Ping-Pong
 
 Limiter includes `Input Gain` plus an **Auto Level / オートレベル** convenience action. Auto Level measures the current preview peak while the Limiter is off and sets Input Gain toward the selected ceiling; manual adjustment remains available.
 
-**Reverb remains V2.1-C.** It is still visible in the authoring catalog, but enabling it in the current build fails explicitly instead of being silently ignored. Unknown future effect types fail the same way.
+Reverb and Stereo Delay support Track and Master racks and report bounded effect tails so spatial decay/repeats are not cut at the timeline boundary. The implementation adds no new mandatory Python runtime dependency. Unknown future enabled effect types continue to fail explicitly rather than being silently ignored.
 
-Later V2.1 work includes Reverb / Delay, pitch shift / time stretch, and advanced analysis after the basic DSP set is stable.
+Pitch Shift / Time Stretch and advanced analysis remain future work; they are not part of V2.1-C.
 
 ## Development checks
 

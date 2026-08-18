@@ -73,6 +73,26 @@ test('instrument rows preserve first appearance and toggle section membership', 
   assert.equal(sectionHasInstrument(sections[2], 'Piano'), false);
 });
 
+test('instrument membership remains section-local through project normalization', () => {
+  const project = factoryProject();
+  project.timeline.sections[0].instruments = ['rain texture'];
+  project.timeline.sections[1].instruments = ['Rhodes piano'];
+  const normalized = normalizeProject(project);
+
+  assert.deepEqual(normalized.timeline.sections[0].instruments, ['rain texture']);
+  assert.deepEqual(normalized.timeline.sections[1].instruments, ['Rhodes piano']);
+  assert.equal(sectionHasInstrument(normalized.timeline.sections[0], 'Rhodes piano'), false);
+  assert.equal(sectionHasInstrument(normalized.timeline.sections[1], 'rain texture'), false);
+});
+
+test('factory timeline contains section-specific instrument changes', () => {
+  const sections = factoryProject().timeline.sections;
+  assert.equal(sectionHasInstrument(sections[0], 'strings'), false);
+  assert.equal(sectionHasInstrument(sections[5], 'strings'), true);
+  assert.equal(sectionHasInstrument(sections[7], 'full drums'), false);
+  assert.equal(sectionHasInstrument(sections[2], 'full drums'), true);
+});
+
 test('section palettes are deterministic by section type', () => {
   assert.equal(sectionPalette('Verse').accent, sectionPalette('Verse').accent);
   assert.notEqual(sectionPalette('Verse').accent, sectionPalette('Chorus').accent);
