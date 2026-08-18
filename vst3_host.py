@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import importlib.metadata
 import os
 from pathlib import Path
@@ -15,6 +16,7 @@ except ImportError:  # Allows pure-module tests outside ComfyUI package loading.
     from audio_effects_dsp import effect_chain_tail_samples as _builtin_tail_samples
 
 VST3_EFFECT_TYPE = "vst3"
+MAX_STATE_BYTES = 32 * 1024 * 1024
 
 
 def host_status() -> dict[str, Any]:
@@ -24,7 +26,7 @@ def host_status() -> dict[str, Any]:
             "platform": os.name,
             "backend": "pedalboard",
             "version": "",
-            "message": "Phase 2A VST3 hosting is currently enabled for Windows only.",
+            "message": "VST3 hosting and native plugin UI are currently enabled for Windows only.",
         }
     try:
         version = importlib.metadata.version("pedalboard")
@@ -36,8 +38,9 @@ def host_status() -> dict[str, Any]:
             "backend": "pedalboard",
             "version": "",
             "message": (
-                "Optional VST3 host is not installed. Install requirements-vst3.txt "
-                f"in the ComfyUI Python environment. ({exc})"
+                "VST3 host is missing. On Windows it is installed automatically from requirements.txt "
+                "when the custom node is installed/updated through ComfyUI Manager. "
+                f"Reinstall dependencies if needed. ({exc})"
             ),
         }
     return {
@@ -45,7 +48,8 @@ def host_status() -> dict[str, Any]:
         "platform": os.name,
         "backend": "pedalboard",
         "version": version,
-        "message": f"Pedalboard {version} is available for queued VST3 rendering.",
+        "native_ui": True,
+        "message": f"Pedalboard {version} is available for queued VST3 rendering and native plugin UI.",
     }
 
 
@@ -61,8 +65,8 @@ def _default_loader(path: str, plugin_name: str):
         from pedalboard import load_plugin
     except Exception as exc:  # pragma: no cover - environment dependent
         raise RuntimeError(
-            "VST3 effect is enabled but the optional Pedalboard host is unavailable. "
-            "Install requirements-vst3.txt in the ComfyUI Python environment."
+            "VST3 effect is enabled but Pedalboard is unavailable. On Windows, reinstall/update "
+            "the custom node dependencies so requirements.txt is applied."
         ) from exc
 
     kwargs: dict[str, Any] = {"initialization_timeout": 10.0}
@@ -81,6 +85,41 @@ def _default_loader(path: str, plugin_name: str):
         raise RuntimeError(f"Could not load VST3 plugin {plugin_name or Path(path).stem!r}: {first}") from first
 
 
+def _decode_effect_state(effect: dict[str, Any]) -> tuple[str, bytes, str]:
+    params = effect.get("params") if isinstance(effect.get("params"), dict) else {}
+    encoded = str(params.get("state_b64") or "")
+    if not encoded:
+        return "", b"", ""
+    try:
+        data = base64.b64decode(encoded, validate=True)
+    except Exception as exc:
+        raise ValueError("Stored VST3 plugin state is not valid base64 data.") from exc
+    if len(data) > MAX_STATE_BYTES:
+        raise ValueError(f"Stored VST3 plugin state exceeds the {MAX_STATE_BYTES // (1024 * 1024)} MiB safety limit.")
+    kind = str(params.get("state_kind") or "preset_data")
+    identifier = str(params.get("plugin_identifier") or "").strip()
+    return kind, data, identifier
+
+
+def _restore_plugin_state(plugin: Any, effect: dict[str, Any], label: str) -> None:
+    kind, data, expected_identifier = _decode_effect_state(effect)
+    if not data:
+        return
+    actual_identifier = str(getattr(plugin, "identifier", "") or "").strip()
+    if expected_identifier and actual_identifier and expected_identifier != actual_identifier:
+        raise ValueError(
+            f"Stored state for VST3 plugin {label!r} no longer matches the installed plugin identifier; "
+            "open the native Plugin UI and save fresh state."
+        )
+    try:
+        if kind == "raw_state":
+            plugin.raw_state = data
+        else:
+            plugin.preset_data = data
+    except Exception as exc:
+        raise RuntimeError(f"Could not restore saved VST3 state for {label!r}: {exc}") from exc
+
+
 def _normalize_plugin_output(array: Any, channels: int, samples: int):
     import numpy as np
 
@@ -94,7 +133,7 @@ def _normalize_plugin_output(array: Any, channels: int, samples: int):
     if output.shape[0] != channels:
         raise RuntimeError(
             f"VST3 plugin changed channel count from {channels} to {output.shape[0]}; "
-            "Phase 2A requires channel-preserving effects."
+            "Phase 2B requires channel-preserving effects."
         )
     if output.shape[1] < samples:
         output = np.pad(output, ((0, 0), (0, samples - output.shape[1])))
@@ -126,6 +165,7 @@ def apply_vst3_effect(
     plugin = (loader or _default_loader)(path, plugin_name)
     if not bool(getattr(plugin, "is_effect", False)):
         raise ValueError(f"{owner} plugin {label!r} is not an audio effect.")
+    _restore_plugin_state(plugin, effect, label)
 
     import numpy as np
 
@@ -147,7 +187,7 @@ def apply_vst3_effect(
 
 
 def effect_chain_tail_samples(effects: Any, sample_rate: int) -> int:
-    # Phase 2A does not attempt to infer arbitrary VST3 release/reverb tails.
+    # Phase 2B still does not attempt to infer arbitrary VST3 release/reverb tails.
     # Built-in V2.1 effects keep their existing deterministic tail behavior.
     builtins = [
         effect for effect in (effects if isinstance(effects, list) else [])
