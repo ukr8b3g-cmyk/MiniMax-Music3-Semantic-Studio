@@ -99,7 +99,6 @@ def _db_to_amp(db: float) -> float:
 
 def _reverb_decay_seconds(effect: dict[str, Any]) -> float:
     reverberance = _param(effect, "reverberance", 0.0, 100.0) / 100.0
-    # Perceptually useful nonlinear range: short ambience at 0%, long hall at 100%.
     return 0.35 + math.pow(reverberance, 1.55) * (_MAX_REVERB_TAIL_SECONDS - 0.35)
 
 
@@ -118,7 +117,6 @@ def effect_tail_samples(effect: Any, sample_rate: int) -> int:
         if feedback <= 1e-9:
             repeats = 1
         else:
-            # Stop when the repeat envelope has fallen below -60 dB (0.001 amplitude).
             repeats = max(1, int(math.ceil(math.log(0.001) / math.log(feedback))) + 1)
         seconds = min(_MAX_DELAY_TAIL_SECONDS, delay_seconds * repeats)
         return max(1, int(math.ceil(seconds * sample_rate)))
@@ -256,26 +254,11 @@ def _apply_eq3(
     high = _param(effect, "high_db", -12.0, 12.0)
     result = waveform
     if abs(low) > 1e-9:
-        result = _apply_biquad(
-            result,
-            _normalized_biquad(
-                "low_shelf", sample_rate, min(200.0, sample_rate * 0.18), gain_db=low
-            ),
-        )
+        result = _apply_biquad(result, _normalized_biquad("low_shelf", sample_rate, min(200.0, sample_rate * 0.18), gain_db=low))
     if abs(mid) > 1e-9:
-        result = _apply_biquad(
-            result,
-            _normalized_biquad(
-                "peaking", sample_rate, min(1000.0, sample_rate * 0.28), q=0.8, gain_db=mid
-            ),
-        )
+        result = _apply_biquad(result, _normalized_biquad("peaking", sample_rate, min(1000.0, sample_rate * 0.28), q=0.8, gain_db=mid))
     if abs(high) > 1e-9:
-        result = _apply_biquad(
-            result,
-            _normalized_biquad(
-                "high_shelf", sample_rate, min(5000.0, sample_rate * 0.40), gain_db=high
-            ),
-        )
+        result = _apply_biquad(result, _normalized_biquad("high_shelf", sample_rate, min(5000.0, sample_rate * 0.40), gain_db=high))
     return result
 
 
@@ -285,9 +268,7 @@ def _block_peaks(waveform: torch.Tensor, block_size: int) -> torch.Tensor:
     padded = blocks * block_size
     if padded != length:
         waveform = torch.nn.functional.pad(waveform, (0, padded - length))
-    return waveform.abs().reshape(
-        waveform.shape[0], waveform.shape[1], blocks, block_size
-    ).amax(dim=(1, 3))
+    return waveform.abs().reshape(waveform.shape[0], waveform.shape[1], blocks, block_size).amax(dim=(1, 3))
 
 
 def _expand_block_gains(
@@ -328,9 +309,7 @@ def _apply_compressor(
             current_db = coeff * current_db + (1.0 - coeff) * desired_db
             values.append(_db_to_amp(current_db + makeup_db))
         gain_rows.append(values)
-    gain = _expand_block_gains(
-        gain_rows, block_size, waveform.shape[-1], waveform.device, waveform.dtype
-    )
+    gain = _expand_block_gains(gain_rows, block_size, waveform.shape[-1], waveform.device, waveform.dtype)
     return waveform * gain
 
 
@@ -354,15 +333,11 @@ def _apply_limiter(
     driven = waveform * _db_to_amp(input_gain_db)
     block_size = max(1, round(sample_rate * 0.001))
     block_ms = block_size / sample_rate * 1000.0
-    lookahead_blocks = max(
-        0, min(12, math.ceil(lookahead_ms / max(block_ms, 1e-6)))
-    )
+    lookahead_blocks = max(0, min(12, math.ceil(lookahead_ms / max(block_ms, 1e-6))))
     peaks = _block_peaks(driven, block_size)
     future = _future_peak_blocks(peaks, lookahead_blocks).detach().float().cpu().tolist()
     ceiling_amp = _db_to_amp(ceiling_db)
-    release = math.exp(
-        -(block_size / sample_rate) / max(release_ms / 1000.0, 1e-6)
-    )
+    release = math.exp(-(block_size / sample_rate) / max(release_ms / 1000.0, 1e-6))
     gain_rows: list[list[float]] = []
     for row in future:
         current = 1.0
@@ -375,17 +350,12 @@ def _apply_limiter(
                 current = release * current + (1.0 - release) * desired
             values.append(current)
         gain_rows.append(values)
-    gain = _expand_block_gains(
-        gain_rows, block_size, driven.shape[-1], driven.device, driven.dtype
-    )
+    gain = _expand_block_gains(gain_rows, block_size, driven.shape[-1], driven.device, driven.dtype)
     limited = driven * gain
     return torch.clamp(limited, min=-ceiling_amp, max=ceiling_amp)
 
 
-def _apply_stereo_width(
-    waveform: torch.Tensor,
-    effect: dict[str, Any],
-) -> torch.Tensor:
+def _apply_stereo_width(waveform: torch.Tensor, effect: dict[str, Any]) -> torch.Tensor:
     if waveform.shape[1] < 2:
         return waveform
     width = _param(effect, "width_percent", 0.0, 200.0) / 100.0
@@ -399,11 +369,7 @@ def _apply_stereo_width(
     return result
 
 
-def _apply_delay(
-    waveform: torch.Tensor,
-    sample_rate: int,
-    effect: dict[str, Any],
-) -> torch.Tensor:
+def _apply_delay(waveform: torch.Tensor, sample_rate: int, effect: dict[str, Any]) -> torch.Tensor:
     delay_samples = max(1, int(round(sample_rate * _param(effect, "delay_ms", 10.0, 2000.0) / 1000.0)))
     feedback = _param(effect, "feedback_percent", 0.0, 90.0) / 100.0
     wet_gain = _db_to_amp(_param(effect, "wet_db", -60.0, 6.0))
@@ -417,19 +383,10 @@ def _apply_delay(
         previous_start = start - delay_samples
         previous_end = previous_start + (end - start)
         if ping_pong:
-            wet[:, 0, start:end] = (
-                waveform[:, 1, previous_start:previous_end]
-                + feedback * wet[:, 1, previous_start:previous_end]
-            )
-            wet[:, 1, start:end] = (
-                waveform[:, 0, previous_start:previous_end]
-                + feedback * wet[:, 0, previous_start:previous_end]
-            )
+            wet[:, 0, start:end] = waveform[:, 1, previous_start:previous_end] + feedback * wet[:, 1, previous_start:previous_end]
+            wet[:, 1, start:end] = waveform[:, 0, previous_start:previous_end] + feedback * wet[:, 0, previous_start:previous_end]
         else:
-            wet[..., start:end] = (
-                waveform[..., previous_start:previous_end]
-                + feedback * wet[..., previous_start:previous_end]
-            )
+            wet[..., start:end] = waveform[..., previous_start:previous_end] + feedback * wet[..., previous_start:previous_end]
     return waveform * dry_gain + wet * wet_gain
 
 
@@ -438,7 +395,6 @@ def _reverb_room_scale(room_size: float) -> float:
 
 
 def _reverb_damping_cutoff(sample_rate: int, damping: float) -> float:
-    # 0% damping -> nearly open; 100% -> dark room around 2.4 kHz at 48 kHz.
     nyquist_safe = sample_rate * 0.45
     open_hz = min(18000.0, nyquist_safe)
     dark_hz = min(2400.0, nyquist_safe)
@@ -446,7 +402,6 @@ def _reverb_damping_cutoff(sample_rate: int, damping: float) -> float:
 
 
 def _reverb_tone_gain(percent: float) -> float:
-    # Existing UI uses 100% as neutral. Lower values progressively attenuate the band.
     return -12.0 * (1.0 - percent / 100.0)
 
 
@@ -478,8 +433,6 @@ def _cached_reverb_ir(
     spread = max(1, int(round(_REVERB_STEREO_SPREAD_44K * fs_scale * room_scale)))
 
     ir = torch.zeros((2, tail_samples + 1), dtype=torch.float32)
-
-    # Deterministic early reflections inspired by compact FDN/room designs.
     early_span = max(1, int(round(sample_rate * (0.012 + 0.085 * room_size / 100.0))))
     for index, (fraction, gain) in enumerate(zip(_REVERB_EARLY_FRACTIONS, _REVERB_EARLY_GAINS)):
         position = pre_delay_samples + max(1, int(round(early_span * fraction)))
@@ -489,8 +442,6 @@ def _cached_reverb_ir(
             ir[0, position] += left_gain
             ir[1, position] += right_gain
 
-    # Parallel feedback-comb impulse trains. Delay lengths reuse STK FreeVerb's
-    # proven spacing; feedback is derived directly from the requested -60 dB decay.
     for comb_index, base_delay in enumerate(_REVERB_COMB_DELAYS_44K):
         delay_l = max(1, int(round(base_delay * fs_scale * room_scale)))
         delay_r = max(1, delay_l + spread)
@@ -504,8 +455,6 @@ def _cached_reverb_ir(
                 amplitude *= feedback
                 position += delay
 
-    # Keep wet level predictable across room/decay settings without normalizing away
-    # their tonal shape. RMS-energy normalization is deterministic and mild.
     energy = torch.sqrt(torch.clamp(ir.square().sum(dim=1, keepdim=True), min=1e-12))
     ir = ir * (0.45 / energy)
     return ir
@@ -515,7 +464,6 @@ def _reverb_ir(sample_rate: int, effect: dict[str, Any]) -> torch.Tensor:
     room_size = _param(effect, "room_size", 0.0, 100.0)
     pre_delay = _param(effect, "pre_delay_ms", 0.0, 200.0)
     reverberance = _param(effect, "reverberance", 0.0, 100.0)
-    # Quantization exactly matches UI precision and keeps the cache bounded.
     return _cached_reverb_ir(
         int(sample_rate),
         int(round(room_size * 100.0)),
@@ -529,7 +477,6 @@ def _next_power_of_two(value: int) -> int:
 
 
 def _fft_convolve_truncated(signal: torch.Tensor, impulse: torch.Tensor, length: int) -> torch.Tensor:
-    """Linear convolution for [batch, samples], truncated to ``length`` samples."""
     if signal.ndim != 2:
         raise ValueError("FFT reverb source must have shape [batch, samples].")
     length = max(0, min(int(length), signal.shape[-1]))
@@ -539,8 +486,6 @@ def _fft_convolve_truncated(signal: torch.Tensor, impulse: torch.Tensor, length:
     work = signal.float()
     ir = impulse.to(device=signal.device, dtype=torch.float32)
     ir_length = int(ir.numel())
-    # Large blocks amortize FFT cost for multi-minute songs while keeping peak
-    # working memory bounded even with long reverb tails.
     target_block = max(262144, _next_power_of_two(ir_length))
     block_size = min(max(1, work.shape[-1]), min(target_block, 1048576))
     fft_size = _next_power_of_two(block_size + ir_length - 1)
@@ -555,9 +500,7 @@ def _fft_convolve_truncated(signal: torch.Tensor, impulse: torch.Tensor, length:
         chunk = work[:, start : start + block_size]
         chunk_length = chunk.shape[-1]
         spectrum = torch.fft.rfft(chunk, n=fft_size)
-        convolved = torch.fft.irfft(spectrum * ir_fft, n=fft_size)[
-            :, : chunk_length + ir_length - 1
-        ]
+        convolved = torch.fft.irfft(spectrum * ir_fft, n=fft_size)[:, : chunk_length + ir_length - 1]
         end = min(output.shape[-1], start + convolved.shape[-1])
         if end > start:
             output[:, start:end] += convolved[:, : end - start]
@@ -565,11 +508,7 @@ def _fft_convolve_truncated(signal: torch.Tensor, impulse: torch.Tensor, length:
     return output[:, :length].to(dtype=signal.dtype)
 
 
-def _apply_reverb_tone(
-    wet: torch.Tensor,
-    sample_rate: int,
-    effect: dict[str, Any],
-) -> torch.Tensor:
+def _apply_reverb_tone(wet: torch.Tensor, sample_rate: int, effect: dict[str, Any]) -> torch.Tensor:
     damping = _param(effect, "damping", 0.0, 100.0)
     tone_low = _param(effect, "tone_low", 0.0, 100.0)
     tone_high = _param(effect, "tone_high", 0.0, 100.0)
@@ -580,23 +519,13 @@ def _apply_reverb_tone(
     low_gain = _reverb_tone_gain(tone_low)
     high_gain = _reverb_tone_gain(tone_high)
     if abs(low_gain) > 1e-9:
-        result = _apply_biquad(
-            result,
-            _normalized_biquad("low_shelf", sample_rate, min(250.0, sample_rate * 0.18), gain_db=low_gain),
-        )
+        result = _apply_biquad(result, _normalized_biquad("low_shelf", sample_rate, min(250.0, sample_rate * 0.18), gain_db=low_gain))
     if abs(high_gain) > 1e-9:
-        result = _apply_biquad(
-            result,
-            _normalized_biquad("high_shelf", sample_rate, min(6000.0, sample_rate * 0.40), gain_db=high_gain),
-        )
+        result = _apply_biquad(result, _normalized_biquad("high_shelf", sample_rate, min(6000.0, sample_rate * 0.40), gain_db=high_gain))
     return result
 
 
-def _apply_reverb(
-    waveform: torch.Tensor,
-    sample_rate: int,
-    effect: dict[str, Any],
-) -> torch.Tensor:
+def _apply_reverb(waveform: torch.Tensor, sample_rate: int, effect: dict[str, Any]) -> torch.Tensor:
     impulse = _reverb_ir(sample_rate, effect)
     mono_source = waveform.mean(dim=1)
     length = waveform.shape[-1]
@@ -627,10 +556,10 @@ def apply_effect_chain(
         effect_type = str(raw.get("type") or "")
         if effect_type not in SUPPORTED_EFFECTS:
             label = effect_type or str(raw.get("id") or "unknown")
-            raise ValueError(
-                f"{owner} has enabled unsupported effect {label!r}; "
-                "V2.1-C supports Gain, Filters, EQ, Compressor, Limiter, Stereo Width, Reverb, and Delay."
+            print(
+                f"[MiniMax Music3 Semantic Studio] {owner}: bypassing unsupported effect {label!r}."
             )
+            continue
         if effect_type == "gain":
             result = result * _db_to_amp(_param(raw, "gain_db", -24.0, 24.0))
         elif effect_type == "high_pass":
