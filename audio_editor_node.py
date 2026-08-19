@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from comfy_api.latest import io, ui
@@ -95,6 +94,11 @@ class MiniMaxMusic3SemanticStudioAudioEditor(io.ComfyNode):
         rendered_waveform = rendered_audio["waveform"]
         rendered_duration = rendered_waveform.shape[-1] / rendered_audio["sample_rate"]
 
+        # Queue completion should return only lightweight preview/runtime metadata.
+        # The persistent edit_json widget is already the source of truth. Echoing the
+        # entire normalized project here became expensive once VST3 native state could
+        # contain multi-megabyte base64 blobs, forcing Chromium to parse and retain a
+        # duplicate project after every generation.
         metadata = {
             "edit_schema_version": EDIT_SCHEMA_VERSION,
             "bypass": bool(bypass),
@@ -109,7 +113,6 @@ class MiniMaxMusic3SemanticStudioAudioEditor(io.ComfyNode):
                 "audio": rendered_refs,
             },
             "timeline_duration": float(project_timeline_duration(project)),
-            "normalized_edit_json": json.dumps(project, ensure_ascii=False, separators=(",", ":")),
         }
 
         ui_payload = {
