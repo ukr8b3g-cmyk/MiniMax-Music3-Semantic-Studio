@@ -467,23 +467,16 @@ def compile_project(project_json: str | dict[str, Any]) -> CompiledProject:
     if vocal["mode"].casefold() == "instrumental":
         vocal_text = "Instrumental piece with no lead or backing vocals. Let the instrumental arrangement carry the melodic focus."
     else:
-        vocal_parts: list[str] = []
-        if vocal["gender"]:
-            vocal_parts.append(f"Lead vocal: {vocal['gender']}")
-        elif any(vocal.get(key) for key in ("timbre", "delivery", "harmony", "effects")):
-            vocal_parts.append("Lead vocal: present")
+        vocal_parts: list[str] = [f"Lead vocal: {vocal['gender']}" if vocal["gender"] else "Lead vocal: present"]
         if vocal["timbre"]:
             vocal_parts.append(f"timbre {vocal['timbre']}")
         if vocal["delivery"]:
             vocal_parts.append(f"delivery {vocal['delivery']}")
-        vocal_text = "; ".join(vocal_parts)
-        if vocal_text:
-            vocal_text += "."
+        vocal_text = "; ".join(vocal_parts) + "."
         if vocal["harmony"]:
             vocal_text += f" Harmony/backing vocals: {vocal['harmony']}."
         if vocal["effects"]:
             vocal_text += f" Vocal effects: {vocal['effects']}."
-        vocal_text = vocal_text.strip()
 
     arrangement_lines: list[str] = []
     cursor = 0.0
