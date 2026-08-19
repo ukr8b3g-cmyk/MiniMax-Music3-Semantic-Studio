@@ -11,6 +11,19 @@ _INSTALL_TIMEOUT_SECONDS = 300
 _INSTALL_LOCK = threading.Lock()
 
 
+def optional_host_status(status: dict[str, Any]) -> dict[str, Any]:
+    """Add UI install capability without changing the low-level host probe."""
+    result = dict(status or {})
+    install_available = result.get("platform") == "nt" and not bool(result.get("ready"))
+    result["install_available"] = install_available
+    if install_available:
+        result["message"] = (
+            "VST3 Host is optional and is not installed. Click Install VST3 Host to install "
+            "Pedalboard into the same Python environment that is running ComfyUI."
+        )
+    return result
+
+
 def install_command(executable: str | None = None) -> list[str]:
     """Return the fixed, non-shell pip command used by the UI installer."""
     return [
