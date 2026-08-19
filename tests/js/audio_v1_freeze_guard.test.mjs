@@ -23,6 +23,14 @@ test("release runtime layers never observe the whole ComfyUI document", () => {
   }
 });
 
+test("single-audio A/B diagnostic installs no MutationObserver", () => {
+  const release = source("web/zz_audio_v1_single_audio.js");
+  assert.doesNotMatch(release, /new MutationObserver/);
+  assert.doesNotMatch(release, /observer\.observe/);
+  assert.match(release, /function prepareAudioDialog/);
+  assert.match(release, /simplifyAudioEditor\(dialog\)/);
+});
+
 test("Audio and Semantic Studio enhancements are mounted from explicit open/dialog scope", () => {
   const audio = source("web/zz_audio_effects_foundation.js");
   const dsp = source("web/zz_audio_dsp_ui.js");

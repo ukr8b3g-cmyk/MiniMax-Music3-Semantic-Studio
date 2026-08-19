@@ -100,26 +100,15 @@ function latestAudioDialog() {
   return [...document.querySelectorAll(".m3ssv2-dialog")].at(-1) || null;
 }
 
-function observeAudioDialog(node) {
+function prepareAudioDialog(node) {
   const dialog = latestAudioDialog();
   if (!dialog) return false;
 
+  // A/B diagnostic: do not install any MutationObserver here. The single-audio
+  // compatibility rewrite is applied only at explicit open-time attachment points.
   node._m3ssV1SingleAudioObserver?.disconnect?.();
+  node._m3ssV1SingleAudioObserver = null;
   simplifyAudioEditor(dialog);
-
-  // Observe only the open Audio Editor. Never observe the whole ComfyUI document:
-  // the frontend mutates unrelated DOM frequently and a document-wide observer can
-  // cause severe browser stalls simply by loading a workflow containing this node.
-  const observer = new MutationObserver(() => {
-    if (!dialog.isConnected) {
-      observer.disconnect();
-      if (node._m3ssV1SingleAudioObserver === observer) node._m3ssV1SingleAudioObserver = null;
-      return;
-    }
-    simplifyAudioEditor(dialog);
-  });
-  observer.observe(dialog, { childList: true, subtree: true });
-  node._m3ssV1SingleAudioObserver = observer;
   return true;
 }
 
@@ -138,7 +127,7 @@ function wrapOpenAudioEditor(node) {
   const original = open.callback;
   open.callback = function (...args) {
     const result = original.apply(this, args);
-    const attach = () => observeAudioDialog(node);
+    const attach = () => prepareAudioDialog(node);
     queueMicrotask(attach);
     setTimeout(attach, 80);
     setTimeout(attach, 240);
