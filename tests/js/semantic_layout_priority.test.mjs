@@ -65,6 +65,25 @@ test("Quick controls follow Timeline auto-sync without interrupting field focus"
   assert.doesNotMatch(quick, /syncQuickControlsThroughGeneration/);
 });
 
+test("Comfy node exposes Duration, Music Seed, and standard Seed Behavior", () => {
+  const schema = source("nodes.py");
+  const behavior = source("web/zz_generation_seed_behavior.js");
+  const promptImport = source("web/prompt_import_extension.js");
+  const studio = source("web/semantic_studio.js");
+
+  assert.match(schema, /"seed",\s*\n\s*display_name="Music Seed \(AR\)"/);
+  assert.match(schema, /control_after_generate=True/);
+  assert.match(schema, /"max_duration",\s*\n\s*display_name="Duration"/);
+  assert.match(behavior, /const MODES = \["fixed", "increment", "decrement", "randomize"\]/);
+  assert.match(behavior, /setWidgetHidden\(seedWidget, false\)/);
+  assert.match(behavior, /setWidgetHidden\(durationWidget, false\)/);
+  assert.match(behavior, /setWidgetHidden\(controlWidget, false\)/);
+  assert.match(behavior, /nodeField: "Seed Behavior"/);
+  assert.match(studio, /Music Seed \(AR\)/);
+  assert.match(studio, /Duration Limit/);
+  assert.doesNotMatch(promptImport, /Math\.min\(node\.computeSize/);
+});
+
 test("Shared Studio shell is not repurposed for native VST window movement", () => {
   const shell = source("web/studio_shell.js");
   assert.doesNotMatch(shell, /header\.addEventListener\("pointerdown", dragStart\)/);
