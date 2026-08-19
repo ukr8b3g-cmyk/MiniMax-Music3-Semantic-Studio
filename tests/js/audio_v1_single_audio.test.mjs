@@ -6,16 +6,16 @@ function source(path) {
   return fs.readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 }
 
-test("V1.0 diagnostic Audio Editor is a pure single-AUDIO passthrough", () => {
+test("V1.0 diagnostic Audio Editor validates source state without cloning or rendering", () => {
   const node = source("audio_editor_node.py");
-  assert.match(node, /V1\.0 diagnostic pure-pass-through build/);
+  assert.match(node, /V1\.0 diagnostic no-clone build/);
   assert.match(node, /io\.Audio\.Input\("audio"/);
   assert.doesNotMatch(node, /io\.Audio\.Input\("take_[234]"/);
   assert.doesNotMatch(node, /take_2=None/);
   assert.doesNotMatch(node, /def validate_inputs/);
+  assert.match(node, /collect_sources\(audio\)/);
+  assert.match(node, /normalize_edit_project\(edit_json, infos\)/);
   assert.match(node, /return io\.NodeOutput\(audio\)/);
-  assert.doesNotMatch(node, /collect_sources\(/);
-  assert.doesNotMatch(node, /normalize_edit_project\(/);
   assert.doesNotMatch(node, /render_audio_edit\(/);
   assert.doesNotMatch(node, /\.clone\(/);
   assert.doesNotMatch(node, /AudioSaveHelper/);
