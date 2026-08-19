@@ -6,19 +6,20 @@ function source(path) {
   return fs.readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 }
 
-test("V1.0 Audio Editor exposes one AUDIO input while preserving legacy schema internals", () => {
+test("V1.0 diagnostic Audio Editor is a pure single-AUDIO passthrough", () => {
   const node = source("audio_editor_node.py");
-  assert.match(node, /V1\.0 non-destructive single-audio editor/);
+  assert.match(node, /V1\.0 diagnostic pure-pass-through build/);
   assert.match(node, /io\.Audio\.Input\("audio"/);
   assert.doesNotMatch(node, /io\.Audio\.Input\("take_[234]"/);
   assert.doesNotMatch(node, /take_2=None/);
   assert.doesNotMatch(node, /def validate_inputs/);
-  assert.match(node, /collect_sources\(audio\)/);
-  assert.match(node, /render_audio_edit\(audio, edit_json\)\.audio/);
-  assert.match(node, /return io\.NodeOutput\(rendered_audio\)/);
+  assert.match(node, /return io\.NodeOutput\(audio\)/);
+  assert.doesNotMatch(node, /collect_sources\(/);
+  assert.doesNotMatch(node, /normalize_edit_project\(/);
+  assert.doesNotMatch(node, /render_audio_edit\(/);
+  assert.doesNotMatch(node, /\.clone\(/);
   assert.doesNotMatch(node, /AudioSaveHelper/);
-  assert.doesNotMatch(node, /"takes": source_previews/);
-  assert.match(node, /future schemas are interpreted where possible/);
+  assert.doesNotMatch(node, /ui=/);
 });
 
 test("V1.0 frontend removes user-facing take and Track/Master concepts", () => {

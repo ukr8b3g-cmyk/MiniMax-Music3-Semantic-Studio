@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from comfy_api.latest import io
 
-from .audio_edit_project import DEFAULT_EDIT_JSON, normalize_edit_project
-from .audio_render import collect_sources, render_audio_edit
+from .audio_edit_project import DEFAULT_EDIT_JSON
 
 
 class MiniMaxMusic3SemanticStudioAudioEditor(io.ComfyNode):
@@ -17,8 +16,8 @@ class MiniMaxMusic3SemanticStudioAudioEditor(io.ComfyNode):
             category="audio/minimax music",
             essentials_category="Audio/Editing",
             description=(
-                "V1.0 non-destructive single-audio editor. Connect decoded AUDIO and Queue normally. "
-                "This diagnostic build keeps Queue completion to plain AUDIO only so editor preview/UI work is isolated from generation."
+                "V1.0 diagnostic pure-pass-through build. Connect decoded AUDIO and Queue normally. "
+                "The node returns the connected AUDIO unchanged so Python audio processing is fully isolated from the freeze investigation."
             ),
             inputs=[
                 io.Audio.Input("audio", tooltip="Source audio."),
@@ -29,14 +28,14 @@ class MiniMaxMusic3SemanticStudioAudioEditor(io.ComfyNode):
                     multiline=True,
                     dynamic_prompts=False,
                     advanced=True,
-                    tooltip="Non-destructive edit state. Known fields from future schemas are interpreted where possible; malformed JSON still fails at execution to protect stored edits.",
+                    tooltip="Stored non-destructive edit state. Ignored only by this diagnostic pure-pass-through Queue path.",
                 ),
                 io.Boolean.Input(
                     "bypass",
                     default=False,
                     label_on="Bypass",
                     label_off="Edited",
-                    tooltip="Return the source audio unchanged after validating the stored edit state.",
+                    tooltip="Ignored only by this diagnostic pure-pass-through Queue path.",
                 ),
             ],
             outputs=[io.Audio.Output("audio", display_name="AUDIO")],
@@ -45,18 +44,7 @@ class MiniMaxMusic3SemanticStudioAudioEditor(io.ComfyNode):
 
     @classmethod
     def execute(cls, audio, edit_json, bypass=False) -> io.NodeOutput:
-        # Diagnostic isolation: Queue execution performs audio work only. Do not save
-        # source/render previews and do not return custom UI metadata on completion.
-        # If the workflow no longer freezes, the regression is in the removed
-        # preview/UI completion path rather than in rendering or Semantic Studio.
-        if bypass:
-            sources, infos = collect_sources(audio)
-            normalize_edit_project(edit_json, infos)
-            rendered_audio = {
-                "waveform": sources["take-1"]["waveform"].clone(),
-                "sample_rate": infos[0].sample_rate,
-            }
-        else:
-            rendered_audio = render_audio_edit(audio, edit_json).audio
-
-        return io.NodeOutput(rendered_audio)
+        # Diagnostic isolation: no collect_sources, JSON normalization, tensor clone,
+        # edit render, DSP/VST3, preview save, or custom UI payload. The exact AUDIO
+        # object received from ComfyUI is forwarded unchanged.
+        return io.NodeOutput(audio)
