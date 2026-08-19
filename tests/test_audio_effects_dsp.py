@@ -74,10 +74,10 @@ def test_reverb_generates_a_finite_tail_and_respects_wet_only():
     assert torch.isfinite(reverbed).all()
 
 
-def test_disabled_effects_are_neutral_and_unknown_future_effects_fail_closed():
+def test_disabled_and_unknown_future_effects_are_neutral():
     source = torch.tensor([[[0.1, 0.2]]], dtype=torch.float32)
     disabled = apply_effect_chain(source, 48000, [effect("gain", {"gain_db": 12}, enabled=False)], owner="Track")
     assert disabled is source
 
-    with pytest.raises(ValueError, match="unsupported effect"):
-        apply_effect_chain(source, 48000, [effect("chorus")], owner="Track")
+    unknown = apply_effect_chain(source, 48000, [effect("future-user-effect")], owner="Track")
+    assert unknown is source
