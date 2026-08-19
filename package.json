@@ -7,7 +7,7 @@
     "test:presets": "node --test tests/js/semantic_presets.test.mjs",
     "test:timeline": "node --test tests/js/semantic_timeline.test.mjs",
     "test:controls": "node --test tests/js/semantic_controls.test.mjs",
-    "test:audio": "node --test tests/js/audio_edit_commands.test.mjs tests/js/audio_draft_core.test.mjs tests/js/audio_vst3_draft.test.mjs tests/js/audio_time_controls.test.mjs tests/js/audio_effects_core.test.mjs tests/js/audio_effects_dsp.test.mjs tests/js/audio_playback_loop.test.mjs tests/js/audio_ui_contract.test.mjs tests/js/audio_v1_single_audio.test.mjs tests/js/audio_v1_freeze_guard.test.mjs tests/js/permissive_core_contract.test.mjs",
+    "test:audio": "node --test tests/js/audio_edit_commands.test.mjs tests/js/audio_draft_core.test.mjs tests/js/audio_vst3_draft.test.mjs tests/js/audio_time_controls.test.mjs tests/js/audio_effects_core.test.mjs tests/js/audio_effects_dsp.test.mjs tests/js/audio_playback_loop.test.mjs tests/js/audio_ui_contract.test.mjs tests/js/audio_v1_single_audio.test.mjs tests/js/audio_v1_freeze_guard.test.mjs tests/js/audio_fade_controls.test.mjs tests/js/permissive_core_contract.test.mjs",
     "test:semantic": "node --test tests/js/prompt_import_core.test.mjs tests/js/semantic_presets.test.mjs tests/js/semantic_timeline.test.mjs tests/js/semantic_controls.test.mjs tests/js/semantic_history.test.mjs tests/js/semantic_layout_priority.test.mjs tests/js/audio_v1_freeze_guard.test.mjs tests/js/permissive_core_contract.test.mjs",
     "test:ui": "playwright test",
     "test:ui:headed": "playwright test --headed"
