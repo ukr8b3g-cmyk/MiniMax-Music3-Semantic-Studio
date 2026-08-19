@@ -17,8 +17,8 @@ class MiniMaxMusic3SemanticStudioAudioEditor(io.ComfyNode):
             category="audio/minimax music",
             essentials_category="Audio/Editing",
             description=(
-                "V1.0 diagnostic no-clone build. Connect decoded AUDIO and Queue normally. "
-                "The node validates the source/edit state but returns the original connected AUDIO unchanged."
+                "V1.0 diagnostic new-dict/no-clone build. Connect decoded AUDIO and Queue normally. "
+                "The node validates source/edit state and returns a fresh AUDIO dictionary that references the original waveform without cloning it."
             ),
             inputs=[
                 io.Audio.Input("audio", tooltip="Source audio."),
@@ -29,14 +29,14 @@ class MiniMaxMusic3SemanticStudioAudioEditor(io.ComfyNode):
                     multiline=True,
                     dynamic_prompts=False,
                     advanced=True,
-                    tooltip="Stored non-destructive edit state. Validated in this diagnostic Queue path without rendering or cloning audio.",
+                    tooltip="Stored non-destructive edit state. Validated in this diagnostic Queue path without rendering or waveform cloning.",
                 ),
                 io.Boolean.Input(
                     "bypass",
                     default=False,
                     label_on="Bypass",
                     label_off="Edited",
-                    tooltip="Ignored only by this diagnostic no-clone Queue path.",
+                    tooltip="Ignored only by this diagnostic new-dict/no-clone Queue path.",
                 ),
             ],
             outputs=[io.Audio.Output("audio", display_name="AUDIO")],
@@ -45,9 +45,13 @@ class MiniMaxMusic3SemanticStudioAudioEditor(io.ComfyNode):
 
     @classmethod
     def execute(cls, audio, edit_json, bypass=False) -> io.NodeOutput:
-        # Diagnostic isolation: restore source collection and edit-state normalization,
-        # but do not clone the waveform and do not render edits/DSP/VST3 or emit preview UI.
-        # If this remains stable, the previous bypass freeze is isolated to waveform cloning.
-        _, infos = collect_sources(audio)
+        # Diagnostic isolation: validate source/edit state, then build a fresh AUDIO
+        # dictionary while reusing the original waveform tensor. This separates the
+        # effect of returning a new AUDIO object from the effect of waveform.clone().
+        sources, infos = collect_sources(audio)
         normalize_edit_project(edit_json, infos)
-        return io.NodeOutput(audio)
+        rendered_audio = {
+            "waveform": sources["take-1"]["waveform"],
+            "sample_rate": infos[0].sample_rate,
+        }
+        return io.NodeOutput(rendered_audio)

@@ -6,16 +6,19 @@ function source(path) {
   return fs.readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 }
 
-test("V1.0 diagnostic Audio Editor validates source state without cloning or rendering", () => {
+test("V1.0 diagnostic Audio Editor returns a fresh AUDIO dict without cloning the waveform", () => {
   const node = source("audio_editor_node.py");
-  assert.match(node, /V1\.0 diagnostic no-clone build/);
+  assert.match(node, /V1\.0 diagnostic new-dict\/no-clone build/);
   assert.match(node, /io\.Audio\.Input\("audio"/);
   assert.doesNotMatch(node, /io\.Audio\.Input\("take_[234]"/);
   assert.doesNotMatch(node, /take_2=None/);
   assert.doesNotMatch(node, /def validate_inputs/);
-  assert.match(node, /collect_sources\(audio\)/);
+  assert.match(node, /sources, infos = collect_sources\(audio\)/);
   assert.match(node, /normalize_edit_project\(edit_json, infos\)/);
-  assert.match(node, /return io\.NodeOutput\(audio\)/);
+  assert.match(node, /rendered_audio = \{/);
+  assert.match(node, /"waveform": sources\["take-1"\]\["waveform"\]/);
+  assert.match(node, /"sample_rate": infos\[0\]\.sample_rate/);
+  assert.match(node, /return io\.NodeOutput\(rendered_audio\)/);
   assert.doesNotMatch(node, /render_audio_edit\(/);
   assert.doesNotMatch(node, /\.clone\(/);
   assert.doesNotMatch(node, /AudioSaveHelper/);
