@@ -32,7 +32,7 @@ class MiniMaxMusic3SemanticStudioAudioEditor(io.ComfyNode):
                     multiline=True,
                     dynamic_prompts=False,
                     advanced=True,
-                    tooltip="Versioned non-destructive edit state. Normally edited with Open Audio Editor.",
+                    tooltip="Non-destructive edit state. Known fields from future schemas are interpreted where possible; malformed JSON still fails at execution to protect stored edits.",
                 ),
                 io.Boolean.Input(
                     "bypass",
@@ -45,21 +45,6 @@ class MiniMaxMusic3SemanticStudioAudioEditor(io.ComfyNode):
             outputs=[io.Audio.Output("audio", display_name="AUDIO")],
             is_output_node=True,
         )
-
-    @classmethod
-    def validate_inputs(cls, edit_json, **kwargs) -> bool | str:
-        try:
-            if isinstance(edit_json, str) and edit_json.strip():
-                parsed = json.loads(edit_json)
-                version = parsed.get("edit_schema_version", 1) if isinstance(parsed, dict) else None
-                if version not in {1, EDIT_SCHEMA_VERSION}:
-                    return (
-                        f"Unsupported audio edit_schema_version={version!r}; "
-                        f"this build supports schema 1 migration and schema {EDIT_SCHEMA_VERSION}."
-                    )
-        except json.JSONDecodeError as exc:
-            return f"Semantic Studio audio edit JSON is invalid: {exc.msg} at line {exc.lineno} column {exc.colno}"
-        return True
 
     @staticmethod
     def _save_temp_audio(audio: dict[str, Any], prefix: str, cls: type[io.ComfyNode]) -> list[dict[str, Any]]:
@@ -75,8 +60,6 @@ class MiniMaxMusic3SemanticStudioAudioEditor(io.ComfyNode):
 
     @classmethod
     def execute(cls, audio, edit_json, bypass=False) -> io.NodeOutput:
-        # V1.0 exposes one AUDIO input. The legacy multi-take project schema remains
-        # readable internally so older edit_json can still migrate and round-trip.
         sources, infos = collect_sources(audio)
 
         if bypass:
@@ -116,7 +99,6 @@ class MiniMaxMusic3SemanticStudioAudioEditor(io.ComfyNode):
             "edit_schema_version": EDIT_SCHEMA_VERSION,
             "bypass": bool(bypass),
             "interactive_supported": infos[0].batch_size == 1,
-            # Keep the historical metadata key for frontend/schema compatibility.
             "takes": source_previews,
             "rendered": {
                 "sample_rate": int(rendered_audio["sample_rate"]),
