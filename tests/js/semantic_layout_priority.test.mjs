@@ -65,6 +65,14 @@ test("Quick controls follow Timeline auto-sync without interrupting field focus"
   assert.doesNotMatch(quick, /syncQuickControlsThroughGeneration/);
 });
 
+test("Semantic quick controls never observe the whole ComfyUI document", () => {
+  const quick = source("web/zz_semantic_quick_generation_controls.js");
+  assert.doesNotMatch(quick, /observer\.observe\(document\.(?:documentElement|body)/);
+  assert.doesNotMatch(quick, /new MutationObserver\(scanDialogs\)/);
+  assert.match(quick, /observer\.observe\(dialog, \{ childList: true, subtree: true \}\)/);
+  assert.match(quick, /queueMicrotask\(installNewestDialogBridge\)/);
+});
+
 test("Comfy node exposes Duration, Music Seed, and standard Seed Behavior", () => {
   const schema = source("nodes.py");
   const behavior = source("web/zz_generation_seed_behavior.js");
