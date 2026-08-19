@@ -23,7 +23,7 @@ test("release runtime layers never observe the whole ComfyUI document", () => {
   }
 });
 
-test("single-audio A/B diagnostic installs no MutationObserver", () => {
+test("single-audio compatibility layer installs no MutationObserver", () => {
   const release = source("web/zz_audio_v1_single_audio.js");
   assert.doesNotMatch(release, /new MutationObserver/);
   assert.doesNotMatch(release, /observer\.observe/);
@@ -59,15 +59,16 @@ test("Audio Editor DSP refresh cannot feed back from high-frequency dialog text 
   assert.doesNotMatch(audio, /characterData:\s*true/);
 });
 
-test("diagnostic completion restores preview/meta only and skips final renderer", () => {
+test("final renderer is restored without reintroducing the single-audio freeze observer", () => {
   const node = source("audio_editor_node.py");
+  const release = source("web/zz_audio_v1_single_audio.js");
 
+  assert.match(node, /render_audio_edit\(audio, edit_json\)/);
   assert.match(node, /AudioSaveHelper\.save_audio/);
   assert.match(node, /"m3ss_v2": \[metadata\]/);
   assert.match(node, /return io\.NodeOutput\(rendered_audio, ui=ui_payload\)/);
-  assert.match(node, /normalize_edit_project\(edit_json, infos\)/);
-  assert.doesNotMatch(node, /render_audio_edit\(/);
   assert.doesNotMatch(node, /\.clone\(/);
   assert.doesNotMatch(node, /normalized_edit_json/);
   assert.doesNotMatch(node, /state_b64/);
+  assert.doesNotMatch(release, /new MutationObserver/);
 });
