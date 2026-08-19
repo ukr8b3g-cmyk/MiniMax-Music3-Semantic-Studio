@@ -37,6 +37,20 @@ test("Audio and Semantic Studio enhancements are mounted from explicit open/dial
   assert.match(seed, /observer\.observe\(dialog, \{ childList: true, subtree: true \}\)/);
 });
 
+test("Audio Editor DSP refresh cannot feed back from high-frequency dialog text updates", () => {
+  const dsp = source("web/zz_audio_dsp_ui.js");
+  const audio = source("web/zz_audio_effects_foundation.js");
+  const shell = source("web/studio_shell.js");
+
+  assert.doesNotMatch(dsp, /\.observe\(dialog,\s*\{[^}]*characterData:\s*true/);
+  assert.match(dsp, /bodyObserver\?\.observe\(body, \{ childList: true, subtree: false \}\)/);
+  assert.match(dsp, /dialog\.addEventListener\("m3ss-workspace-mode-change", workspaceChange\)/);
+  assert.match(dsp, /dialog\.addEventListener\("m3ss-shell-close", cleanup, \{ once: true \}\)/);
+  assert.match(shell, /windowEl\.dispatchEvent\(new CustomEvent\("m3ss-shell-close"\)\)/);
+  assert.match(audio, /dialog\.addEventListener\("m3ss-shell-close", cleanupObservers, \{ once: true \}\)/);
+  assert.doesNotMatch(audio, /characterData:\s*true/);
+});
+
 test("diagnostic completion restores preview/meta only and skips final renderer", () => {
   const node = source("audio_editor_node.py");
 
