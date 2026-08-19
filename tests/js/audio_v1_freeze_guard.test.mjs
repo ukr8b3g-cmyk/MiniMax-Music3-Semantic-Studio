@@ -36,3 +36,13 @@ test("Audio and Semantic Studio enhancements are mounted from explicit open/dial
   assert.match(vst3, /m3ss-audio-workspace-ready/);
   assert.match(seed, /observer\.observe\(dialog, \{ childList: true, subtree: true \}\)/);
 });
+
+test("Queue completion metadata never echoes persistent edit JSON or VST3 state blobs", () => {
+  const node = source("audio_editor_node.py");
+  assert.doesNotMatch(node, /normalized_edit_json/);
+  assert.doesNotMatch(node, /json\.dumps\(project/);
+  assert.doesNotMatch(node, /state_b64/);
+  assert.match(node, /"m3ss_v2": \[metadata\]/);
+  assert.match(node, /"timeline_duration"/);
+  assert.match(node, /"rendered"/);
+});
