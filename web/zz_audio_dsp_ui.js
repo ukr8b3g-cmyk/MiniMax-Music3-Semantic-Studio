@@ -224,11 +224,32 @@ function installDialog(dialog) {
   refreshDialog(dialog);
   if (dialog.dataset[DIALOG_INSTALLED] === "1") return;
   dialog.dataset[DIALOG_INSTALLED] = "1";
-  const observer = new MutationObserver(() => {
-    if (!dialog.isConnected) return observer.disconnect();
-    refreshDialog(dialog);
-  });
-  observer.observe(dialog, { childList: true, subtree: true, characterData: true });
+
+  const body = dialog.querySelector(".m3ssv2-inspector-body");
+  let closed = false;
+  let refreshQueued = false;
+  const refreshSoon = () => {
+    if (closed || refreshQueued) return;
+    refreshQueued = true;
+    queueMicrotask(() => {
+      refreshQueued = false;
+      if (!closed && dialog.isConnected) refreshDialog(dialog);
+    });
+  };
+
+  const bodyObserver = body ? new MutationObserver(refreshSoon) : null;
+  bodyObserver?.observe(body, { childList: true, subtree: false });
+
+  const workspaceChange = () => refreshSoon();
+  dialog.addEventListener("m3ss-workspace-mode-change", workspaceChange);
+
+  const cleanup = () => {
+    if (closed) return;
+    closed = true;
+    bodyObserver?.disconnect();
+    dialog.removeEventListener("m3ss-workspace-mode-change", workspaceChange);
+  };
+  dialog.addEventListener("m3ss-shell-close", cleanup, { once: true });
 }
 
 patchWaveformLoop();

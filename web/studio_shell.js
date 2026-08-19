@@ -138,6 +138,7 @@ export function createStudioWindow({
   function close() {
     if (closed) return;
     closed = true;
+    windowEl.dispatchEvent(new CustomEvent("m3ss-shell-close"));
     cleanupLocalization();
     resizeObserver?.disconnect();
     document.removeEventListener("keydown", keyHandler);
