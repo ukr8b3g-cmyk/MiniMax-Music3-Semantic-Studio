@@ -211,19 +211,22 @@ function installLimiterAuto(dialog) {
   }
 }
 
-function installDialog(dialog) {
-  if (!dialog || dialog.dataset.m3ssEmptyEditor === "1") return;
-  ensureStyles();
+function refreshDialog(dialog) {
+  if (!dialog?.isConnected || dialog.dataset.m3ssEmptyEditor === "1") return;
   polishKeyDisplay(dialog);
   installLoopControl(dialog);
   installLimiterAuto(dialog);
+}
+
+function installDialog(dialog) {
+  if (!dialog || dialog.dataset.m3ssEmptyEditor === "1") return;
+  ensureStyles();
+  refreshDialog(dialog);
   if (dialog.dataset[DIALOG_INSTALLED] === "1") return;
   dialog.dataset[DIALOG_INSTALLED] = "1";
   const observer = new MutationObserver(() => {
     if (!dialog.isConnected) return observer.disconnect();
-    polishKeyDisplay(dialog);
-    installLoopControl(dialog);
-    installLimiterAuto(dialog);
+    refreshDialog(dialog);
   });
   observer.observe(dialog, { childList: true, subtree: true, characterData: true });
 }
@@ -231,8 +234,8 @@ function installDialog(dialog) {
 patchWaveformLoop();
 if (typeof document !== "undefined") {
   ensureStyles();
-  const scan = () => document.querySelectorAll(".m3ssv2-dialog").forEach(installDialog);
-  scan();
-  const observer = new MutationObserver(scan);
-  observer.observe(document.body, { childList: true, subtree: true });
+  document.addEventListener("m3ss-audio-workspace-ready", (event) => {
+    const dialog = event.target?.closest?.(".m3ssv2-dialog") || event.target;
+    if (dialog?.matches?.(".m3ssv2-dialog")) installDialog(dialog);
+  });
 }
