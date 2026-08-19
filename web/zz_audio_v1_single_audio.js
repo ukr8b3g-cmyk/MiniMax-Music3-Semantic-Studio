@@ -37,7 +37,7 @@ function removeFieldByLabel(root, label) {
 
 function simplifyPreviewOptions(root) {
   for (const select of root.querySelectorAll("select")) {
-    for (const option of select.options || []) {
+    for (const option of [...(select.options || [])]) {
       const text = (option.textContent || "").trim();
       if (/^Take\s*1$/i.test(text) || /^Audio$/i.test(text)) option.textContent = "Original Audio";
       if (/^Take\s*[2-4]$/i.test(text)) option.remove();
@@ -96,21 +96,70 @@ function simplifyAudioEditor(dialog) {
   }
 }
 
-function scan() {
-  for (const dialog of document.querySelectorAll(".m3ssv2-dialog")) simplifyAudioEditor(dialog);
+function latestAudioDialog() {
+  return [...document.querySelectorAll(".m3ssv2-dialog")].at(-1) || null;
+}
+
+function observeAudioDialog(node) {
+  const dialog = latestAudioDialog();
+  if (!dialog) return false;
+
+  node._m3ssV1SingleAudioObserver?.disconnect?.();
+  simplifyAudioEditor(dialog);
+
+  // Observe only the open Audio Editor. Never observe the whole ComfyUI document:
+  // the frontend mutates unrelated DOM frequently and a document-wide observer can
+  // cause severe browser stalls simply by loading a workflow containing this node.
+  const observer = new MutationObserver(() => {
+    if (!dialog.isConnected) {
+      observer.disconnect();
+      if (node._m3ssV1SingleAudioObserver === observer) node._m3ssV1SingleAudioObserver = null;
+      return;
+    }
+    simplifyAudioEditor(dialog);
+  });
+  observer.observe(dialog, { childList: true, subtree: true });
+  node._m3ssV1SingleAudioObserver = observer;
+  return true;
+}
+
+function findOpenAudioEditorButton(node) {
+  return node?.widgets?.find((widget) => {
+    if (widget?.type !== "button") return false;
+    return /Open Audio Editor/i.test(String(widget?.name || widget?.label || ""));
+  }) || null;
+}
+
+function wrapOpenAudioEditor(node) {
+  if (!node || nodeClass(node) !== NODE_ID || node._m3ssV1SingleAudioOpenWrapped) return false;
+  const open = findOpenAudioEditorButton(node);
+  if (!open?.callback) return false;
+
+  const original = open.callback;
+  open.callback = function (...args) {
+    const result = original.apply(this, args);
+    const attach = () => observeAudioDialog(node);
+    queueMicrotask(attach);
+    setTimeout(attach, 80);
+    setTimeout(attach, 240);
+    return result;
+  };
+  node._m3ssV1SingleAudioOpenWrapped = true;
+  return true;
+}
+
+function install(node) {
+  if (!node || nodeClass(node) !== NODE_ID) return;
+  removeLegacyTakeInputs(node);
+  wrapOpenAudioEditor(node);
 }
 
 app.registerExtension({
   name: "minimax.music3.audio-editor.v1-single-audio",
   nodeCreated(node) {
     if (nodeClass(node) !== NODE_ID) return;
-    queueMicrotask(() => removeLegacyTakeInputs(node));
-    setTimeout(() => removeLegacyTakeInputs(node), 120);
+    queueMicrotask(() => install(node));
+    setTimeout(() => install(node), 120);
+    setTimeout(() => install(node), 320);
   },
 });
-
-if (typeof document !== "undefined") {
-  const observer = new MutationObserver(scan);
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-  scan();
-}
