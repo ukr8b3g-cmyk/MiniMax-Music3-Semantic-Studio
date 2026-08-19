@@ -37,20 +37,17 @@ test("Audio and Semantic Studio enhancements are mounted from explicit open/dial
   assert.match(seed, /observer\.observe\(dialog, \{ childList: true, subtree: true \}\)/);
 });
 
-test("diagnostic Queue completion rebuilds AUDIO metadata without cloning or rendering", () => {
+test("Audio Editor completion restores previews but never clones connected waveform state", () => {
   const node = source("audio_editor_node.py");
-  assert.doesNotMatch(node, /AudioSaveHelper/);
-  assert.doesNotMatch(node, /_save_temp_audio/);
+  const render = source("audio_render.py");
+
+  assert.match(node, /AudioSaveHelper\.save_audio/);
+  assert.match(node, /"m3ss_v2": \[metadata\]/);
+  assert.match(node, /return io\.NodeOutput\(rendered_audio, ui=ui_payload\)/);
+  assert.doesNotMatch(node, /\.clone\(/);
+  assert.doesNotMatch(render, /\.clone\(/);
   assert.doesNotMatch(node, /normalized_edit_json/);
   assert.doesNotMatch(node, /state_b64/);
-  assert.doesNotMatch(node, /"m3ss_v2"/);
-  assert.doesNotMatch(node, /ui_payload/);
-  assert.match(node, /sources, infos = collect_sources\(audio\)/);
-  assert.match(node, /normalize_edit_project\(edit_json, infos\)/);
-  assert.match(node, /rendered_audio = \{/);
-  assert.match(node, /"waveform": sources\["take-1"\]\["waveform"\]/);
-  assert.match(node, /"sample_rate": infos\[0\]\.sample_rate/);
-  assert.doesNotMatch(node, /render_audio_edit\(/);
-  assert.doesNotMatch(node, /\.clone\(/);
-  assert.match(node, /return io\.NodeOutput\(rendered_audio\)/);
+  assert.match(render, /rendered = waveform\[\.\.\., start:end\]/);
+  assert.match(render, /rendered = rendered \* control\.view\(1, 1, -1\)/);
 });

@@ -198,12 +198,17 @@ def _envelope_amplitude(
 def _apply_pan_balance(waveform: torch.Tensor, pan: float) -> torch.Tensor:
     if abs(pan) < 1e-9 or waveform.shape[1] < 2:
         return waveform
-    result = waveform.clone()
+
+    gains = torch.ones(
+        (1, waveform.shape[1], 1),
+        device=waveform.device,
+        dtype=waveform.dtype,
+    )
     if pan > 0:
-        result[:, 0] *= 1.0 - pan
+        gains[:, 0, :] = 1.0 - pan
     else:
-        result[:, 1] *= 1.0 + pan
-    return result
+        gains[:, 1, :] = 1.0 + pan
+    return waveform * gains
 
 
 def _render_clip(
@@ -216,13 +221,15 @@ def _render_clip(
     end = min(waveform.shape[-1], _seconds_to_sample(clip["source_out"], sample_rate))
     if end <= start:
         raise ValueError(f"Clip {clip['id']!r} resolves to an empty source sample range.")
-    rendered = waveform[..., start:end].clone()
 
+    # Keep neutral clips as a view of the immutable source. Allocate a new full-size
+    # tensor only when an edit actually requires it; never clone the connected AUDIO.
+    rendered = waveform[..., start:end]
     if clip["reverse"]:
         rendered = torch.flip(rendered, dims=(-1,))
 
-    rendered *= _db_to_amplitude(clip["gain_db"], device=rendered.device, dtype=rendered.dtype)
-
+    control: torch.Tensor | None = None
+    gain_db = float(clip["gain_db"])
     envelope = _envelope_amplitude(
         rendered.shape[-1],
         sample_rate,
@@ -231,28 +238,32 @@ def _render_clip(
         rendered.dtype,
         zero_anchors=True,
     )
-    if envelope is not None:
-        rendered *= envelope.view(1, 1, -1)
-
     fade_in_samples = min(rendered.shape[-1], _seconds_to_sample(clip["fade_in"]["duration"], sample_rate))
-    if fade_in_samples > 0:
-        rendered[..., :fade_in_samples] *= _fade_curve(
-            fade_in_samples,
-            True,
-            clip["fade_in"]["curve"],
-            rendered.device,
-            rendered.dtype,
-        ).view(1, 1, -1)
-
     fade_out_samples = min(rendered.shape[-1], _seconds_to_sample(clip["fade_out"]["duration"], sample_rate))
-    if fade_out_samples > 0:
-        rendered[..., -fade_out_samples:] *= _fade_curve(
-            fade_out_samples,
-            False,
-            clip["fade_out"]["curve"],
-            rendered.device,
-            rendered.dtype,
-        ).view(1, 1, -1)
+
+    if abs(gain_db) >= 1e-9 or envelope is not None or fade_in_samples > 0 or fade_out_samples > 0:
+        control = torch.ones((rendered.shape[-1],), device=rendered.device, dtype=rendered.dtype)
+        if abs(gain_db) >= 1e-9:
+            control *= _db_to_amplitude(gain_db, device=rendered.device, dtype=rendered.dtype)
+        if envelope is not None:
+            control *= envelope
+        if fade_in_samples > 0:
+            control[:fade_in_samples] *= _fade_curve(
+                fade_in_samples,
+                True,
+                clip["fade_in"]["curve"],
+                rendered.device,
+                rendered.dtype,
+            )
+        if fade_out_samples > 0:
+            control[-fade_out_samples:] *= _fade_curve(
+                fade_out_samples,
+                False,
+                clip["fade_out"]["curve"],
+                rendered.device,
+                rendered.dtype,
+            )
+        rendered = rendered * control.view(1, 1, -1)
 
     return _apply_pan_balance(rendered, clip["pan"])
 
