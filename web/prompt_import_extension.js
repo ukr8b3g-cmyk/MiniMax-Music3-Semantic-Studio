@@ -44,10 +44,13 @@ function install(node) {
   const open = node.addWidget?.("button", "Import Prompt", null, () => {
     let current;
     try {
-      current = normalizeProject(JSON.parse(projectWidget.value || "{}"));
+      const parsed = JSON.parse(projectWidget.value || "{}");
+      current = normalizeProject(parsed);
     } catch (error) {
-      alert(`Music3 Semantic Studio: cannot import until project_json is valid.\n\n${error}`);
-      return;
+      // Import Prompt is a recovery/editing surface, not a validation gate. A bad
+      // hidden project_json should not prevent the user from importing a new prompt.
+      console.warn("[MiniMax Music3 Semantic Studio] Prompt Import recovered invalid project_json:", error);
+      current = normalizeProject({});
     }
 
     openPromptImporter({
