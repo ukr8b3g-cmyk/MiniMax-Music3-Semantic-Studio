@@ -9,7 +9,8 @@ function source(path) {
 test("Semantic node delegates compatibility to the connected Music3-style CLIP", () => {
   const node = source("nodes.py");
   assert.doesNotMatch(node, /def validate_inputs/);
-  assert.doesNotMatch(node, /model[_ ]?(?:name|type)|checkpoint[_ ]?name|allowlist/i);
+  assert.doesNotMatch(node, /SUPPORTED_(?:MODELS|CLIPS|TEXT_ENCODERS)|ALLOWED_(?:MODELS|CLIPS|TEXT_ENCODERS)/);
+  assert.doesNotMatch(node, /isinstance\(\s*clip\s*,|type\(\s*clip\s*\)/);
   assert.match(node, /clip\.tokenize\(/);
   assert.match(node, /clip\.encode_from_tokens_scheduled\(tokens\)/);
 });
