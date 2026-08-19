@@ -1,0 +1,41 @@
+name: Materialize README screenshots
+
+on:
+  push:
+    branches: [docs/readme-all-screenshots]
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    if: ${{ !contains(github.event.head_commit.message, '[skip readme images]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: docs/readme-all-screenshots
+      - name: Decode screenshot archive
+        shell: bash
+        run: |
+          python - <<'PY'
+          import base64, pathlib, zipfile
+          src = pathlib.Path('.readme_images.zip.b64')
+          archive = pathlib.Path('.readme_images.zip')
+          archive.write_bytes(base64.b64decode(src.read_text().strip()))
+          with zipfile.ZipFile(archive) as z:
+              z.extractall('.')
+          src.unlink()
+          archive.unlink()
+          PY
+      - name: Commit screenshots
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/images .readme_images.zip.b64
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "Add individual README screenshots [skip readme images]"
+          git push origin HEAD:docs/readme-all-screenshots
