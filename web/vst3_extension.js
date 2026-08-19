@@ -58,6 +58,8 @@ function mountPanel(dialog) {
   side.dataset.m3ssVst3Phase2dMounted = "1";
   ensureStyles();
 
+  const dialogNode = resolveDialogNode();
+  if (dialogNode) dialog._m3ssVst3Node = dialogNode;
   dialog._m3ssSingleAudioContext?.();
   const contextProvider = () => dialog._m3ssSingleAudioContext?.() || inspectorBody._m3ssEffectsContext || null;
   const panel = createVst3ReleasePanel({ contextProvider });
@@ -80,7 +82,10 @@ function mountPanel(dialog) {
     if (effectsTab && effectsTab.nextElementSibling !== vstTab) effectsTab.after(vstTab);
   };
   placeVstTab();
-  const tabObserver = new MutationObserver(placeVstTab);
+  const tabObserver = new MutationObserver(() => {
+    if (!dialog.isConnected) return tabObserver.disconnect();
+    placeVstTab();
+  });
   tabObserver.observe(tabs, { childList: true });
 
   const showVst3 = () => {
@@ -147,22 +152,12 @@ function mountPanel(dialog) {
   });
 }
 
-function scanRoot(root = document) {
-  for (const dialog of root.querySelectorAll?.(".m3ssv2-dialog") || []) mountPanel(dialog);
-  if (root.matches?.(".m3ssv2-dialog")) mountPanel(root);
+if (typeof document !== "undefined") {
+  document.addEventListener("m3ss-audio-workspace-ready", (event) => {
+    const dialog = event.target?.closest?.(".m3ssv2-dialog") || event.target;
+    if (dialog?.matches?.(".m3ssv2-dialog")) mountPanel(dialog);
+  });
 }
-
-const observer = new MutationObserver((records) => {
-  for (const record of records) {
-    for (const node of record.addedNodes) {
-      if (!(node instanceof Element)) continue;
-      if (node.matches?.(".m3ssv2-dialog") || node.querySelector?.(".m3ssv2-dialog")) scanRoot(node);
-    }
-  }
-});
-
-observer.observe(document.documentElement, { childList: true, subtree: true });
-scanRoot();
 
 app.registerExtension({
   name: BRIDGE_EXTENSION,

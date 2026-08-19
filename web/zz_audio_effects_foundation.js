@@ -12,6 +12,12 @@ const STYLE_ID = "m3ss-v2-workspace-polish";
 const AUDIO_HEIGHT_KEY = "m3ss-layout:audio-track-height";
 
 const tr = (en, ja) => currentUiLocale() === "ja" ? ja : en;
+const el = (tag, className = "", text = "") => {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text) node.textContent = text;
+  return node;
+};
 
 function ensureStyles() {
   if (document.getElementById(STYLE_ID)) return;
@@ -28,18 +34,6 @@ function findOpenEditorButton(node) {
     const text = String(widget.label || widget.name || "");
     return text === "Open Audio Editor" || text === "オーディオエディターを開く";
   }) || null;
-}
-
-function wrapEmptyEditor(node) {
-  if (!node || nodeClass(node) !== NODE_ID || node[NODE_WRAPPED]) return;
-  const open = findOpenEditorButton(node);
-  if (!open?.callback) return;
-  node[NODE_WRAPPED] = true;
-  const original = open.callback;
-  open.callback = function (...args) {
-    if (node._m3ssV2Output?.takes?.length) return original.apply(this, args);
-    return openEmptyAudioEditor(node, node._m3ssV2Compact);
-  };
 }
 
 function previewTakeCount(dialog) {
@@ -154,13 +148,13 @@ function polishSingleAudioChrome(dialog) {
 }
 
 function installDialog(dialog) {
-  if (!dialog || dialog.dataset.m3ssEmptyEditor === "1" || dialog.dataset[DIALOG_INSTALLED] === "1") return;
+  if (!dialog || dialog.dataset.m3ssEmptyEditor === "1" || dialog.dataset[DIALOG_INSTALLED] === "1") return false;
   const tabs = dialog.querySelector(".m3ssv2-inspector-tabs");
   const body = dialog.querySelector(".m3ssv2-inspector-body");
-  if (!tabs || !body) return;
+  if (!tabs || !body) return false;
 
   const originals = [...tabs.querySelectorAll(".m3ssv2-inspector-tab")].slice(0, 5);
-  if (originals.length < 5) return;
+  if (originals.length < 5) return false;
   const [trackTab, clipTab, envelopeTab, masterTab] = originals;
 
   ensureStyles();
@@ -317,18 +311,34 @@ function installDialog(dialog) {
     renderActive();
   };
 
-  queueMicrotask(renderActive);
+  queueMicrotask(() => {
+    renderActive();
+    if (dialog.isConnected) dialog.dispatchEvent(new CustomEvent("m3ss-audio-workspace-ready", { bubbles: true }));
+  });
+  return true;
 }
 
-function scanDialogs() {
-  for (const dialog of document.querySelectorAll(".m3ssv2-dialog")) installDialog(dialog);
+function installNewestDialog(attempt = 0) {
+  const dialogs = [...document.querySelectorAll(".m3ssv2-dialog")];
+  const dialog = dialogs.at(-1);
+  if (dialog && installDialog(dialog)) return;
+  if (dialog?.dataset?.[DIALOG_INSTALLED] === "1") return;
+  if (attempt < 16) requestAnimationFrame(() => installNewestDialog(attempt + 1));
 }
 
-if (typeof document !== "undefined") {
-  ensureStyles();
-  scanDialogs();
-  const observer = new MutationObserver(scanDialogs);
-  observer.observe(document.body, { childList: true, subtree: true });
+function wrapEmptyEditor(node) {
+  if (!node || nodeClass(node) !== NODE_ID || node[NODE_WRAPPED]) return;
+  const open = findOpenEditorButton(node);
+  if (!open?.callback) return;
+  node[NODE_WRAPPED] = true;
+  const original = open.callback;
+  open.callback = function (...args) {
+    const result = node._m3ssV2Output?.takes?.length
+      ? original.apply(this, args)
+      : openEmptyAudioEditor(node, node._m3ssV2Compact);
+    queueMicrotask(() => installNewestDialog());
+    return result;
+  };
 }
 
 app.registerExtension({
@@ -337,5 +347,6 @@ app.registerExtension({
     if (nodeClass(node) !== NODE_ID) return;
     queueMicrotask(() => wrapEmptyEditor(node));
     setTimeout(() => wrapEmptyEditor(node), 80);
+    setTimeout(() => wrapEmptyEditor(node), 260);
   },
 });

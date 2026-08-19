@@ -627,10 +627,10 @@ def apply_effect_chain(
         effect_type = str(raw.get("type") or "")
         if effect_type not in SUPPORTED_EFFECTS:
             label = effect_type or str(raw.get("id") or "unknown")
-            raise ValueError(
-                f"{owner} has enabled unsupported effect {label!r}; "
-                "V2.1-C supports Gain, Filters, EQ, Compressor, Limiter, Stereo Width, Reverb, and Delay."
+            print(
+                f"[MiniMax Music3 Semantic Studio] {owner}: bypassing unsupported effect {label!r}."
             )
+            continue
         if effect_type == "gain":
             result = result * _db_to_amp(_param(raw, "gain_db", -24.0, 24.0))
         elif effect_type == "high_pass":

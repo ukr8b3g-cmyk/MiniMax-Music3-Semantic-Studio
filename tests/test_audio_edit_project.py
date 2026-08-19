@@ -5,6 +5,8 @@ import pytest
 from audio_edit_project import (
     DEFAULT_EDIT_JSON,
     EDIT_SCHEMA_VERSION,
+    MAX_CLIPS,
+    MAX_TRACKS,
     SourceInfo,
     dump_edit_project,
     load_edit_project,
@@ -66,7 +68,7 @@ def test_connected_take_records_are_explicit_and_stale_take_is_removed():
     assert project["takes"][0]["name"] == "Lead"
 
 
-def test_missing_connected_take_reference_fails_closed():
+def test_missing_legacy_take_reference_falls_back_to_primary_audio():
     raw = json.loads(DEFAULT_EDIT_JSON)
     raw["tracks"][0]["clips"] = [
         {
@@ -78,8 +80,21 @@ def test_missing_connected_take_reference_fails_closed():
         }
     ]
 
-    with pytest.raises(ValueError, match="not connected"):
-        normalize_edit_project(raw, [source()])
+    project = normalize_edit_project(raw, [source()])
+    clip = project["tracks"][0]["clips"][0]
+    assert clip["source_id"] == "take-1"
+    assert clip["source_out"] == 1.0
+
+
+def test_empty_or_reversed_source_range_is_repaired():
+    raw = json.loads(DEFAULT_EDIT_JSON)
+    raw["tracks"][0]["clips"] = [
+        {"id": "empty", "source_id": "take-1", "source_in": 1.5, "source_out": 1.0},
+    ]
+    project = normalize_edit_project(raw, [source(duration=2.0)])
+    clip = project["tracks"][0]["clips"][0]
+    assert clip["source_in"] == 1.5
+    assert clip["source_out"] == 2.0
 
 
 def test_clip_and_track_values_are_clamped_and_envelopes_sorted():
@@ -181,9 +196,31 @@ def test_schema_1_migrates_without_changing_clip_state():
     assert project["reserved"]["keep"] is True
 
 
-def test_invalid_json_and_schema_are_actionable():
+def test_unknown_edit_schema_is_interpreted_and_preserved():
+    loaded = load_edit_project({"edit_schema_version": 99, "future": {"keep": True}})
+    assert loaded["edit_schema_version"] == EDIT_SCHEMA_VERSION
+    assert loaded["reserved"]["source_edit_schema_version"] == 99
+    assert loaded["future"]["keep"] is True
+
+
+def test_track_and_clip_limits_truncate_instead_of_stopping():
+    raw = json.loads(DEFAULT_EDIT_JSON)
+    template = raw["tracks"][0]
+    raw["tracks"] = []
+    for track_index in range(MAX_TRACKS + 5):
+        track = dict(template)
+        track["id"] = f"track-{track_index}"
+        track["clips"] = [
+            {"id": f"c-{track_index}-{clip_index}", "source_id": "take-1", "source_in": 0, "source_out": 1}
+            for clip_index in range(40)
+        ]
+        raw["tracks"].append(track)
+
+    project = normalize_edit_project(raw, [source(duration=2)])
+    assert len(project["tracks"]) <= MAX_TRACKS
+    assert sum(len(track["clips"]) for track in project["tracks"]) <= MAX_CLIPS
+
+
+def test_invalid_json_remains_actionable_to_protect_persistent_edits():
     with pytest.raises(ValueError, match="audio edit JSON is invalid"):
         load_edit_project("{bad")
-
-    with pytest.raises(ValueError, match="Unsupported audio edit_schema_version"):
-        load_edit_project({"edit_schema_version": 99})

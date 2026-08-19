@@ -111,11 +111,7 @@ def _unique_id(raw: Any, fallback: str, seen: set[str]) -> str:
 
 
 def _migrate_v1_to_v2(raw: dict[str, Any]) -> dict[str, Any]:
-    """Migrate V2.0 clip-centric edit state to the unified track-centric schema.
-
-    Legacy clip gain/pan/mute/envelope fields remain intact. Neutral track controls
-    are added so old projects render identically after migration.
-    """
+    """Migrate legacy clip-centric state while preserving unknown fields."""
 
     migrated = deepcopy(raw)
     tracks = migrated.get("tracks")
@@ -149,7 +145,12 @@ def _migrate_v1_to_v2(raw: dict[str, Any]) -> dict[str, Any]:
 
 
 def load_edit_project(edit_json: str | dict[str, Any] | None) -> dict[str, Any]:
-    """Parse edit state, migrate schema 1, and preserve unknown fields."""
+    """Parse edit state, migrate known legacy state, and preserve unknown fields.
+
+    Invalid JSON remains a hard error because guessing over corrupted persistent edit
+    data could silently destroy user edits. Unknown schema versions are not rejected:
+    known fields are interpreted conservatively and the source version is retained.
+    """
 
     if isinstance(edit_json, dict):
         raw = deepcopy(edit_json)
@@ -172,21 +173,22 @@ def load_edit_project(edit_json: str | dict[str, Any] | None) -> dict[str, Any]:
     if version == LEGACY_EDIT_SCHEMA_VERSION:
         return _migrate_v1_to_v2(raw)
     if version != EDIT_SCHEMA_VERSION:
-        raise ValueError(
-            f"Unsupported audio edit_schema_version={version!r}; this build supports versions 1 and {EDIT_SCHEMA_VERSION}."
-        )
+        reserved = raw.get("reserved") if isinstance(raw.get("reserved"), dict) else {}
+        reserved = deepcopy(reserved)
+        reserved.setdefault("source_edit_schema_version", version)
+        raw["reserved"] = reserved
     raw["edit_schema_version"] = EDIT_SCHEMA_VERSION
     return raw
 
 
 def _source_lookup(source_infos: Iterable[SourceInfo]) -> dict[str, SourceInfo]:
-    lookup = {source.id: source for source in source_infos}
+    # Public V1.0 exposes one AUDIO input, but keep legacy callers permissive.
+    sources = list(source_infos)[:MAX_TAKES]
+    lookup = {source.id: source for source in sources}
     if not lookup:
-        raise ValueError("Music3 Semantic Studio Audio Editor requires at least the primary audio input.")
+        raise ValueError("Music3 Semantic Studio Audio Editor requires the primary audio input.")
     if "take-1" not in lookup:
         raise ValueError("Primary audio source must be registered as take-1.")
-    if len(lookup) > MAX_TAKES:
-        raise ValueError(f"V2 supports at most {MAX_TAKES} connected takes.")
     return lookup
 
 
@@ -201,7 +203,7 @@ def _normalize_take_records(project: dict[str, Any], source_infos: list[SourceIn
                     existing_by_id[key] = deepcopy(item)
 
     takes: list[dict[str, Any]] = []
-    for source in source_infos:
+    for source in source_infos[:MAX_TAKES]:
         item = existing_by_id.get(source.id, {})
         item.update(
             {
@@ -252,7 +254,6 @@ def _normalize_envelope(value: Any, duration: float) -> list[dict[str, float]]:
         time = _clamp(_float(item.get("time"), 0.0), 0.0, max(0.0, duration))
         gain_db = _clamp(_float(item.get("gain_db"), 0.0), -60.0, 24.0)
         points.append({"time": time, "gain_db": gain_db})
-    # Last point at a duplicate time wins. This keeps drag updates deterministic.
     deduped: dict[float, dict[str, float]] = {}
     for point in points:
         deduped[round(point["time"], 9)] = point
@@ -288,16 +289,22 @@ def _normalize_clip(
     source_id = _text(clip.get("source_id")) or "take-1"
     source = sources.get(source_id)
     if source is None:
-        raise ValueError(
-            f"Clip {clip_id!r} references {source_id!r}, but that take is not connected to the V2 node."
-        )
+        source_id = "take-1"
+        source = sources[source_id]
 
     source_in = _clamp(_float(clip.get("source_in"), 0.0), 0.0, source.duration)
     source_out = _clamp(_float(clip.get("source_out"), source.duration), 0.0, source.duration)
     if source_out <= source_in:
-        raise ValueError(
-            f"Clip {clip_id!r} has an empty source range ({source_in:.6f}s to {source_out:.6f}s)."
-        )
+        if source.duration > source_in:
+            source_out = source.duration
+        else:
+            source_in = 0.0
+            source_out = source.duration
+    # AUDIO validation guarantees at least one sample, so duration should be > 0.
+    # Keep a tiny positive range as a last-resort guard against pathological metadata.
+    if source_out <= source_in:
+        source_in = 0.0
+        source_out = max(source.duration, 1e-9)
     clip_duration = source_out - source_in
 
     normalized.update(
@@ -313,7 +320,6 @@ def _normalize_clip(
             "reverse": _bool(clip.get("reverse"), False),
             "fade_in": _normalize_fade(clip.get("fade_in"), clip_duration),
             "fade_out": _normalize_fade(clip.get("fade_out"), clip_duration),
-            # Kept for schema-1 compatibility and advanced clip-level automation.
             "gain_envelope": _normalize_envelope(clip.get("gain_envelope"), clip_duration),
         }
     )
@@ -324,10 +330,10 @@ def normalize_edit_project(
     edit_json: str | dict[str, Any] | None,
     source_infos: Iterable[SourceInfo],
 ) -> dict[str, Any]:
-    """Normalize an edit document against the currently connected source takes."""
+    """Normalize edit state against connected audio without rejecting repairable state."""
 
     project = load_edit_project(edit_json)
-    source_list = list(source_infos)
+    source_list = list(source_infos)[:MAX_TAKES]
     sources = _source_lookup(source_list)
 
     project.setdefault("project_id", "")
@@ -350,38 +356,35 @@ def normalize_edit_project(
     tracks_raw = project.get("tracks")
     if not isinstance(tracks_raw, list) or not tracks_raw:
         tracks_raw = deepcopy(DEFAULT_EDIT_PROJECT["tracks"])
-    if len(tracks_raw) > MAX_TRACKS:
-        raise ValueError(f"V2 supports at most {MAX_TRACKS} edit tracks.")
+    tracks_raw = tracks_raw[:MAX_TRACKS]
 
     tracks: list[dict[str, Any]] = []
     seen_track_ids: set[str] = set()
     total_clips = 0
     for track_index, track_raw in enumerate(tracks_raw):
         if not isinstance(track_raw, dict):
-            raise ValueError(f"tracks[{track_index}] must be a JSON object.")
+            continue
         track = deepcopy(track_raw)
         track_id = _unique_id(track.get("id"), f"track-{track_index + 1}", seen_track_ids)
         track["id"] = track_id
         track["name"] = _text(track.get("name")) or ("Main Track" if track_index == 0 else f"Track {track_index + 1}")
 
         clips_raw = track.get("clips")
-        if clips_raw is None:
-            clips_raw = []
         if not isinstance(clips_raw, list):
-            raise ValueError(f"Track {track_id!r} clips must be a JSON array.")
+            clips_raw = []
 
         if track_index == 0 and not clips_raw:
             clips_raw = [_default_clip(sources["take-1"])]
 
+        remaining = max(0, MAX_CLIPS - total_clips)
+        clips_raw = clips_raw[:remaining]
         seen_clip_ids: set[str] = set()
         clips: list[dict[str, Any]] = []
         for clip_index, clip_raw in enumerate(clips_raw):
             if not isinstance(clip_raw, dict):
-                raise ValueError(f"Track {track_id!r} clip {clip_index} must be a JSON object.")
+                continue
             clips.append(_normalize_clip(clip_raw, clip_index, sources, seen_clip_ids))
         total_clips += len(clips)
-        if total_clips > MAX_CLIPS:
-            raise ValueError(f"V2 supports at most {MAX_CLIPS} clips across all tracks.")
 
         track_duration = max(
             (
@@ -403,6 +406,15 @@ def normalize_edit_project(
             }
         )
         tracks.append(track)
+        if total_clips >= MAX_CLIPS:
+            break
+
+    if not tracks:
+        track = deepcopy(DEFAULT_EDIT_PROJECT["tracks"][0])
+        track["clips"] = [_default_clip(sources["take-1"])]
+        tracks = [track]
+    elif not tracks[0].get("clips"):
+        tracks[0]["clips"] = [_default_clip(sources["take-1"])]
     project["tracks"] = tracks
 
     master = project.get("master")

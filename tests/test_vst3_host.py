@@ -70,7 +70,20 @@ def test_mixed_builtin_and_vst3_chain_keeps_rack_order():
         {'id': 'gain-2', 'type': 'gain', 'enabled': True, 'params': {'gain_db': 6.020599913}},
     ]
     result = apply_effect_chain(audio, 48000, effects, owner='Track', vst3_loader=fake_loader)
-    # x2 -> x0.5 -> x2 = original x2
+    assert torch.allclose(result, torch.full_like(audio, 0.5), atol=1e-5)
+
+
+def test_queued_chain_bypasses_failed_vst3_and_continues():
+    audio = torch.full((1, 1, 8), 0.25)
+    effects = [
+        vst_effect(),
+        {'id': 'gain', 'type': 'gain', 'enabled': True, 'params': {'gain_db': 6.020599913}},
+    ]
+
+    def broken_loader(*_):
+        raise RuntimeError('custom plugin failed')
+
+    result = apply_effect_chain(audio, 48000, effects, owner='Track', vst3_loader=broken_loader)
     assert torch.allclose(result, torch.full_like(audio, 0.5), atol=1e-5)
 
 

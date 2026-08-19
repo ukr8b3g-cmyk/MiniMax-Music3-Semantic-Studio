@@ -17,9 +17,9 @@ from .semantic_project import DEFAULT_PROJECT_JSON, compile_project
 class MiniMaxMusic3SemanticStudio(io.ComfyNode):
     """V1 semantic timeline compiler + MiniMax Music3 conditioning encoder.
 
-    The node intentionally leaves the sampler, diffusion model, latent creation,
-    and VAE decode path untouched. V2/V3 can extend the project JSON without
-    changing the V1 conditioning contract.
+    Compatibility is deliberately decided by the connected CLIP implementation at
+    tokenize/encode time. Semantic Studio does not preflight model names, TE types,
+    checkpoints, or prompt quality; this mirrors the permissive core Music3 path.
     """
 
     @classmethod
@@ -31,7 +31,7 @@ class MiniMaxMusic3SemanticStudio(io.ComfyNode):
             category="model/conditioning/minimax music",
             description=(
                 "Design MiniMax Music 3 structure, lyrics, arrangement, vocal intent, and energy on a semantic timeline. "
-                "V1 compiles the project into MiniMax Music3 caption/lyrics conditioning without patching ComfyUI core."
+                "V1 compiles the project into caption/lyrics conditioning and otherwise follows the connected Music3-compatible CLIP implementation."
             ),
             inputs=[
                 io.Clip.Input("clip"),
@@ -42,7 +42,7 @@ class MiniMaxMusic3SemanticStudio(io.ComfyNode):
                     multiline=True,
                     dynamic_prompts=False,
                     advanced=True,
-                    tooltip="Versioned Semantic Studio project. Normally edited with the Open Semantic Studio button.",
+                    tooltip="Semantic Studio project state. Recoverable malformed or future fields are normalized at execution time.",
                 ),
                 io.Int.Input(
                     "seed",
@@ -60,7 +60,7 @@ class MiniMaxMusic3SemanticStudio(io.ComfyNode):
                     min=0.04,
                     max=max_seconds,
                     step=0.04,
-                    tooltip="Hard generation ceiling. Saving the Studio timeline synchronizes this to the section-duration total.",
+                    tooltip="Maximum duration in seconds; the model can end the song earlier. Saving the Studio timeline can synchronize this to the section-duration total.",
                 ),
                 io.Float.Input(
                     "cfg_scale",
@@ -86,14 +86,6 @@ class MiniMaxMusic3SemanticStudio(io.ComfyNode):
         )
 
     @classmethod
-    def validate_inputs(cls, project_json, **kwargs) -> bool | str:
-        try:
-            compile_project(project_json)
-        except ValueError as exc:
-            return str(exc)
-        return True
-
-    @classmethod
     def execute(cls, clip, project_json, seed, max_duration, cfg_scale, top_k) -> io.NodeOutput:
         compiled = compile_project(project_json)
 
@@ -101,6 +93,9 @@ class MiniMaxMusic3SemanticStudio(io.ComfyNode):
             MAX_AUDIO_FRAMES,
             max(1, round(max_duration * AUDIO_FRAMES_PER_SECOND)),
         )
+        # Intentionally no model/TE/name/version allowlist or compatibility gate.
+        # If a custom implementation supports the Music3 tokenize/encode contract,
+        # it is allowed to run; genuine incompatibility surfaces from the core call.
         tokens = clip.tokenize(
             compiled.caption,
             lyrics=compiled.lyrics,

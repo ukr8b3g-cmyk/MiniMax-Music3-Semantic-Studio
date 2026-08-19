@@ -22,6 +22,29 @@ SECTION_TYPES = (
     "Outro",
 )
 
+SECTION_ALIASES = {
+    "intro": "Intro",
+    "opening": "Intro",
+    "verse": "Verse",
+    "pre-chorus": "Pre-Chorus",
+    "prechorus": "Pre-Chorus",
+    "chorus": "Chorus",
+    "hook": "Chorus",
+    "refrain": "Chorus",
+    "post-chorus": "Post-Chorus",
+    "postchorus": "Post-Chorus",
+    "bridge": "Bridge",
+    "break": "Instrumental",
+    "breakdown": "Instrumental",
+    "instrumental": "Instrumental",
+    "instrumental break": "Instrumental",
+    "solo": "Solo",
+    "guitar solo": "Solo",
+    "piano solo": "Solo",
+    "outro": "Outro",
+    "ending": "Outro",
+}
+
 DEFAULT_PROJECT: dict[str, Any] = {
     "schema_version": SCHEMA_VERSION,
     "project_id": "",
@@ -136,8 +159,6 @@ DEFAULT_PROJECT: dict[str, Any] = {
             },
         ]
     },
-    # Reserved namespaces. V1 does not execute these fields, but preserving them now
-    # lets V2/V3 evolve the project format without replacing the editor model.
     "audio_edits": [],
     "takes": [],
     "conditioning_tracks": [],
@@ -188,8 +209,47 @@ def _normalize_string_list(value: Any) -> list[str]:
     return result
 
 
+def _minimal_section() -> dict[str, Any]:
+    return {
+        "id": "section-1",
+        "type": "Instrumental",
+        "label": "Instrumental",
+        "duration": 16.0,
+        "energy": 0.5,
+        "lyrics": "",
+        "instruments": [],
+        "vocal": "",
+        "directives": "",
+    }
+
+
+def _minimal_project() -> dict[str, Any]:
+    project = deepcopy(DEFAULT_PROJECT)
+    project["global"].update(
+        {
+            "title": "",
+            "genre": "",
+            "subgenres": [],
+            "key": "",
+            "scale": "",
+            "mood": "",
+            "production": "",
+            "vocal": {
+                "mode": "instrumental",
+                "gender": "",
+                "timbre": "",
+                "delivery": "",
+                "harmony": "",
+                "effects": "",
+            },
+        }
+    )
+    project["timeline"]["sections"] = [_minimal_section()]
+    return project
+
+
 def _merge_defaults(project: dict[str, Any]) -> dict[str, Any]:
-    """Fill V1-required fields while preserving unknown future fields."""
+    """Fill fields needed by the compiler while preserving unknown future fields."""
     result = deepcopy(project)
     defaults = deepcopy(DEFAULT_PROJECT)
 
@@ -220,54 +280,77 @@ def _merge_defaults(project: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-def load_project(project_json: str | dict[str, Any]) -> dict[str, Any]:
+def _normalize_section_type(value: Any) -> str:
+    text = _as_text(value)
+    if text in SECTION_TYPES:
+        return text
+    lowered = text.casefold().replace("_", "-").strip()
+    lowered = re.sub(r"\s+", " ", lowered)
+    lowered = re.sub(r"\s*(?:#?\d+|\d+(?:st|nd|rd|th))\s*$", "", lowered).strip()
+    if lowered.startswith("final chorus"):
+        return "Chorus"
+    if lowered in SECTION_ALIASES:
+        return SECTION_ALIASES[lowered]
+    for alias, section_type in SECTION_ALIASES.items():
+        if lowered.startswith(alias + " "):
+            return section_type
+    return "Instrumental"
+
+
+def _load_project(project_json: str | dict[str, Any], warnings: list[str] | None = None) -> dict[str, Any]:
+    def warn(message: str) -> None:
+        if warnings is not None:
+            warnings.append(message)
+
     if isinstance(project_json, dict):
-        raw = deepcopy(project_json)
+        raw: Any = deepcopy(project_json)
+    elif not isinstance(project_json, str) or not project_json.strip():
+        raw = _minimal_project()
+        warn("Empty project state was replaced with a minimal instrumental project.")
     else:
-        if not isinstance(project_json, str) or not project_json.strip():
-            raw = deepcopy(DEFAULT_PROJECT)
-        else:
-            try:
-                raw = json.loads(project_json)
-            except json.JSONDecodeError as exc:
-                raise ValueError(f"Semantic Studio project JSON is invalid: {exc.msg} at line {exc.lineno} column {exc.colno}") from exc
+        try:
+            raw = json.loads(project_json)
+        except Exception:
+            raw = _minimal_project()
+            warn("Invalid project JSON was ignored for this run and a minimal project was used.")
 
     if not isinstance(raw, dict):
-        raise ValueError("Semantic Studio project JSON must contain a JSON object at the top level.")
+        raw = _minimal_project()
+        warn("Non-object project state was ignored for this run and a minimal project was used.")
 
     version = raw.get("schema_version", SCHEMA_VERSION)
     if version != SCHEMA_VERSION:
-        raise ValueError(
-            f"Unsupported Semantic Studio schema_version={version!r}; this build supports schema_version={SCHEMA_VERSION}."
-        )
-
+        reserved = raw.get("reserved") if isinstance(raw.get("reserved"), dict) else {}
+        reserved = deepcopy(reserved)
+        reserved.setdefault("source_schema_version", version)
+        raw["reserved"] = reserved
+        warn(f"Unknown schema_version={version!r} was interpreted using schema {SCHEMA_VERSION} fields where possible.")
     raw["schema_version"] = SCHEMA_VERSION
-    project = _merge_defaults(raw)
 
+    project = _merge_defaults(raw)
     timeline = project["timeline"]
     sections = timeline.get("sections")
     if not isinstance(sections, list):
-        raise ValueError("timeline.sections must be a JSON array.")
-    if not sections:
-        raise ValueError("Semantic Studio requires at least one timeline section.")
+        sections = []
+        warn("timeline.sections was not an array and was replaced with a minimal section.")
     if len(sections) > MAX_SECTIONS:
-        raise ValueError(f"Semantic Studio supports at most {MAX_SECTIONS} sections in V1.")
+        warn(f"Only the first {MAX_SECTIONS} timeline sections were used.")
+        sections = sections[:MAX_SECTIONS]
 
     normalized_sections: list[dict[str, Any]] = []
     for index, section in enumerate(sections):
         if not isinstance(section, dict):
-            raise ValueError(f"timeline.sections[{index}] must be a JSON object.")
+            warn(f"timeline.sections[{index}] was not an object and was skipped.")
+            continue
 
-        section_type = _as_text(section.get("type")) or "Verse"
-        if section_type not in SECTION_TYPES:
-            raise ValueError(
-                f"timeline.sections[{index}].type={section_type!r} is unsupported. "
-                f"Expected one of: {', '.join(SECTION_TYPES)}"
-            )
+        original_type = _as_text(section.get("type"))
+        section_type = _normalize_section_type(original_type or "Instrumental")
+        if original_type and section_type != original_type:
+            warn(f"timeline.sections[{index}].type={original_type!r} was interpreted as {section_type!r}.")
 
         duration = _clamp(_as_float(section.get("duration"), 16.0), 0.5, 360.0)
         energy = _clamp(_as_float(section.get("energy"), 0.5), 0.0, 1.0)
-        label = _as_text(section.get("label")) or section_type
+        label = _as_text(section.get("label")) or original_type or section_type
         section_id = _as_text(section.get("id")) or f"section-{index + 1}"
 
         normalized = deepcopy(section)
@@ -286,6 +369,9 @@ def load_project(project_json: str | dict[str, Any]) -> dict[str, Any]:
         )
         normalized_sections.append(normalized)
 
+    if not normalized_sections:
+        normalized_sections = [_minimal_section()]
+        warn("No usable timeline sections were present, so a minimal Instrumental section was used.")
     timeline["sections"] = normalized_sections
 
     global_data = project["global"]
@@ -307,9 +393,13 @@ def load_project(project_json: str | dict[str, Any]) -> dict[str, Any]:
     return project
 
 
+def load_project(project_json: str | dict[str, Any]) -> dict[str, Any]:
+    return _load_project(project_json)
+
+
 def project_duration(project: dict[str, Any]) -> float:
     sections = project.get("timeline", {}).get("sections", [])
-    return round(sum(_as_float(section.get("duration"), 0.0) for section in sections), 2)
+    return round(sum(_as_float(section.get("duration"), 0.0) for section in sections if isinstance(section, dict)), 2)
 
 
 def _format_time(seconds: float) -> str:
@@ -333,26 +423,11 @@ def _energy_phrase(energy: float) -> str:
 
 
 def _energy_arc(sections: list[dict[str, Any]]) -> str:
-    if not sections:
-        return ""
-    compact = []
-    for section in sections:
-        compact.append(f"{section['label']} {_energy_phrase(section['energy'])}")
-    return "; then ".join(compact)
+    return "; then ".join(f"{section['label']} {_energy_phrase(section['energy'])}" for section in sections)
 
 
 def _canonical_lyric_tag(section_type: str) -> str:
-    return {
-        "Intro": "Intro",
-        "Verse": "Verse",
-        "Pre-Chorus": "Pre-Chorus",
-        "Chorus": "Chorus",
-        "Post-Chorus": "Post-Chorus",
-        "Bridge": "Bridge",
-        "Instrumental": "Instrumental",
-        "Solo": "Solo",
-        "Outro": "Outro",
-    }.get(section_type, section_type)
+    return section_type if section_type in SECTION_TYPES else "Instrumental"
 
 
 def _strip_leading_section_tags(lyrics: str) -> str:
@@ -363,11 +438,11 @@ def _strip_leading_section_tags(lyrics: str) -> str:
 
 
 def compile_project(project_json: str | dict[str, Any]) -> CompiledProject:
-    project = load_project(project_json)
+    warnings: list[str] = []
+    project = _load_project(project_json, warnings)
     global_data = project["global"]
     vocal = global_data["vocal"]
     sections = project["timeline"]["sections"]
-    warnings: list[str] = []
 
     metadata_parts: list[str] = []
     if global_data["genre"]:
@@ -375,7 +450,8 @@ def compile_project(project_json: str | dict[str, Any]) -> CompiledProject:
         if global_data["subgenres"]:
             genre += f" with {', '.join(global_data['subgenres'])} influences"
         metadata_parts.append(f"Genre: {genre}.")
-    metadata_parts.append(f"Tempo target: approximately {global_data['bpm']} BPM in {global_data['meter']} meter.")
+    if global_data["bpm"]:
+        metadata_parts.append(f"Tempo target: approximately {global_data['bpm']} BPM in {global_data['meter']} meter.")
     if global_data["key"]:
         key_text = global_data["key"]
         if global_data["scale"]:
@@ -383,18 +459,15 @@ def compile_project(project_json: str | dict[str, Any]) -> CompiledProject:
         metadata_parts.append(f"Key/scale target: {key_text}.")
     if global_data["mood"]:
         metadata_parts.append(f"Mood and emotional direction: {global_data['mood']}.")
-    metadata_parts.append(f"Energy progression: {_energy_arc(sections)}.")
+    if sections:
+        metadata_parts.append(f"Energy progression: {_energy_arc(sections)}.")
     if global_data["production"]:
         metadata_parts.append(f"Production profile: {global_data['production']}.")
 
     if vocal["mode"].casefold() == "instrumental":
         vocal_text = "Instrumental piece with no lead or backing vocals. Let the instrumental arrangement carry the melodic focus."
     else:
-        vocal_parts: list[str] = []
-        if vocal["gender"]:
-            vocal_parts.append(f"Lead vocal: {vocal['gender']}")
-        else:
-            vocal_parts.append("Lead vocal: present")
+        vocal_parts: list[str] = [f"Lead vocal: {vocal['gender']}" if vocal["gender"] else "Lead vocal: present"]
         if vocal["timbre"]:
             vocal_parts.append(f"timbre {vocal['timbre']}")
         if vocal["delivery"]:
@@ -422,13 +495,14 @@ def compile_project(project_json: str | dict[str, Any]) -> CompiledProject:
         arrangement_lines.append(sentence)
         cursor = end
 
-    caption = "\n\n".join(
-        (
-            "### Global Metadata\n" + " ".join(metadata_parts),
-            "### Vocal Details\n" + vocal_text,
-            "### Arrangement\n" + "\n".join(arrangement_lines),
-        )
-    )
+    caption_blocks: list[str] = []
+    if metadata_parts:
+        caption_blocks.append("### Global Metadata\n" + " ".join(metadata_parts))
+    if vocal_text:
+        caption_blocks.append("### Vocal Details\n" + vocal_text)
+    if arrangement_lines:
+        caption_blocks.append("### Arrangement\n" + "\n".join(arrangement_lines))
+    caption = "\n\n".join(caption_blocks)
 
     lyric_blocks: list[str] = []
     instrumental_global = vocal["mode"].casefold() == "instrumental"

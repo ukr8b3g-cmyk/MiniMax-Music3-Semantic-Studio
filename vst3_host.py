@@ -75,8 +75,6 @@ def _default_loader(path: str, plugin_name: str):
     try:
         return load_plugin(path, **kwargs)
     except Exception as first:
-        # Some single-plugin bundles reject a redundant plugin_name. Retry once
-        # without it, while still preserving multi-plugin support on the first try.
         if plugin_name:
             try:
                 return load_plugin(path, initialization_timeout=10.0)
@@ -187,8 +185,6 @@ def apply_vst3_effect(
 
 
 def effect_chain_tail_samples(effects: Any, sample_rate: int) -> int:
-    # Phase 2B still does not attempt to infer arbitrary VST3 release/reverb tails.
-    # Built-in V2.1 effects keep their existing deterministic tail behavior.
     builtins = [
         effect for effect in (effects if isinstance(effects, list) else [])
         if not isinstance(effect, dict) or str(effect.get("type") or "") != VST3_EFFECT_TYPE
@@ -204,6 +200,13 @@ def apply_effect_chain(
     owner: str,
     vst3_loader: Callable[[str, str], Any] | None = None,
 ) -> torch.Tensor:
+    """Apply the chain permissively.
+
+    Low-level VST3 helpers remain strict for diagnostics and direct callers, but a
+    queued Audio Editor render bypasses an individual VST3 that cannot load,
+    restore, or process. One broken optional effect must not discard usable audio.
+    """
+
     result = waveform
     pending_builtin: list[dict[str, Any]] = []
 
@@ -220,13 +223,20 @@ def apply_effect_chain(
         if str(raw.get("type") or "") == VST3_EFFECT_TYPE:
             flush_builtin()
             if raw.get("enabled", True) is not False:
-                result = apply_vst3_effect(
-                    result,
-                    sample_rate,
-                    raw,
-                    owner=owner,
-                    loader=vst3_loader,
-                )
+                path, plugin_name = _plugin_identity(raw)
+                label = plugin_name or Path(path).stem or str(raw.get("id") or "VST3")
+                try:
+                    result = apply_vst3_effect(
+                        result,
+                        sample_rate,
+                        raw,
+                        owner=owner,
+                        loader=vst3_loader,
+                    )
+                except Exception as exc:
+                    print(
+                        f"[MiniMax Music3 Semantic Studio] {owner}: bypassing VST3 {label!r} after render error: {exc}"
+                    )
         else:
             pending_builtin.append(raw)
     flush_builtin()

@@ -12,9 +12,10 @@ test("V1.0 Audio Editor exposes one AUDIO input while preserving legacy schema i
   assert.match(node, /io\.Audio\.Input\("audio"/);
   assert.doesNotMatch(node, /io\.Audio\.Input\("take_[234]"/);
   assert.doesNotMatch(node, /take_2=None/);
+  assert.doesNotMatch(node, /def validate_inputs/);
   assert.match(node, /collect_sources\(audio\)/);
   assert.match(node, /"takes": source_previews/);
-  assert.match(node, /schema compatibility/);
+  assert.match(node, /future schemas are interpreted where possible/);
 });
 
 test("V1.0 frontend removes user-facing take and Track/Master concepts", () => {
