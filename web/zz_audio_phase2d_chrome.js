@@ -17,7 +17,10 @@ function install(dialog) {
 
   const subtitle = dialog.querySelector(".m3shell-subtitle");
   if (subtitle) {
-    const observer = new MutationObserver(() => compactSubtitle(dialog));
+    const observer = new MutationObserver(() => {
+      if (!dialog.isConnected) return observer.disconnect();
+      compactSubtitle(dialog);
+    });
     observer.observe(subtitle, { childList: true, subtree: true, characterData: true });
   }
 
@@ -40,12 +43,9 @@ function install(dialog) {
   }
 }
 
-function scan() {
-  document.querySelectorAll(".m3ssv2-dialog").forEach(install);
-}
-
 if (typeof document !== "undefined") {
-  scan();
-  const observer = new MutationObserver(scan);
-  observer.observe(document.body, { childList: true, subtree: true });
+  document.addEventListener("m3ss-audio-workspace-ready", (event) => {
+    const dialog = event.target?.closest?.(".m3ssv2-dialog") || event.target;
+    if (dialog?.matches?.(".m3ssv2-dialog")) install(dialog);
+  });
 }
