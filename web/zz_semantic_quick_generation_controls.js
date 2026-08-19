@@ -230,8 +230,10 @@ function installDialogBridge(dialog) {
   ensureQuickControls(dialog);
 }
 
-function scanDialogs() {
-  for (const dialog of document.querySelectorAll(".m3ss-dialog")) installDialogBridge(dialog);
+function installNewestDialogBridge() {
+  const dialogs = document.querySelectorAll(".m3ss-dialog");
+  const dialog = dialogs[dialogs.length - 1];
+  if (dialog) installDialogBridge(dialog);
 }
 
 function wrapOpenWidget(node) {
@@ -243,7 +245,11 @@ function wrapOpenWidget(node) {
     open.callback = (...args) => {
       activeNode = node;
       resetQuickDraft(node);
-      return original(...args);
+      const result = original(...args);
+      queueMicrotask(installNewestDialogBridge);
+      requestAnimationFrame(installNewestDialogBridge);
+      setTimeout(installNewestDialogBridge, 80);
+      return result;
     };
     open._m3ssQuickGenerationWrapped = true;
     node._m3ssQuickGenerationWrapped = true;
@@ -261,9 +267,3 @@ app.registerExtension({
     if (nodeClass(node) === NODE_ID) wrapOpenWidget(node);
   },
 });
-
-if (typeof document !== "undefined") {
-  const observer = new MutationObserver(scanDialogs);
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-  scanDialogs();
-}
