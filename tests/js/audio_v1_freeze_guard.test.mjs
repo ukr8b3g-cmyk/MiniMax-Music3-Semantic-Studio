@@ -37,12 +37,13 @@ test("Audio and Semantic Studio enhancements are mounted from explicit open/dial
   assert.match(seed, /observer\.observe\(dialog, \{ childList: true, subtree: true \}\)/);
 });
 
-test("Queue completion metadata never echoes persistent edit JSON or VST3 state blobs", () => {
+test("diagnostic Queue completion returns AUDIO only with no preview or custom UI payload", () => {
   const node = source("audio_editor_node.py");
+  assert.doesNotMatch(node, /AudioSaveHelper/);
+  assert.doesNotMatch(node, /_save_temp_audio/);
   assert.doesNotMatch(node, /normalized_edit_json/);
-  assert.doesNotMatch(node, /json\.dumps\(project/);
   assert.doesNotMatch(node, /state_b64/);
-  assert.match(node, /"m3ss_v2": \[metadata\]/);
-  assert.match(node, /"timeline_duration"/);
-  assert.match(node, /"rendered"/);
+  assert.doesNotMatch(node, /"m3ss_v2"/);
+  assert.doesNotMatch(node, /ui_payload/);
+  assert.match(node, /return io\.NodeOutput\(rendered_audio\)/);
 });
