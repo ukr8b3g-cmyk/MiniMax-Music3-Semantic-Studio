@@ -2,28 +2,31 @@
 
 Phase 2B adds the original/native Windows VST3 editor window on top of the Phase 2A queued VST3 renderer.
 
-## Distribution dependency
+## Optional VST3 host dependency
 
-The repository root now contains:
+Pedalboard is **not installed as part of the normal custom-node installation**. Users who do not use VST3 therefore receive no VST3-specific Python dependency.
+
+On Windows, open Audio Editor → `VST3`. When Pedalboard is missing the panel shows **Install VST3 Host**. Clicking it installs the fixed package range below into the same Python environment currently running ComfyUI:
 
 ```text
-requirements.txt
+pedalboard>=0.9.24,<1
 ```
 
-with a Windows-only PEP 508 marker for Pedalboard. ComfyUI Manager installs a custom node's root `requirements.txt` during normal installation, so Windows users installing/updating through Manager normally receive the VST3 host automatically.
+The installer uses `sys.executable -m pip` without a shell and accepts no package name or command from the browser. Only the fixed Pedalboard package range can be installed. Concurrent install requests are rejected.
 
-`requirements-vst3.txt` remains as a manual recovery/fallback file for non-Manager or damaged environments.
+`requirements-vst3.txt` remains as a manual recovery/fallback file when the one-click installer cannot run or the Python environment needs manual repair.
 
 ## User flow
 
 1. Open Audio Editor → `VST3`.
-2. Add an installed VST3 effect to `Track` or `Master`.
-3. Click `Open UI` on that rack entry.
-4. The plugin's original VST3 interface opens in a separate native window.
-5. Change the plugin controls and close the native window.
-6. The editor captures the plugin state and marks the VST3 rack dirty.
-7. Click `Save Edits`.
-8. Queue the Audio Editor node. The authoritative Python render restores the captured plugin state before processing AUDIO.
+2. If the VST3 Host is unavailable, click `Install VST3 Host` and wait for the status to become `Ready`.
+3. Add an installed VST3 effect to the rack.
+4. Click `Open UI` on that rack entry.
+5. The plugin's original VST3 interface opens in a separate native window.
+6. Change the plugin controls and close the native window.
+7. The editor captures the plugin state and marks the VST3 rack dirty.
+8. Click `Save Edits`.
+9. Queue the Audio Editor node. The authoritative Python render restores the captured plugin state before processing AUDIO.
 
 ## Process isolation
 
@@ -73,6 +76,8 @@ The stored plugin identifier is checked before restoring state during Queue rend
 
 - Windows 64-bit VST3 effects only.
 - VST instruments are rejected.
+- Pedalboard installation requires an explicit button click; normal node installation does not install it.
+- The install endpoint runs only the fixed Pedalboard package range with the current ComfyUI Python and never uses `shell=True`.
 - The native-editor route only accepts paths returned by the current installed VST3 scan; arbitrary executable/plugin paths cannot be requested through this endpoint.
 - State payloads have explicit size limits.
 - `Save Edits` is blocked while a native plugin window is still open so the latest state cannot be lost.

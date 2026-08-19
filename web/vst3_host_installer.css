@@ -1,0 +1,28 @@
+.m3ssv2-vst3-host-install-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 8px 0;
+  padding: 9px 10px;
+  border: 1px solid rgba(255, 166, 102, 0.32);
+  border-radius: 8px;
+  background: rgba(120, 62, 26, 0.14);
+}
+
+.m3ssv2-vst3-host-install-bar[hidden] {
+  display: none;
+}
+
+.m3ssv2-vst3-host-install-detail {
+  min-width: 0;
+  flex: 1 1 auto;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--fg-color, #d6d9df);
+}
+
+.m3ssv2-vst3-host-install-button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}

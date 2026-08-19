@@ -1,1 +1,0 @@
-pedalboard>=0.9.24,<1; sys_platform == "win32"
