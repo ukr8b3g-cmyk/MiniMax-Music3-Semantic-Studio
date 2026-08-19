@@ -5,7 +5,7 @@ from typing import Any
 from comfy_api.latest import io, ui
 
 from .audio_edit_project import DEFAULT_EDIT_JSON, EDIT_SCHEMA_VERSION, normalize_edit_project, project_timeline_duration
-from .audio_render import collect_sources
+from .audio_render import collect_sources, render_audio_edit
 
 
 class MiniMaxMusic3SemanticStudioAudioEditor(io.ComfyNode):
@@ -19,8 +19,8 @@ class MiniMaxMusic3SemanticStudioAudioEditor(io.ComfyNode):
             category="audio/minimax music",
             essentials_category="Audio/Editing",
             description=(
-                "V1.0 diagnostic preview/meta-only build. Connect decoded AUDIO and Queue normally. "
-                "The node restores editor loading metadata while returning the connected audio unchanged and skipping final edit rendering."
+                "V1.0 non-destructive single-audio editor. Connect decoded AUDIO, run once to load the preview, "
+                "then use Open Audio Editor. Final rendering is derived from the connected AUDIO plus versioned edit_json."
             ),
             inputs=[
                 io.Audio.Input("audio", tooltip="Source audio."),
@@ -31,14 +31,14 @@ class MiniMaxMusic3SemanticStudioAudioEditor(io.ComfyNode):
                     multiline=True,
                     dynamic_prompts=False,
                     advanced=True,
-                    tooltip="Stored non-destructive edit state. Validated for editor metadata, but not rendered in this diagnostic Queue path.",
+                    tooltip="Non-destructive edit state. Known fields from future schemas are interpreted where possible; malformed JSON still fails at execution to protect stored edits.",
                 ),
                 io.Boolean.Input(
                     "bypass",
                     default=False,
                     label_on="Bypass",
                     label_off="Edited",
-                    tooltip="Recorded in diagnostic metadata; Queue output remains the connected source audio in this preview/meta-only build.",
+                    tooltip="Return the source audio unchanged while still generating source/render preview metadata.",
                 ),
             ],
             outputs=[io.Audio.Output("audio", display_name="AUDIO")],
@@ -59,14 +59,18 @@ class MiniMaxMusic3SemanticStudioAudioEditor(io.ComfyNode):
 
     @classmethod
     def execute(cls, audio, edit_json, bypass=False) -> io.NodeOutput:
-        # Diagnostic isolation: keep the PR #33-stable source/normalization path,
-        # restore only preview files + m3ss_v2 metadata, and do not invoke the renderer.
         sources, infos = collect_sources(audio)
-        project = normalize_edit_project(edit_json, infos)
-        rendered_audio = {
-            "waveform": sources["take-1"]["waveform"],
-            "sample_rate": infos[0].sample_rate,
-        }
+
+        if bypass:
+            project = normalize_edit_project(edit_json, infos)
+            rendered_audio = {
+                "waveform": sources["take-1"]["waveform"],
+                "sample_rate": infos[0].sample_rate,
+            }
+        else:
+            result = render_audio_edit(audio, edit_json)
+            project = result.project
+            rendered_audio = result.audio
 
         source_previews: list[dict[str, Any]] = []
         for info in infos:
@@ -86,9 +90,13 @@ class MiniMaxMusic3SemanticStudioAudioEditor(io.ComfyNode):
                 }
             )
 
-        # The diagnostic output is exactly the primary source, so reuse the same
-        # preview reference instead of encoding identical audio a second time.
-        rendered_refs = list(source_previews[0]["audio"])
+        # Bypass output is the same source waveform, so reuse its preview reference
+        # instead of encoding the same audio a second time.
+        if bypass:
+            rendered_refs = list(source_previews[0]["audio"])
+        else:
+            rendered_refs = cls._save_temp_audio(rendered_audio, "m3ss_v2_rendered_", cls)
+
         rendered_waveform = rendered_audio["waveform"]
         rendered_duration = rendered_waveform.shape[-1] / rendered_audio["sample_rate"]
 
