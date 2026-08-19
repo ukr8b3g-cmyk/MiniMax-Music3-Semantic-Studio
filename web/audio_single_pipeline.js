@@ -105,6 +105,92 @@ function panText(value) {
   return `${pan < 0 ? "Left" : "Right"} ${Math.round(Math.abs(pan) * 100)}%`;
 }
 
+function clipLength(clip) {
+  return Math.max(0, Number(clip?.source_out || 0) - Number(clip?.source_in || 0));
+}
+
+function clipEnd(clip) {
+  return Math.max(0, Number(clip?.timeline_start || 0)) + clipLength(clip);
+}
+
+export function audioEdgeClips(project) {
+  const clips = [...(project?.tracks?.[0]?.clips || [])].filter((clip) => clip && typeof clip === "object");
+  if (!clips.length) return { first: null, last: null };
+  const first = clips.reduce((best, clip) => (
+    Number(clip.timeline_start || 0) < Number(best.timeline_start || 0) ? clip : best
+  ), clips[0]);
+  const last = clips.reduce((best, clip) => (clipEnd(clip) > clipEnd(best) ? clip : best), clips[0]);
+  return { first, last };
+}
+
+function ensureFade(clip, key) {
+  if (!clip) return null;
+  const current = clip[key] && typeof clip[key] === "object" ? clip[key] : {};
+  clip[key] = {
+    duration: Math.max(0, Math.min(clipLength(clip), Number(current.duration) || 0)),
+    curve: current.curve === "equal_power" ? "equal_power" : "linear",
+  };
+  return clip[key];
+}
+
+function renderWholeAudioFades(root, project, commit, rerender) {
+  const { first, last } = audioEdgeClips(project);
+  const section = el("section", "m3ssv2-fade-section");
+  const heading = el("div", "m3ssv2-fade-head");
+  heading.appendChild(el("strong", "", tr("Fade In / Fade Out", "フェードイン / フェードアウト")));
+  section.appendChild(heading);
+
+  if (!first || !last) {
+    section.appendChild(el("div", "m3ssv2-empty", tr("No audio clip is available for fades.", "フェードを適用できるオーディオクリップがありません。")));
+    root.appendChild(section);
+    return;
+  }
+
+  const fadeIn = ensureFade(first, "fade_in");
+  const fadeOut = ensureFade(last, "fade_out");
+  const grid = el("div", "m3ssv2-grid m3ssv2-grid-2 m3ssv2-fade-grid");
+  const inDuration = input("number", fadeIn.duration, 0, clipLength(first), .01);
+  const outDuration = input("number", fadeOut.duration, 0, clipLength(last), .01);
+  const inCurve = select([
+    { value: "linear", label: tr("Linear", "リニア") },
+    { value: "equal_power", label: tr("Equal Power", "イコールパワー") },
+  ], fadeIn.curve);
+  const outCurve = select([
+    { value: "linear", label: tr("Linear", "リニア") },
+    { value: "equal_power", label: tr("Equal Power", "イコールパワー") },
+  ], fadeOut.curve);
+
+  const apply = (fn) => {
+    commit(fn);
+    rerender();
+  };
+  inDuration.onchange = () => apply(() => {
+    ensureFade(first, "fade_in").duration = Math.max(0, Math.min(clipLength(first), Number(inDuration.value) || 0));
+  });
+  outDuration.onchange = () => apply(() => {
+    ensureFade(last, "fade_out").duration = Math.max(0, Math.min(clipLength(last), Number(outDuration.value) || 0));
+  });
+  inCurve.onchange = () => apply(() => { ensureFade(first, "fade_in").curve = inCurve.value === "equal_power" ? "equal_power" : "linear"; });
+  outCurve.onchange = () => apply(() => { ensureFade(last, "fade_out").curve = outCurve.value === "equal_power" ? "equal_power" : "linear"; });
+
+  grid.append(
+    field(tr("Fade In (s)", "フェードイン (秒)"), inDuration),
+    field(tr("Fade In Curve", "フェードインカーブ"), inCurve),
+    field(tr("Fade Out (s)", "フェードアウト (秒)"), outDuration),
+    field(tr("Fade Out Curve", "フェードアウトカーブ"), outCurve),
+  );
+  section.appendChild(grid);
+  section.appendChild(el(
+    "div",
+    "m3ssv2-envelope-note",
+    tr(
+      "Fades apply to the beginning and end of the complete edit using the existing non-destructive clip fade engine. Draft Preview and queued AUDIO use the same fade data.",
+      "編集全体の先頭と末尾に、既存の非破壊クリップフェード処理を適用します。Draft Preview と Queue後の AUDIO は同じフェード設定を使用します。",
+    ),
+  ));
+  root.appendChild(section);
+}
+
 export function renderSingleMixer(container, project, commit) {
   container.replaceChildren();
   const { track, master } = ensureProjectContainers(project);
@@ -226,6 +312,8 @@ export function renderSingleEffectsRack(container, project, commit, state = crea
   const rerender = () => renderSingleEffectsRack(container, project, commit, state);
   const effects = pipelineBuiltinEffects(project);
   const root = el("div", "m3ssv2-effects-root m3ssv2-single-effects");
+
+  renderWholeAudioFades(root, project, commit, rerender);
 
   const rackHead = el("div", "m3ssv2-effects-rack-head");
   const add = button(tr("+ Add Effect", "+ エフェクトを追加"), "m3ssv2-button m3ssv2-fx-add");
