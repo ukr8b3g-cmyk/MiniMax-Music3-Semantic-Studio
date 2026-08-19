@@ -14,7 +14,10 @@ test("V1.0 Audio Editor exposes one AUDIO input while preserving legacy schema i
   assert.doesNotMatch(node, /take_2=None/);
   assert.doesNotMatch(node, /def validate_inputs/);
   assert.match(node, /collect_sources\(audio\)/);
-  assert.match(node, /"takes": source_previews/);
+  assert.match(node, /render_audio_edit\(audio, edit_json\)\.audio/);
+  assert.match(node, /return io\.NodeOutput\(rendered_audio\)/);
+  assert.doesNotMatch(node, /AudioSaveHelper/);
+  assert.doesNotMatch(node, /"takes": source_previews/);
   assert.match(node, /future schemas are interpreted where possible/);
 });
 
