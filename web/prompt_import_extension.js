@@ -30,7 +30,7 @@ function normalizeNodeActions(node) {
   node.widgets.splice(0, node.widgets.length, ...remaining, importPrompt, divider, openStudio);
   node.setSize?.([
     Math.max(node.size?.[0] || 360, 360),
-    Math.max(150, Math.min(node.computeSize?.()[1] || node.size?.[1] || 190, 230)),
+    Math.max(220, node.computeSize?.()[1] || 0, node.size?.[1] || 0),
   ]);
   node.setDirtyCanvas?.(true, true);
 }
