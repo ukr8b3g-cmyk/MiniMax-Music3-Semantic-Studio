@@ -15,7 +15,8 @@ export function roundedNumericText(value, step) {
   const places = decimalPlaces(step);
   if (places == null) return String(number);
   const factor = 10 ** places;
-  const rounded = Math.round((number + Number.EPSILON) * factor) / factor;
+  const scaled = Math.abs(number) * factor;
+  const rounded = Math.sign(number) * (Math.round(scaled + Number.EPSILON) / factor);
   return String(Object.is(rounded, -0) ? 0 : rounded);
 }
 
