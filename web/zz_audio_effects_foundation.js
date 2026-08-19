@@ -283,8 +283,14 @@ function installDialog(dialog) {
     dialog.querySelector(".m3ssv2-status"),
     dialog.querySelector(".m3ssv2-context-menu"),
   ].filter(Boolean)) {
-    chromeObserver.observe(target, { childList: true, subtree: true, characterData: true });
+    chromeObserver.observe(target, { childList: true, subtree: true });
   }
+
+  const cleanupObservers = () => {
+    bodyObserver.disconnect();
+    chromeObserver.disconnect();
+  };
+  dialog.addEventListener("m3ss-shell-close", cleanupObservers, { once: true });
 
   const envelopeButton = [...dialog.querySelectorAll(".m3ssv2-command-button")]
     .find((item) => String(item.title || "").startsWith("Envelope Tool"));
