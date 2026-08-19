@@ -37,7 +37,7 @@ test("Audio and Semantic Studio enhancements are mounted from explicit open/dial
   assert.match(seed, /observer\.observe\(dialog, \{ childList: true, subtree: true \}\)/);
 });
 
-test("diagnostic Queue completion is a literal AUDIO passthrough with no preview or custom UI payload", () => {
+test("diagnostic Queue completion validates state but never clones, renders, or emits preview UI", () => {
   const node = source("audio_editor_node.py");
   assert.doesNotMatch(node, /AudioSaveHelper/);
   assert.doesNotMatch(node, /_save_temp_audio/);
@@ -45,8 +45,8 @@ test("diagnostic Queue completion is a literal AUDIO passthrough with no preview
   assert.doesNotMatch(node, /state_b64/);
   assert.doesNotMatch(node, /"m3ss_v2"/);
   assert.doesNotMatch(node, /ui_payload/);
-  assert.doesNotMatch(node, /collect_sources\(/);
-  assert.doesNotMatch(node, /normalize_edit_project\(/);
+  assert.match(node, /collect_sources\(audio\)/);
+  assert.match(node, /normalize_edit_project\(edit_json, infos\)/);
   assert.doesNotMatch(node, /render_audio_edit\(/);
   assert.doesNotMatch(node, /\.clone\(/);
   assert.match(node, /return io\.NodeOutput\(audio\)/);
