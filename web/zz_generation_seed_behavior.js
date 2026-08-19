@@ -86,8 +86,8 @@ function findOpenStudioButton(node) {
   }) || null;
 }
 
-function bindGenerationView(node, controlWidget) {
-  const view = [...document.querySelectorAll(".m3ss-dialog .m3ss-generation-view")].at(-1);
+function bindGenerationView(dialog, node, controlWidget) {
+  const view = dialog?.querySelector?.(".m3ss-generation-view");
   if (!view || view.dataset.seedBehaviorBound === "1") return false;
   const grid = view.querySelector(".m3ss-generation-grid");
   if (!grid) return false;
@@ -132,15 +132,25 @@ function bindGenerationView(node, controlWidget) {
   return true;
 }
 
-function watchStudio(node, controlWidget) {
+function watchStudio(node, controlWidget, attempt = 0) {
   node._m3ssSeedBehaviorObserver?.disconnect?.();
-  const bind = () => bindGenerationView(node, controlWidget);
+  const dialogs = [...document.querySelectorAll(".m3ss-dialog")];
+  const dialog = dialogs.at(-1);
+  if (!dialog) {
+    if (attempt < 16) requestAnimationFrame(() => watchStudio(node, controlWidget, attempt + 1));
+    return;
+  }
+
+  const bind = () => bindGenerationView(dialog, node, controlWidget);
   bind();
   const observer = new MutationObserver(() => {
+    if (!dialog.isConnected) {
+      observer.disconnect();
+      return;
+    }
     bind();
-    if (!document.querySelector(".m3ss-dialog")) observer.disconnect();
   });
-  observer.observe(document.body, { childList: true, subtree: true });
+  observer.observe(dialog, { childList: true, subtree: true });
   node._m3ssSeedBehaviorObserver = observer;
 }
 
