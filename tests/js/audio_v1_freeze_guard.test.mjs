@@ -37,17 +37,15 @@ test("Audio and Semantic Studio enhancements are mounted from explicit open/dial
   assert.match(seed, /observer\.observe\(dialog, \{ childList: true, subtree: true \}\)/);
 });
 
-test("Audio Editor completion restores previews but never clones connected waveform state", () => {
+test("diagnostic completion restores preview/meta only and skips final renderer", () => {
   const node = source("audio_editor_node.py");
-  const render = source("audio_render.py");
 
   assert.match(node, /AudioSaveHelper\.save_audio/);
   assert.match(node, /"m3ss_v2": \[metadata\]/);
   assert.match(node, /return io\.NodeOutput\(rendered_audio, ui=ui_payload\)/);
+  assert.match(node, /normalize_edit_project\(edit_json, infos\)/);
+  assert.doesNotMatch(node, /render_audio_edit\(/);
   assert.doesNotMatch(node, /\.clone\(/);
-  assert.doesNotMatch(render, /\.clone\(/);
   assert.doesNotMatch(node, /normalized_edit_json/);
   assert.doesNotMatch(node, /state_b64/);
-  assert.match(render, /rendered = waveform\[\.\.\., start:end\]/);
-  assert.match(render, /rendered = rendered \* control\.view\(1, 1, -1\)/);
 });
