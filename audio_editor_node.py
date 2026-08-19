@@ -10,7 +10,7 @@ from .audio_render import collect_sources, render_audio_edit
 
 
 class MiniMaxMusic3SemanticStudioAudioEditor(io.ComfyNode):
-    """Non-destructive unified waveform editor for Music3 Semantic Studio."""
+    """Non-destructive unified single-audio editor for Music3 Semantic Studio V1.0."""
 
     @classmethod
     def define_schema(cls) -> io.Schema:
@@ -20,14 +20,11 @@ class MiniMaxMusic3SemanticStudioAudioEditor(io.ComfyNode):
             category="audio/minimax music",
             essentials_category="Audio/Editing",
             description=(
-                "Non-destructive unified waveform editor. Connect decoded AUDIO, run once to load previews, "
-                "then use Open Audio Editor. Final rendering is derived from source AUDIO plus versioned edit_json."
+                "V1.0 non-destructive single-audio editor. Connect decoded AUDIO, run once to load the preview, "
+                "then use Open Audio Editor. Final rendering is derived from the connected AUDIO plus versioned edit_json."
             ),
             inputs=[
-                io.Audio.Input("audio", tooltip="Primary source audio (Take 1)."),
-                io.Audio.Input("take_2", display_name="Take 2", optional=True, advanced=True),
-                io.Audio.Input("take_3", display_name="Take 3", optional=True, advanced=True),
-                io.Audio.Input("take_4", display_name="Take 4", optional=True, advanced=True),
+                io.Audio.Input("audio", tooltip="Source audio."),
                 io.String.Input(
                     "edit_json",
                     display_name="Audio Edit JSON",
@@ -42,7 +39,7 @@ class MiniMaxMusic3SemanticStudioAudioEditor(io.ComfyNode):
                     default=False,
                     label_on="Bypass",
                     label_off="Edited",
-                    tooltip="Return Take 1 unchanged while still generating source/render preview metadata.",
+                    tooltip="Return the source audio unchanged while still generating source/render preview metadata.",
                 ),
             ],
             outputs=[io.Audio.Output("audio", display_name="AUDIO")],
@@ -77,16 +74,10 @@ class MiniMaxMusic3SemanticStudioAudioEditor(io.ComfyNode):
         return [dict(item) for item in results]
 
     @classmethod
-    def execute(
-        cls,
-        audio,
-        edit_json,
-        bypass=False,
-        take_2=None,
-        take_3=None,
-        take_4=None,
-    ) -> io.NodeOutput:
-        sources, infos = collect_sources(audio, take_2, take_3, take_4)
+    def execute(cls, audio, edit_json, bypass=False) -> io.NodeOutput:
+        # V1.0 exposes one AUDIO input. The legacy multi-take project schema remains
+        # readable internally so older edit_json can still migrate and round-trip.
+        sources, infos = collect_sources(audio)
 
         if bypass:
             project = normalize_edit_project(edit_json, infos)
@@ -95,28 +86,19 @@ class MiniMaxMusic3SemanticStudioAudioEditor(io.ComfyNode):
                 "sample_rate": infos[0].sample_rate,
             }
         else:
-            result = render_audio_edit(
-                audio,
-                edit_json,
-                take_2=take_2,
-                take_3=take_3,
-                take_4=take_4,
-            )
+            result = render_audio_edit(audio, edit_json)
             project = result.project
             rendered_audio = result.audio
 
-        take_previews: list[dict[str, Any]] = []
+        source_previews: list[dict[str, Any]] = []
         for info in infos:
             source_audio = sources[info.id]
             refs = cls._save_temp_audio(source_audio, f"m3ss_v2_{info.id}_", cls)
-            take_previews.append(
+            source_previews.append(
                 {
                     "id": info.id,
                     "input": info.input_name,
-                    "name": next(
-                        (take["name"] for take in project["takes"] if take["id"] == info.id),
-                        info.name,
-                    ),
+                    "name": "Audio" if info.id == "take-1" else info.name,
                     "sample_rate": info.sample_rate,
                     "channels": info.channels,
                     "batch_size": info.batch_size,
@@ -134,7 +116,8 @@ class MiniMaxMusic3SemanticStudioAudioEditor(io.ComfyNode):
             "edit_schema_version": EDIT_SCHEMA_VERSION,
             "bypass": bool(bypass),
             "interactive_supported": infos[0].batch_size == 1,
-            "takes": take_previews,
+            # Keep the historical metadata key for frontend/schema compatibility.
+            "takes": source_previews,
             "rendered": {
                 "sample_rate": int(rendered_audio["sample_rate"]),
                 "channels": int(rendered_waveform.shape[1]),
