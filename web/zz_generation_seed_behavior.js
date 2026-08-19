@@ -20,6 +20,7 @@ function labels() {
     return {
       title: "シード動作（AR）",
       field: "生成後のシード",
+      nodeField: "シード動作",
       help: "ComfyUI標準のSeed制御です。KSamplerのSeed Behaviorとは別に、Music Seed (AR)へ適用されます。",
       fixed: "固定",
       increment: "+1（増加）",
@@ -30,6 +31,7 @@ function labels() {
   return {
     title: "Seed Behavior (AR)",
     field: "After Queue",
+    nodeField: "Seed Behavior",
     help: "Uses ComfyUI's standard seed control for Music Seed (AR). This is separate from KSampler seed behavior.",
     fixed: "Fixed",
     increment: "Increment",
@@ -69,11 +71,11 @@ function findSeedControlWidget(node) {
   }) || null;
 }
 
-function hideWidget(widget) {
+function setWidgetHidden(widget, hidden) {
   if (!widget) return;
-  widget.hidden = true;
+  widget.hidden = hidden;
   widget.options = widget.options || {};
-  widget.options.hidden = true;
+  widget.options.hidden = hidden;
 }
 
 function findOpenStudioButton(node) {
@@ -142,13 +144,26 @@ function watchStudio(node, controlWidget) {
   node._m3ssSeedBehaviorObserver = observer;
 }
 
+function resizeNodeForGenerationControls(node) {
+  const width = Math.max(node.size?.[0] || 360, 360);
+  const height = Math.max(node.computeSize?.()[1] || node.size?.[1] || 220, 220);
+  node.setSize?.([width, height]);
+}
+
 function install(node) {
   if (!node || nodeClass(node) !== NODE_ID) return;
+  const seedWidget = node?.widgets?.find((widget) => widget.name === "seed") || null;
+  const durationWidget = node?.widgets?.find((widget) => widget.name === "max_duration") || null;
   const controlWidget = findSeedControlWidget(node);
-  if (!controlWidget) return;
-  hideWidget(controlWidget);
+
+  setWidgetHidden(seedWidget, false);
+  setWidgetHidden(durationWidget, false);
+  setWidgetHidden(controlWidget, false);
+  if (controlWidget) controlWidget.label = labels().nodeField;
+  resizeNodeForGenerationControls(node);
   node.setDirtyCanvas?.(true, true);
 
+  if (!controlWidget) return;
   const open = findOpenStudioButton(node);
   if (!open || open._m3ssSeedBehaviorWrapped) return;
   open._m3ssSeedBehaviorWrapped = true;
@@ -158,10 +173,6 @@ function install(node) {
     queueMicrotask(() => watchStudio(node, controlWidget));
     return result;
   };
-
-  const width = Math.max(node.size?.[0] || 360, 360);
-  const height = Math.min(Math.max(node.computeSize?.()[1] || 150, 150), 230);
-  node.setSize?.([width, height]);
 }
 
 app.registerExtension({
@@ -170,5 +181,6 @@ app.registerExtension({
     if (nodeClass(node) !== NODE_ID) return;
     queueMicrotask(() => install(node));
     setTimeout(() => install(node), 80);
+    setTimeout(() => install(node), 260);
   },
 });
