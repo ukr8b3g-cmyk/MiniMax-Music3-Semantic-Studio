@@ -46,13 +46,16 @@ class MiniMaxMusic3SemanticStudio(io.ComfyNode):
                 ),
                 io.Int.Input(
                     "seed",
+                    display_name="Music Seed (AR)",
                     default=0,
                     min=0,
                     max=0xFFFFFFFFFFFFFFFF,
                     control_after_generate=True,
+                    tooltip="AR-stage randomness. This is separate from the KSampler noise seed.",
                 ),
                 io.Float.Input(
                     "max_duration",
+                    display_name="Duration",
                     default=160.0,
                     min=0.04,
                     max=max_seconds,
