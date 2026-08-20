@@ -55,6 +55,20 @@ The compact graph node keeps the main generation controls close to the workflow.
 The Music3 AR seed is separate from the later KSampler seed. Changing one does not replace the other.
 
 ### 2. Import a prompt, inspect it, then edit Lyrics
+<img width="464" height="425" alt="{48C464F4-B4BE-4BFB-8BE4-F7B4AA6B925C}" src="https://github.com/user-attachments/assets/e0bdcd21-f4fc-434f-8471-016e1bd6c4f4" />
+<img width="1902" height="764" alt="{8BBF6647-5804-4F18-B82C-D5C27307C22C}" src="https://github.com/user-attachments/assets/487aa927-4c04-454a-bdbb-f2474550be8e" />
+<img width="1401" height="811" alt="{83DA755A-9EB2-46A9-BB6B-E717E7286EF1}" src="https://github.com/user-attachments/assets/0029a85c-ac0b-47f0-b55e-a0dcdc51f0a4" />
+<img width="251" height="132" alt="{8CB9EC80-4BA0-4F21-AD58-0FD61FA9F7A9}" src="https://github.com/user-attachments/assets/2fd7b9a5-ba39-4308-a300-49a31bd5a423" />
+<img width="1903" height="1028" alt="{333C25E0-FB71-4EA9-9677-C8A19E723B2D} - Copy" src="https://github.com/user-attachments/assets/a0e73482-f673-46f4-8041-2a02042e7b25" />
+<img width="627" height="375" alt="{6EC6542F-E733-4783-9C41-DE3A3C619029}" src="https://github.com/user-attachments/assets/333f1ca6-0f3d-4254-ad2a-c99ffa53729f" />
+<img width="608" height="469" alt="{DC9E483F-8D6B-45D4-BBFB-D3346409F0BD}" src="https://github.com/user-attachments/assets/d8b085fc-c6d8-4f69-804c-8cafb6bcf290" />
+<img width="1893" height="765" alt="{1DCF6FB4-945E-4C32-82AB-1A69A5BB8FD3}" src="https://github.com/user-attachments/assets/5fea2b2d-3189-4cff-b69d-93c9167bc1e7" />
+<img width="466" height="534" alt="{C5E24760-14EA-4C18-9889-BDB16E2259EB}" src="https://github.com/user-attachments/assets/0485374a-2f6b-4c37-8ca2-ceebeec7b4c8" />
+<img width="460" height="360" alt="{5DCB5D44-8394-433E-B7C6-54C7848377E9}" src="https://github.com/user-attachments/assets/44a08415-b4b1-4986-91e2-2a3dfbbc6a90" />
+<img width="479" height="917" alt="{CD054D14-343D-4B89-9190-3F4EC5A48F08}" src="https://github.com/user-attachments/assets/7a6390be-da29-40f8-a9e9-c75de9767e01" />
+<img width="464" height="425" alt="{48C464F4-B4BE-4BFB-8BE4-F7B4AA6B925C}" src="https://github.com/user-attachments/assets/871ee6c8-68b2-4e1d-a682-c6582a1275fd" />
+<img width="1890" height="820" alt="workflow (14)" src="https://github.com/user-attachments/assets/9c6447d7-c70e-4afe-b3e5-53d647010212" />
+
 
 <img src="docs/images/semantic-authoring.webp" alt="Import Prompt and Lyrics workspaces" />
 
