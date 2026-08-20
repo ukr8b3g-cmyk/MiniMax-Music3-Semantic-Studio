@@ -1,12 +1,14 @@
 # MiniMax Music3 Semantic Studio
 
+<img width="1892" height="1022" alt="Music3 Semantic Studio" src="https://github.com/user-attachments/assets/8b2fcc01-1d9d-405d-bcdd-16f350912168" />
+<img width="1909" height="1024" alt="Music3 Semantic Studio Audio Editor" src="https://github.com/user-attachments/assets/680fcfb7-648d-4f3c-ab78-8f4b8450e5c3" />
+
 **Music3 Semantic Studio** is an external ComfyUI custom-node package for MiniMax Music 3 generation design and non-destructive post-generation audio editing.
 
 Current status:
 
 - **Semantic Studio** — Timeline / Lyrics / Generation UI implemented
 - **English / Japanese UI** — ComfyUI locale-aware labels implemented; other locales fall back to English
-- **Capture / Freeze Audio** — generated AUDIO can be captured to CPU RAM and reused for editor-only Queue runs without re-running Music3/KSampler
 - **Audio Editor** — unified waveform editor, schema-2 automation, Browser Draft Preview, Edit / Mixer / Effects workspace, selection tools and non-destructive fades implemented
 - **Built-in DSP** — Gain, Compressor, Limiter, EQ / filters, Stereo Width, Reverb and Stereo Delay implemented
 - **VST3** — optional Windows VST3 host, native plug-in UI and state capture available on demand
@@ -22,37 +24,9 @@ git clone https://github.com/ukr8b3g-cmyk/MiniMax-Music3-Semantic-Studio.git
 
 Restart ComfyUI after install/update. The core node package has no additional mandatory Python runtime dependency. The Windows VST3 host is optional and is installed only when a user explicitly requests it from the VST3 workspace.
 
-## V1 template workflow
-
-The V1 template is [`workflows/MiniMax_Music3_Semantic_Studio_V1.json`](workflows/MiniMax_Music3_Semantic_Studio_V1.json).
-
-It uses one connected generation-to-editing workflow:
-
-```text
-Music3 Semantic Studio
-        ↓
-MiniMax Music3 generation / decode
-        ↓
-Capture / Freeze Audio
-        ↓
-Music3 Semantic Studio Audio Editor
-        ↓
-Save Audio (Advanced)
-```
-
-The template keeps the MiniMax Music3 generation/decode group as a ComfyUI subgraph, including the VAE Decode switch from the upstream template. The KSampler seed is exposed through an **rgthree Seed** node because the seed control inside the subgraph is otherwise inconvenient to use. Install `rgthree-comfy` if you use the template as-is.
-
-The recommended V1 operation is:
-
-1. Leave **Capture / Freeze Audio** in **Capture** mode and Queue to generate a take.
-2. When the generated take is the one you want to edit, switch the node to **Frozen**.
-3. Open the Audio Editor, make edits, and click **Save Edits**.
-4. Queue again to render the edited AUDIO. In Frozen mode the stored AUDIO snapshot is reused, so the Music3/KSampler generation branch is not requested.
-5. To generate a different take, switch back to **Capture**, Queue again, then return to **Frozen** for editing.
-
-The frozen snapshot is stored in CPU RAM for the current ComfyUI session. Restarting ComfyUI clears it; after a restart, switch to Capture and generate/capture again.
-
 ## Quick start — visual workflow
+
+<img width="1890" height="820" alt="MiniMax Music3 Semantic Studio workflow" src="https://github.com/user-attachments/assets/9c6447d7-c70e-4afe-b3e5-53d647010212" />
 
 The normal workflow is:
 
@@ -62,10 +36,6 @@ Import Prompt / design in Semantic Studio
               Queue
                  ↓
           generated AUDIO
-                 ↓
-       Capture / Freeze Audio
-                 ↓
-       switch Capture -> Frozen
                  ↓
           Open Audio Editor
                  ↓
@@ -78,49 +48,19 @@ Import Prompt / design in Semantic Studio
        authoritative edited AUDIO
 ```
 
-## Screenshots / UI Gallery
-
-All README screenshots are collected here so they can be maintained and replaced in one place.
-
-### Workflow overview
-
-<img src="docs/images/v1-template-workflow.webp" alt="MiniMax Music3 Semantic Studio V1 workflow overview" />
-
-### Semantic Studio
-
-<img width="1892" height="1022" alt="Music3 Semantic Studio" src="https://github.com/user-attachments/assets/8b2fcc01-1d9d-405d-bcdd-16f350912168" />
-
-### Audio Editor
-
-<img width="1909" height="1024" alt="Music3 Semantic Studio Audio Editor" src="https://github.com/user-attachments/assets/680fcfb7-648d-4f3c-ab78-8f4b8450e5c3" />
-
-### Semantic Studio node controls
-
-<img src="docs/images/semantic-node-controls.webp" alt="Music3 Semantic Studio node controls" />
-
-### Import Prompt and Lyrics workspaces
-
-<img src="docs/images/semantic-authoring.webp" alt="Import Prompt and Lyrics workspaces" />
-
-### Timeline, Instruments and Generation
-
-<img src="docs/images/semantic-generation.webp" alt="Instrument lanes and MiniMax Music3 AR Generation controls" />
-
-### Audio Editor controls
-
-<img src="docs/images/audio-editor-controls.webp" alt="Audio Editor Edit Mixer and Effects controls" />
-
-### VST3 native plug-in UI
-
-<img src="docs/images/vst3-native-ui.webp" alt="MuseFX VST3 Chorus and Compress native windows" />
-
 ### 1. Start from the Semantic Studio node
+
+<img width="608" height="469" alt="Music3 Semantic Studio node" src="https://github.com/user-attachments/assets/d8b085fc-c6d8-4f69-804c-8cafb6bcf290" />
 
 The compact graph node keeps the main generation controls close to the workflow. **Music Seed (AR)** controls the MiniMax Music3 autoregressive stage, **Seed Behavior** selects the normal ComfyUI seed behavior such as Randomize or Fixed, and **Duration Limit** sets the AR generation ceiling. **Import Prompt** opens the structured prompt importer; **Open Semantic Studio** opens the full authoring interface.
 
-The Music3 AR seed and the later KSampler seed control different stages of generation.
+The Music3 AR seed is separate from the later KSampler seed. Changing one does not replace the other.
 
 ### 2. Import a prompt, inspect it, then edit Lyrics
+
+<img width="1903" height="1028" alt="Import Music Prompt" src="https://github.com/user-attachments/assets/a0e73482-f673-46f4-8041-2a02042e7b25" />
+
+<img width="1902" height="764" alt="Lyrics and Caption workspace" src="https://github.com/user-attachments/assets/487aa927-4c04-454a-bdbb-f2474550be8e" />
 
 **Import Prompt** is intended for Caption / Lyrics text prepared in another LLM or editor. Paste the material, click **Analyze**, inspect the detected global settings, vocals and sections in **Import Preview**, then click **Apply Import**. The usual mode is **Replace section structure**; **Merge detected fields** is available for incremental updates.
 
@@ -133,6 +73,10 @@ The **Lyrics** workspace is split into three practical views:
 Full Lyrics can be edited directly and then applied back to matching sections. Section Lyrics can also be edited independently when only one part of the song needs adjustment.
 
 ### 3. Shape the song structure, Energy, Instruments and AR generation
+
+<img width="1893" height="765" alt="Music3 Semantic Studio generation controls" src="https://github.com/user-attachments/assets/5fea2b2d-3189-4cff-b69d-93c9167bc1e7" />
+
+<img width="1401" height="811" alt="Music3 Semantic Studio timeline and instruments" src="https://github.com/user-attachments/assets/0029a85c-ac0b-47f0-b55e-a0dcdc51f0a4" />
 
 The **Timeline** is a semantic song plan rather than a stem editor. Click a section to edit it in the Section Inspector. Duration, section type, vocal direction and other section fields can be adjusted there. **Energy** can be edited numerically and also manipulated from the timeline graph; it describes the intended musical intensity for generation, not the amplitude of already-rendered audio.
 
@@ -149,9 +93,19 @@ The **Generation** tab edits the same underlying ComfyUI node widgets used at ex
 
 These controls are separate from KSampler Seed and KSampler CFG later in the graph.
 
-### 4. Capture the take, then edit the generated audio
+### 4. Edit the generated audio
 
-In the V1 template, decoded `AUDIO` goes through **Capture / Freeze Audio** before entering **Music3 Semantic Studio Audio Editor**. Queue once in **Capture** mode. When the take is the one you want to keep, switch to **Frozen**, then click **Open Audio Editor**.
+<img width="251" height="132" alt="Capture Freeze Audio" src="https://github.com/user-attachments/assets/2fd7b9a5-ba39-4308-a300-49a31bd5a423" />
+
+<img width="627" height="375" alt="Music3 Semantic Studio Audio Editor node" src="https://github.com/user-attachments/assets/333f1ca6-0f3d-4254-ad2a-c99ffa53729f" />
+
+<img width="466" height="534" alt="Audio Editor Edit workspace" src="https://github.com/user-attachments/assets/0485374a-2f6b-4c37-8ca2-ceebeec7b4c8" />
+
+<img width="460" height="360" alt="Audio Editor Mixer workspace" src="https://github.com/user-attachments/assets/44a08415-b4b1-4986-91e2-2a3dfbbc6a90" />
+
+<img width="464" height="425" alt="Audio Editor Effects workspace" src="https://github.com/user-attachments/assets/e0bdcd21-f4fc-434f-8471-016e1bd6c4f4" />
+
+Connect the generated/decoded `AUDIO` to **Music3 Semantic Studio Audio Editor**, Queue once so the source preview is available, then click **Open Audio Editor**.
 
 The right-side workspaces have separate roles:
 
@@ -164,21 +118,23 @@ The built-in Effects rack includes **Gain / Amplify, Compressor, Limiter, EQ (3-
 
 **Envelope** means gain automation over time. Use the Envelope tool to add and move points on the waveform so the track becomes louder or quieter across chosen parts of the timeline. This is post-generation audio level automation and is different from the Semantic Studio **Energy** guidance used before generation.
 
-For a conventional fade workflow, drag a range on the waveform, right-click the selection, then choose **Fade In** or **Fade Out**. Contiguous fragments from the same source AUDIO are treated as one logical selection where safe, so fades can reach the true beginning/end even after earlier non-destructive splits.
+For a conventional fade workflow, drag a range on the waveform, right-click the selection, then choose **Fade In** or **Fade Out**. The selected range is split non-destructively and the fade spans exactly that selection. The Edit workspace still exposes numerical fade duration/curve controls for precise adjustment.
 
 ### What happens after editing?
 
-Audio Editor changes are non-destructive. In the V1 template, the **Frozen** AUDIO snapshot becomes the stable source used for edit rendering during the current session.
+Audio Editor changes are non-destructive. The connected source AUDIO remains the source of truth.
 
 1. Browser **Draft · Current Edits** gives immediate preview feedback for supported built-in edits/effects.
 2. **Save Edits** stores the current edit state back into the Audio Editor node.
-3. **Queue** the workflow again while Capture / Freeze Audio remains **Frozen**.
-4. The Python/PyTorch backend applies the saved edit state to the frozen AUDIO and outputs the authoritative edited `AUDIO`.
+3. **Queue** the workflow again.
+4. The Python/PyTorch backend applies the saved edit state to the original connected AUDIO and outputs the authoritative edited `AUDIO`.
 5. A downstream Preview/Save Audio node receives that edited output.
 
-So **Save Edits does not permanently rewrite the source audio**. The final result is created when the Audio Editor node is queued again.
+So **Save Edits does not permanently rewrite the source file**. The final result is created when the Audio Editor node is queued again.
 
 ### 5. Optional VST3 effects and native plug-in UI
+
+<img width="479" height="917" alt="MuseFX VST3 native plug-in UI" src="https://github.com/user-attachments/assets/7a6390be-da29-40f8-a9e9-c75de9767e01" />
 
 VST3 support is for users who already work with third-party audio plug-ins. The example above shows **MuseFX Chorus** and **MuseFX Compress**; MuseFX is only an example and is **not bundled** with this repository. VST3 plug-ins themselves must be installed by the user in the normal Windows VST3 locations.
 
@@ -305,7 +261,9 @@ See [`docs/PROMPT_IMPORT.md`](docs/PROMPT_IMPORT.md).
 - Input: `audio: AUDIO`
 - Output: `AUDIO`
 
-The public V1.0 Audio Editor uses one connected AUDIO input. The supported V1 template workflow places it after Capture / Freeze Audio rather than shipping a separate editor-only workflow.
+The public V1.0 Audio Editor uses one connected AUDIO input.
+
+Place the Audio Editor after audio decode:
 
 ```text
 KSampler
@@ -314,25 +272,24 @@ KSampler
 VAE Decode Audio
    |
    v
-Capture / Freeze Audio
-   |
-   v
 Music3 Semantic Studio Audio Editor
    |
    v
 Preview Audio / Save Audio (Advanced)
 ```
 
-### First use
+### First use / empty editor
 
-For actual editing in the V1 template:
+The editor can open before source AUDIO has been queued. In that state it shows the normal empty waveform workspace, semantic structure reference when available and disabled audio-dependent controls.
 
-1. Queue once with Capture / Freeze Audio set to **Capture**.
-2. Switch Capture / Freeze Audio to **Frozen** after choosing the generated take.
+For actual editing:
+
+1. Connect decoded AUDIO to the Audio Editor.
+2. Queue once to create the source preview and last queued Rendered A reference.
 3. Click **Open Audio Editor**.
 4. Edit on **Draft · Current Edits**.
 5. Click **Save Edits**.
-6. Queue again to produce authoritative edited AUDIO without requesting the generation branch.
+6. Queue again to produce authoritative edited AUDIO.
 
 The Browser Draft Preview is immediate authoring feedback. The Python/PyTorch renderer remains the final source of truth.
 
@@ -371,7 +328,7 @@ The visual roles remain distinct: thin cyan playhead, violet selected clip, blue
 
 `Draft · Current Edits` renders the current `edit_json` locally and reflects non-VST3 edits without a Queue round trip, including clip edits, Track Mute/Solo/Gain/Pan, Track Gain Envelope, supported built-in effects, Master processing and channel/normalization settings.
 
-`Rendered A · Last Queue` remains available for A/B comparison. Draft Preview is not authoritative; **Save Edits -> Queue** runs the Python renderer against the frozen source AUDIO tensor.
+`Rendered A · Last Queue` remains available for A/B comparison. Draft Preview is not authoritative; **Save Edits -> Queue** runs the Python renderer against the original connected AUDIO tensor.
 
 ### Editing commands
 
