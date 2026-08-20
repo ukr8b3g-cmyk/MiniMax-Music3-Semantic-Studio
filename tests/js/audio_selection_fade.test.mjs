@@ -67,11 +67,56 @@ test('selection fade rejects clip-end overshoot above 50 ms', () => {
   assert.equal(applySelectionFade(track, 7, 10.1, 'fade_out'), null);
 });
 
-test('selection fade rejects ranges that cross multiple clips', () => {
+test('Fade Out treats contiguous fragments from the same source as one logical clip', () => {
   const track = {
     clips: [
-      clip({ id: 'a', source_in: 0, source_out: 5, timeline_start: 0 }),
-      clip({ id: 'b', source_in: 5, source_out: 10, timeline_start: 5 }),
+      clip({ id: 'a', source_in: 0, source_out: 54.596, timeline_start: 0 }),
+      clip({ id: 'b', source_in: 54.596, source_out: 59.893, timeline_start: 54.596,
+        fade_out: { duration: 5.297, curve: 'linear' } }),
+      clip({ id: 'c', source_in: 59.893, source_out: 59.98875283446712, timeline_start: 59.893 }),
+    ],
+    gain_envelope: [],
+  };
+
+  assert.equal(canApplySelectionFade(track, 50, 60), true);
+  const selected = applySelectionFade(track, 50, 60, 'fade_out');
+  assert.ok(selected);
+  assert.equal(track.clips.length, 2);
+  assert.equal(track.clips[0].source_in, 0);
+  assert.equal(track.clips[0].source_out, 50);
+  assert.equal(selected.timeline_start, 50);
+  assert.equal(selected.source_in, 50);
+  assert.ok(Math.abs(selected.source_out - 59.98875283446712) < 1e-9);
+  assert.ok(Math.abs(selected.fade_out.duration - 9.98875283446712) < 1e-9);
+});
+
+test('Fade In can start at the true beginning across contiguous fragments', () => {
+  const track = {
+    clips: [
+      clip({ id: 'a', source_in: 0, source_out: 2, timeline_start: 0 }),
+      clip({ id: 'b', source_in: 2, source_out: 5, timeline_start: 2 }),
+      clip({ id: 'c', source_in: 5, source_out: 10, timeline_start: 5 }),
+    ],
+    gain_envelope: [],
+  };
+
+  assert.equal(canApplySelectionFade(track, 0, 4), true);
+  const selected = applySelectionFade(track, 0, 4, 'fade_in');
+  assert.ok(selected);
+  assert.equal(selected.timeline_start, 0);
+  assert.equal(selected.source_in, 0);
+  assert.equal(selected.source_out, 4);
+  assert.deepEqual(selected.fade_in, { duration: 4, curve: 'linear' });
+  assert.deepEqual(track.clips.map((item) => [item.timeline_start, item.source_in, item.source_out]), [
+    [0, 0, 4], [4, 4, 5], [5, 5, 10],
+  ]);
+});
+
+test('selection fade still rejects different source takes', () => {
+  const track = {
+    clips: [
+      clip({ id: 'a', source_id: 'take-1', source_in: 0, source_out: 5, timeline_start: 0 }),
+      clip({ id: 'b', source_id: 'take-2', source_in: 5, source_out: 10, timeline_start: 5 }),
     ],
     gain_envelope: [],
   };
@@ -80,11 +125,54 @@ test('selection fade rejects ranges that cross multiple clips', () => {
   assert.equal(track.clips.length, 2);
 });
 
-test('small overshoot into an adjacent clip is not treated as endpoint rounding', () => {
+test('selection fade rejects a timeline gap between fragments', () => {
   const track = {
     clips: [
       clip({ id: 'a', source_in: 0, source_out: 5, timeline_start: 0 }),
-      clip({ id: 'b', source_in: 5, source_out: 10, timeline_start: 5 }),
+      clip({ id: 'b', source_in: 5, source_out: 10, timeline_start: 5.1 }),
+    ],
+    gain_envelope: [],
+  };
+  assert.equal(canApplySelectionFade(track, 4, 6), false);
+});
+
+test('selection fade rejects non-contiguous source ranges even when timeline is continuous', () => {
+  const track = {
+    clips: [
+      clip({ id: 'a', source_in: 0, source_out: 5, timeline_start: 0 }),
+      clip({ id: 'b', source_in: 6, source_out: 11, timeline_start: 5 }),
+    ],
+    gain_envelope: [],
+  };
+  assert.equal(canApplySelectionFade(track, 4, 6), false);
+});
+
+test('selection fade rejects contiguous fragments with different gain or automation', () => {
+  const gainTrack = {
+    clips: [
+      clip({ id: 'a', source_in: 0, source_out: 5, timeline_start: 0 }),
+      clip({ id: 'b', source_in: 5, source_out: 10, timeline_start: 5, gain_db: -3 }),
+    ],
+    gain_envelope: [],
+  };
+  assert.equal(canApplySelectionFade(gainTrack, 4, 6), false);
+
+  const envelopeTrack = {
+    clips: [
+      clip({ id: 'a', source_in: 0, source_out: 5, timeline_start: 0 }),
+      clip({ id: 'b', source_in: 5, source_out: 10, timeline_start: 5,
+        gain_envelope: [{ time: 0, gain_db: 0 }, { time: 5, gain_db: -6 }] }),
+    ],
+    gain_envelope: [],
+  };
+  assert.equal(canApplySelectionFade(envelopeTrack, 4, 6), false);
+});
+
+test('small overshoot into an adjacent different-source clip is not endpoint rounding', () => {
+  const track = {
+    clips: [
+      clip({ id: 'a', source_id: 'take-1', source_in: 0, source_out: 5, timeline_start: 0 }),
+      clip({ id: 'b', source_id: 'take-2', source_in: 5, source_out: 10, timeline_start: 5 }),
     ],
     gain_envelope: [],
   };
