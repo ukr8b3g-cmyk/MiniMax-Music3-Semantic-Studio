@@ -28,14 +28,18 @@ Restart ComfyUI after install/update. The core node package has no additional ma
 
 <img width="1890" height="820" alt="MiniMax Music3 Semantic Studio workflow" src="https://github.com/user-attachments/assets/9c6447d7-c70e-4afe-b3e5-53d647010212" />
 
-The normal workflow is:
+The normal V1 workflow is:
 
 ```text
 Import Prompt / design in Semantic Studio
                  ↓
-              Queue
+       Queue in Capture mode
                  ↓
           generated AUDIO
+                 ↓
+       Capture / Freeze Audio
+                 ↓
+   switch to Frozen to keep the take
                  ↓
           Open Audio Editor
                  ↓
@@ -105,7 +109,7 @@ These controls are separate from KSampler Seed and KSampler CFG later in the gra
 
 <img width="464" height="425" alt="Audio Editor Effects workspace" src="https://github.com/user-attachments/assets/e0bdcd21-f4fc-434f-8471-016e1bd6c4f4" />
 
-Connect the generated/decoded `AUDIO` to **Music3 Semantic Studio Audio Editor**, Queue once so the source preview is available, then click **Open Audio Editor**.
+Connect the generated/decoded `AUDIO` to **Capture / Freeze Audio**, then connect its `AUDIO` output to **Music3 Semantic Studio Audio Editor**. Start in **Capture** mode and Queue once to generate and snapshot the take. When you want to keep that take for editing, switch to **Frozen** before re-queuing; Frozen reuses the captured in-memory AUDIO so the upstream Music3 generation does not run again. Then click **Open Audio Editor**.
 
 The right-side workspaces have separate roles:
 
@@ -122,15 +126,15 @@ For a conventional fade workflow, drag a range on the waveform, right-click the 
 
 ### What happens after editing?
 
-Audio Editor changes are non-destructive. The connected source AUDIO remains the source of truth.
+Audio Editor changes are non-destructive. The connected source AUDIO remains the source of truth; in the V1 template this is the AUDIO held by **Capture / Freeze Audio**.
 
 1. Browser **Draft · Current Edits** gives immediate preview feedback for supported built-in edits/effects.
 2. **Save Edits** stores the current edit state back into the Audio Editor node.
-3. **Queue** the workflow again.
-4. The Python/PyTorch backend applies the saved edit state to the original connected AUDIO and outputs the authoritative edited `AUDIO`.
+3. Keep **Capture / Freeze Audio** in **Frozen** mode and **Queue** the workflow again.
+4. The Python/PyTorch backend applies the saved edit state to the frozen source AUDIO and outputs the authoritative edited `AUDIO` without re-running upstream Music3 generation.
 5. A downstream Preview/Save Audio node receives that edited output.
 
-So **Save Edits does not permanently rewrite the source file**. The final result is created when the Audio Editor node is queued again.
+So **Save Edits does not permanently rewrite the source file**. The final result is created when the Audio Editor node is queued again. The Frozen snapshot lives in process memory and is cleared when ComfyUI restarts; after a restart, use **Capture** and Queue once to create a new snapshot.
 
 ### 5. Optional VST3 effects and native plug-in UI
 
@@ -263,13 +267,16 @@ See [`docs/PROMPT_IMPORT.md`](docs/PROMPT_IMPORT.md).
 
 The public V1.0 Audio Editor uses one connected AUDIO input.
 
-Place the Audio Editor after audio decode:
+In the V1 template, place **Capture / Freeze Audio** between audio decode and the Audio Editor:
 
 ```text
 KSampler
    |
    v
 VAE Decode Audio
+   |
+   v
+Capture / Freeze Audio
    |
    v
 Music3 Semantic Studio Audio Editor
@@ -280,16 +287,17 @@ Preview Audio / Save Audio (Advanced)
 
 ### First use / empty editor
 
-The editor can open before source AUDIO has been queued. In that state it shows the normal empty waveform workspace, semantic structure reference when available and disabled audio-dependent controls.
+The editor can open before source AUDIO has been queued. In that state it shows the normal empty waveform workspace and disabled audio-dependent controls.
 
-For actual editing:
+For actual editing with the V1 template:
 
-1. Connect decoded AUDIO to the Audio Editor.
-2. Queue once to create the source preview and last queued Rendered A reference.
-3. Click **Open Audio Editor**.
-4. Edit on **Draft · Current Edits**.
-5. Click **Save Edits**.
-6. Queue again to produce authoritative edited AUDIO.
+1. Connect decoded AUDIO to **Capture / Freeze Audio**, and connect its AUDIO output to the Audio Editor.
+2. Set **Capture / Freeze Audio** to **Capture** and Queue once to generate and snapshot the source AUDIO.
+3. When you want to keep that take, switch **Capture / Freeze Audio** to **Frozen**.
+4. Click **Open Audio Editor**.
+5. Edit on **Draft · Current Edits**.
+6. Click **Save Edits**.
+7. Queue again while Frozen to produce authoritative edited AUDIO without re-running upstream generation.
 
 The Browser Draft Preview is immediate authoring feedback. The Python/PyTorch renderer remains the final source of truth.
 
