@@ -174,39 +174,8 @@ export function mainTrack(project) {
   return project.tracks[0];
 }
 
-export function semanticOverlay(node) {
-  const graph = app.graph;
-  if (!graph) return [];
-  const queue = [{ node, depth: 0 }];
-  const seen = new Set();
-  const found = [];
-  while (queue.length) {
-    const current = queue.shift();
-    if (!current.node || current.depth > 12 || seen.has(current.node.id)) continue;
-    seen.add(current.node.id);
-    if (current.node !== node && nodeClass(current.node) === V1_NODE_ID) found.push(current.node);
-    for (const socket of current.node.inputs || []) {
-      if (socket?.link == null) continue;
-      const link = graph.links?.[socket.link];
-      const origin = link ? graph.getNodeById?.(link.origin_id) : null;
-      if (origin) queue.push({ node: origin, depth: current.depth + 1 });
-    }
-  }
-  const unique = [...new Map(found.map((item) => [item.id, item])).values()];
-  if (unique.length !== 1) return [];
-  const widget = getWidget(unique[0], "project_json");
-  if (!widget?.value) return [];
-  try {
-    const project = JSON.parse(widget.value);
-    let cursor = 0;
-    return (project?.timeline?.sections || []).map((section) => {
-      const start = cursor;
-      cursor += Math.max(0, Number(section.duration) || 0);
-      return { start, end: cursor, label: section.label || section.type || "Section" };
-    });
-  } catch {
-    return [];
-  }
+export function semanticOverlay() {
+  return [];
 }
 
 function cloneHistoryValue(value) {
