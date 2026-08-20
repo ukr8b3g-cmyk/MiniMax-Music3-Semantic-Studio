@@ -1,8 +1,5 @@
 # MiniMax Music3 Semantic Studio
 
-<img width="1892" height="1022" alt="Music3 Semantic Studio" src="https://github.com/user-attachments/assets/8b2fcc01-1d9d-405d-bcdd-16f350912168" />
-<img width="1909" height="1024" alt="Music3 Semantic Studio Audio Editor" src="https://github.com/user-attachments/assets/680fcfb7-648d-4f3c-ab78-8f4b8450e5c3" />
-
 **Music3 Semantic Studio** is an external ComfyUI custom-node package for MiniMax Music 3 generation design and non-destructive post-generation audio editing.
 
 Current status:
@@ -28,10 +25,6 @@ Restart ComfyUI after install/update. The core node package has no additional ma
 ## V1 template workflow
 
 The V1 template is [`workflows/MiniMax_Music3_Semantic_Studio_V1.json`](workflows/MiniMax_Music3_Semantic_Studio_V1.json).
-
-The complete connected V1 workflow is shown below:
-
-<img src="docs/images/v1-template-workflow.webp" alt="MiniMax Music3 Semantic Studio V1 workflow overview" />
 
 It uses one connected generation-to-editing workflow:
 
@@ -85,17 +78,49 @@ Import Prompt / design in Semantic Studio
        authoritative edited AUDIO
 ```
 
-### 1. Start from the Semantic Studio node
+## Screenshots / UI Gallery
+
+All README screenshots are collected here so they can be maintained and replaced in one place.
+
+### Workflow overview
+
+<img src="docs/images/v1-template-workflow.webp" alt="MiniMax Music3 Semantic Studio V1 workflow overview" />
+
+### Semantic Studio
+
+<img width="1892" height="1022" alt="Music3 Semantic Studio" src="https://github.com/user-attachments/assets/8b2fcc01-1d9d-405d-bcdd-16f350912168" />
+
+### Audio Editor
+
+<img width="1909" height="1024" alt="Music3 Semantic Studio Audio Editor" src="https://github.com/user-attachments/assets/680fcfb7-648d-4f3c-ab78-8f4b8450e5c3" />
+
+### Semantic Studio node controls
 
 <img src="docs/images/semantic-node-controls.webp" alt="Music3 Semantic Studio node controls" />
+
+### Import Prompt and Lyrics workspaces
+
+<img src="docs/images/semantic-authoring.webp" alt="Import Prompt and Lyrics workspaces" />
+
+### Timeline, Instruments and Generation
+
+<img src="docs/images/semantic-generation.webp" alt="Instrument lanes and MiniMax Music3 AR Generation controls" />
+
+### Audio Editor controls
+
+<img src="docs/images/audio-editor-controls.webp" alt="Audio Editor Edit Mixer and Effects controls" />
+
+### VST3 native plug-in UI
+
+<img src="docs/images/vst3-native-ui.webp" alt="MuseFX VST3 Chorus and Compress native windows" />
+
+### 1. Start from the Semantic Studio node
 
 The compact graph node keeps the main generation controls close to the workflow. **Music Seed (AR)** controls the MiniMax Music3 autoregressive stage, **Seed Behavior** selects the normal ComfyUI seed behavior such as Randomize or Fixed, and **Duration Limit** sets the AR generation ceiling. **Import Prompt** opens the structured prompt importer; **Open Semantic Studio** opens the full authoring interface.
 
 The Music3 AR seed and the later KSampler seed control different stages of generation.
 
 ### 2. Import a prompt, inspect it, then edit Lyrics
-
-<img src="docs/images/semantic-authoring.webp" alt="Import Prompt and Lyrics workspaces" />
 
 **Import Prompt** is intended for Caption / Lyrics text prepared in another LLM or editor. Paste the material, click **Analyze**, inspect the detected global settings, vocals and sections in **Import Preview**, then click **Apply Import**. The usual mode is **Replace section structure**; **Merge detected fields** is available for incremental updates.
 
@@ -108,8 +133,6 @@ The **Lyrics** workspace is split into three practical views:
 Full Lyrics can be edited directly and then applied back to matching sections. Section Lyrics can also be edited independently when only one part of the song needs adjustment.
 
 ### 3. Shape the song structure, Energy, Instruments and AR generation
-
-<img src="docs/images/semantic-generation.webp" alt="Instrument lanes and MiniMax Music3 AR Generation controls" />
 
 The **Timeline** is a semantic song plan rather than a stem editor. Click a section to edit it in the Section Inspector. Duration, section type, vocal direction and other section fields can be adjusted there. **Energy** can be edited numerically and also manipulated from the timeline graph; it describes the intended musical intensity for generation, not the amplitude of already-rendered audio.
 
@@ -127,8 +150,6 @@ The **Generation** tab edits the same underlying ComfyUI node widgets used at ex
 These controls are separate from KSampler Seed and KSampler CFG later in the graph.
 
 ### 4. Capture the take, then edit the generated audio
-
-<img src="docs/images/audio-editor-controls.webp" alt="Audio Editor Edit Mixer and Effects controls" />
 
 In the V1 template, decoded `AUDIO` goes through **Capture / Freeze Audio** before entering **Music3 Semantic Studio Audio Editor**. Queue once in **Capture** mode. When the take is the one you want to keep, switch to **Frozen**, then click **Open Audio Editor**.
 
@@ -158,8 +179,6 @@ Audio Editor changes are non-destructive. In the V1 template, the **Frozen** AUD
 So **Save Edits does not permanently rewrite the source audio**. The final result is created when the Audio Editor node is queued again.
 
 ### 5. Optional VST3 effects and native plug-in UI
-
-<img src="docs/images/vst3-native-ui.webp" alt="MuseFX VST3 Chorus and Compress native windows" />
 
 VST3 support is for users who already work with third-party audio plug-ins. The example above shows **MuseFX Chorus** and **MuseFX Compress**; MuseFX is only an example and is **not bundled** with this repository. VST3 plug-ins themselves must be installed by the user in the normal Windows VST3 locations.
 
