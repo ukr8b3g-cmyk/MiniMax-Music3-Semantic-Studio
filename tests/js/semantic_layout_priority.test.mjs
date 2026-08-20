@@ -65,11 +65,14 @@ test("Quick controls follow Timeline auto-sync without interrupting field focus"
   assert.doesNotMatch(quick, /syncQuickControlsThroughGeneration/);
 });
 
-test("Semantic quick controls never observe the whole ComfyUI document", () => {
+test("Semantic quick controls keep observation local and clean it on Studio close", () => {
   const quick = source("web/zz_semantic_quick_generation_controls.js");
   assert.doesNotMatch(quick, /observer\.observe\(document\.(?:documentElement|body)/);
   assert.doesNotMatch(quick, /new MutationObserver\(scanDialogs\)/);
-  assert.match(quick, /observer\.observe\(dialog, \{ childList: true, subtree: true \}\)/);
+  assert.doesNotMatch(quick, /observer\.observe\(dialog, \{ childList: true, subtree: true \}\)/);
+  assert.match(quick, /observer\.observe\(center, \{ childList: true, subtree: false \}\)/);
+  assert.match(quick, /dialog\.addEventListener\("m3ss-shell-close", cleanup, \{ once: true \}\)/);
+  assert.match(quick, /observer\?\.disconnect\(\)/);
   assert.match(quick, /queueMicrotask\(installNewestDialogBridge\)/);
 });
 
