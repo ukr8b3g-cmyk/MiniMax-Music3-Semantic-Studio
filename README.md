@@ -56,7 +56,7 @@ Import Prompt / design in Semantic Studio
 
 <img width="608" height="469" alt="Music3 Semantic Studio node" src="https://github.com/user-attachments/assets/d8b085fc-c6d8-4f69-804c-8cafb6bcf290" />
 
-The compact graph node keeps the main generation controls close to the workflow. **Music Seed (AR)** controls the MiniMax Music3 autoregressive stage, **Seed Behavior** selects the normal ComfyUI seed behavior such as Randomize or Fixed, and **Duration Limit** sets the AR generation ceiling. **Import Prompt** opens the structured prompt importer; **Open Semantic Studio** opens the full authoring interface.
+The compact graph node keeps the main generation controls close to the workflow. **Music Seed (AR)** controls the MiniMax Music3 autoregressive stage, **Seed Behavior** selects the normal ComfyUI seed behavior such as Randomize or Fixed, and **Duration** sets the AR generation ceiling. **Import Prompt** opens the structured prompt importer; **Open Semantic Studio** opens the full authoring interface.
 
 The Music3 AR seed is separate from the later KSampler seed. Changing one does not replace the other.
 
@@ -114,7 +114,7 @@ Connect the generated/decoded `AUDIO` to **Capture / Freeze Audio**, then connec
 The right-side workspaces have separate roles:
 
 - **Edit** — source range, timeline position, clip gain/pan, fades, reverse and clip mute
-- **Mixer** — track input gain/pan plus master output gain, channel mode and normalization
+- **Mixer** — input gain/pan plus output gain, channel mode and normalization
 - **Effects** — built-in non-destructive DSP rack
 - **VST3** — optional third-party Windows VST3 effects
 
@@ -311,7 +311,7 @@ One waveform is the primary editing surface:
 - right-click a selected range for **Fade In / Fade Out**
 - selection Loop audition repeats the selected range without changing `edit_json`
 - thin clip boundaries expose non-destructive clip/source assignments
-- track height can be resized vertically and reset; stereo L/R resize together
+- waveform height can be resized vertically and reset; stereo L/R resize together
 - Position and Selection time readouts support precise editing
 - semantic Tempo / Meter / Key reference and optional Snap are available when one upstream Semantic Studio is resolvable
 
@@ -321,7 +321,7 @@ The right workspace is deliberately compact:
 Edit | Mixer | Effects | VST3
 ```
 
-`Edit` follows the current Clip/Envelope editing context; `Mixer` combines Track and Master controls; `Effects` provides built-in DSP; `VST3` provides optional third-party plug-in hosting on Windows.
+`Edit` follows the current Clip/Envelope editing context; `Mixer` combines Audio input controls with final Output controls; `Effects` provides built-in DSP; `VST3` provides optional third-party plug-in hosting on Windows.
 
 Tool modes:
 
@@ -334,7 +334,7 @@ The visual roles remain distinct: thin cyan playhead, violet selected clip, blue
 
 ### Draft Preview
 
-`Draft · Current Edits` renders the current `edit_json` locally and reflects non-VST3 edits without a Queue round trip, including clip edits, Track Mute/Solo/Gain/Pan, Track Gain Envelope, supported built-in effects, Master processing and channel/normalization settings.
+`Draft · Current Edits` renders the current `edit_json` locally and reflects non-VST3 edits without a Queue round trip, including clip edits, Audio Mute/Solo/Gain/Pan, Audio Gain Envelope, supported built-in effects, Output processing and channel/normalization settings.
 
 `Rendered A · Last Queue` remains available for A/B comparison. Draft Preview is not authoritative; **Save Edits -> Queue** runs the Python renderer against the original connected AUDIO tensor.
 
@@ -346,7 +346,7 @@ The visual roles remain distinct: thin cyan playhead, violet selected clip, blue
 - Silence / Leave Gap
 - Cut & Leave Gap
 - selection Fade In / Fade Out
-- clip Mute and track Mute
+- clip Mute and Audio Mute
 - equal-power Crossfade Next helper
 - selection Loop audition
 - Undo / Redo
@@ -366,7 +366,7 @@ Ctrl/Cmd+D       Duplicate
 Delete/Backspace Delete / Ripple
 Ctrl/Cmd+L       Silence / Leave Gap
 Ctrl/Cmd+Alt+X   Cut & Leave Gap
-M                Mute / unmute track
+M                Mute / unmute Audio
 Shift+M          Mute / unmute selected clip
 Ctrl/Cmd+Z       Undo
 Ctrl/Cmd+Shift+Z Redo
@@ -383,7 +383,7 @@ End              Go to end
 
 `edit_json.edit_schema_version` is **2**. Existing schema-1 projects migrate automatically and retain clip ranges, gain, pan, mute, reverse, fades and legacy clip-envelope data.
 
-Schema 2 adds neutral-by-default track state:
+Internally, Schema 2 retains neutral-by-default track state for compatibility:
 
 ```json
 {
@@ -397,13 +397,13 @@ Schema 2 adds neutral-by-default track state:
 }
 ```
 
-The backend render order is clip processing -> track automation/controls -> track effects -> track mix -> master effects -> master processing. Source AUDIO remains immutable.
+Internally, the backend render order is clip processing -> track automation/controls -> track effects -> track mix -> master effects -> master processing. Source AUDIO remains immutable.
 
 See [`docs/PHASE_B_AUDIO_EDITOR.md`](docs/PHASE_B_AUDIO_EDITOR.md) and [`docs/V2_SPEC.md`](docs/V2_SPEC.md).
 
 ## Built-in Effects / DSP
 
-The compact **Effects** workspace uses the existing schema-2 track/master `effects[]` arrays. Effects can be collapsed so only one detailed parameter editor needs to occupy vertical space at a time.
+The compact **Effects** workspace presents one combined user-visible pipeline. Internally, the existing schema-2 track/master `effects[]` arrays are preserved for compatibility. Effects can be collapsed so only one detailed parameter editor needs to occupy vertical space at a time.
 
 The Effects Rack supports:
 
@@ -413,7 +413,7 @@ The Effects Rack supports:
 - reset and delete
 - move up/down and drag-handle reordering
 - English/Japanese UI labels
-- Track and Master processing
+- one combined user-visible Effects pipeline
 - preservation of unknown effect objects
 
 The following effects execute in both Browser Draft and authoritative Python/PyTorch rendering:
