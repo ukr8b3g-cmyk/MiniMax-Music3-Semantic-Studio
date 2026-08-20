@@ -6,7 +6,7 @@ const DISPLAY_MODES = new Set(["auto", "split", "overlay", "mono"]);
 const TOOL_MODES = new Set(["select", "envelope"]);
 const ENVELOPE_DB_MAX = 6;
 const ENVELOPE_DB_MIN = -24;
-const WAVE_TOP = 44;
+const WAVE_TOP = 8;
 const WAVE_BOTTOM_PAD = 22;
 
 function waitForMetadata(audio) {
@@ -41,7 +41,6 @@ export class WaveformView {
     this.displayMode = "auto";
     this.toolMode = "select";
     this.selection = null;
-    this.sections = [];
     this.clips = [];
     this.selectedClipId = null;
     this.track = null;
@@ -57,7 +56,6 @@ export class WaveformView {
     this.stage = el("div", "m3ssv2-wave-stage");
     this.canvas = document.createElement("canvas");
     this.canvas.className = "m3ssv2-wave-canvas";
-    this.sectionLayer = el("div", "m3ssv2-semantic-overlay");
     this.clipLayer = el("div", "m3ssv2-wave-clips");
     this.selectionEl = el("div", "m3ssv2-wave-selection");
     this.envelopeSvg = document.createElementNS(SVG_NS, "svg");
@@ -66,7 +64,7 @@ export class WaveformView {
     this.playhead = el("div", "m3ssv2-playhead");
     this.tooltip = el("div", "m3ssv2-envelope-tooltip");
     this.tooltip.hidden = true;
-    this.stage.append(this.canvas, this.sectionLayer, this.clipLayer, this.selectionEl, this.envelopeSvg, this.playhead, this.tooltip);
+    this.stage.append(this.canvas, this.clipLayer, this.selectionEl, this.envelopeSvg, this.playhead, this.tooltip);
     this.scroll.appendChild(this.stage);
     this.root.appendChild(this.scroll);
     this.container.appendChild(this.root);
@@ -269,7 +267,7 @@ export class WaveformView {
   }
 
   resetZoom() { return this.fit(); }
-  setSemanticSections(sections) { this.sections = sections || []; this.renderSections(); }
+  setSemanticSections() {}
 
   drawWaveData(context, data, width, top, bottom, strokeStyle) {
     const length = data.length;
@@ -384,26 +382,10 @@ export class WaveformView {
         context.fillText(channels >= 2 ? "Mono mix preview" : "Mono", 7, top + 12);
       }
     }
-    this.renderSections();
     this.renderClips();
     this.updateSelection();
     this.renderEnvelope();
     this.updatePlayhead();
-  }
-
-  renderSections() {
-    if (!this.sectionLayer) return;
-    this.sectionLayer.replaceChildren();
-    for (const section of this.sections) {
-      const start = clamp(section.start / this.duration * 100, 0, 100);
-      const end = clamp(section.end / this.duration * 100, 0, 100);
-      if (end <= start) continue;
-      const node = el("div", "m3ssv2-semantic-section", section.label);
-      node.style.left = `${start}%`;
-      node.style.width = `${Math.max(.2, end - start)}%`;
-      node.title = `${section.label} · ${fmtTime(section.start)}–${fmtTime(section.end)}`;
-      this.sectionLayer.appendChild(node);
-    }
   }
 
   renderClips() {
