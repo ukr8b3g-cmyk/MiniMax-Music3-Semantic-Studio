@@ -212,6 +212,67 @@
       }
     },
     {
+      "id": 60,
+      "type": "MiniMaxMusic3SemanticStudio",
+      "pos": [
+        2250,
+        700
+      ],
+      "size": [
+        360,
+        220
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 95
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            93
+          ]
+        },
+        {
+          "name": "seconds",
+          "type": "FLOAT",
+          "links": [
+            94
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "ukr8b3g-cmyk/MiniMax-Music3-Semantic-Studio",
+        "ver": "09699d9d8e36310b9960e1a1e446bb3136fc4c02",
+        "Node name for S&R": "MiniMaxMusic3SemanticStudio"
+      },
+      "widgets_values": [
+        "{\"schema_version\":1,\"project_id\":\"project-a3e6944a-05ce-44d1-9673-884b54a62223\",\"global\":{\"title\":\"\",\"genre\":\"Lo-fi hip-hop, chillhop\",\"subgenres\":[],\"bpm\":78,\"key\":\"D flat\",\"scale\":\"major\",\"meter\":\"4/4\",\"mood\":\"78 BPM, D flat major, major scale with jazzy extensions. Laid-back and dreamy throughout, a gentle warm drift with a subtle late-night glow that deepens in the middle and dissolves softly at the end. Studying, raining-outside, headphones-on late-night listening\",\"production\":\"muddy warm texture, heavy vinyl crackle, tape hiss and wow-flutter pitch wobble, low-passed dusty mix, soft-clipped drums, everything slightly detuned and cozy\",\"vocal\":{\"mode\":\"vocal\",\"gender\":\"Soft androgynous vocal\",\"timbre\":\"gentle breathy\",\"delivery\":\"hushed half-sung half-spoken delivery\",\"harmony\":\"\",\"effects\":\"\"}},\"timeline\":{\"sections\":[{\"id\":\"intro-2899e70b-7525-4323-831f-66ca986f1b30\",\"type\":\"Intro\",\"label\":\"Intro\",\"duration\":8,\"energy\":0.5,\"lyrics\":\"Mmm...\\n(rain on the window)\\nOoh...\",\"instruments\":[\"drums\",\"Rhodes\",\"vinyl noise\",\"rain\"],\"vocal\":\"\",\"directives\":\"rain and vinyl noise, solo Rhodes chords fading in, drums slipping in halfway\"},{\"id\":\"verse-dc7e4470-e565-457c-8a8b-ac28b335c4f7\",\"type\":\"Verse\",\"label\":\"Verse 1\",\"duration\":24,\"energy\":0.5,\"lyrics\":\"Midnight and the canvas glows\\nDragging little wires where the current flows\\nType a quiet dream, let the sampler drift\\nNoise into a picture, like the fog just lifts\\nTwenty slow steps, I'm in no hurry now\\nLatents turning colors and I don't know how\\nEvery render's like a polaroid I found\\nSoft focus memories, no sound\",\"instruments\":[\"drums\",\"bass\",\"Rhodes\",\"soft guitar\"],\"vocal\":\"\",\"directives\":\"minimal — drums, bass, Rhodes, soft guitar fills between lines\"},{\"id\":\"instrumental-fc665bd9-e548-4120-9b5d-b43b9b4c19cf\",\"type\":\"Instrumental\",\"label\":\"Instrumental 1\",\"duration\":16,\"energy\":0.5,\"lyrics\":\"\",\"instruments\":[\"Rhodes\",\"guitar\",\"muted trumpet\"],\"vocal\":\"\",\"directives\":\"guitar and Rhodes trade relaxed jazzy phrases over the beat, occasional muted trumpet ghost notes far in the background\"},{\"id\":\"verse-2ef4eaa3-2de0-4767-a1a1-fd25036c19fb\",\"type\":\"Verse\",\"label\":\"Verse 2\",\"duration\":24,\"energy\":0.5,\"lyrics\":\"Queue another frame, let the motion breathe\\nPictures start to move like the falling leaves\\nVideo drifting by at twenty-four\\nLittle animations on my bedroom floor\\nSeed after seed like the rain outside\\nSome of them are keepers, some I let slide\\nSave the ones that feel like a Sunday slow\\nNode to node to node... and off we go\",\"instruments\":[\"drums\",\"bass\",\"Rhodes\",\"soft guitar\"],\"vocal\":\"\",\"directives\":\"minimal — drums, bass, Rhodes, soft guitar fills between lines\"},{\"id\":\"chorus-ea940669-be56-4414-9beb-3058c061c9c0\",\"type\":\"Chorus\",\"label\":\"Chorus 1\",\"duration\":20,\"energy\":0.5,\"lyrics\":\"Mmm... let it render on\\n(take your time, take your time)\\nOoh... by the morning it'll all be done\\n(one more queue, one more try)\",\"instruments\":[\"Dusty boom-bap drums\",\"low round sub bass\",\"Warm Rhodes piano\",\"mellow jazzy guitar\",\"piano\",\"brushed hi-hats\",\"kick\",\"snare\",\"vinyl crackle\"],\"vocal\":\"\",\"directives\":\"\"},{\"id\":\"instrumental-a4ef76b9-52bb-4442-b101-3cf02ed31c40\",\"type\":\"Instrumental\",\"label\":\"Instrumental 2\",\"duration\":16,\"energy\":0.5,\"lyrics\":\"\",\"instruments\":[\"Rhodes\",\"guitar\",\"muted trumpet\"],\"vocal\":\"\",\"directives\":\"guitar and Rhodes trade relaxed jazzy phrases over the beat, occasional muted trumpet ghost notes far in the background\"},{\"id\":\"bridge-29f204d3-f7f6-492c-b037-e8b884ac3b7f\",\"type\":\"Bridge\",\"label\":\"Bridge\",\"duration\":16,\"energy\":0.5,\"lyrics\":\"Rain keeps drawing pictures on the glass...\\nMy machine keeps dreaming...\\nNeither of us fast...\",\"instruments\":[\"drums\",\"floating detuned Rhodes\",\"crackle\",\"rain\"],\"vocal\":\"\",\"directives\":\"drums drop away to rain, crackle, and floating detuned Rhodes, then the beat eases back in\"},{\"id\":\"chorus-1d817793-9e4d-4140-a2b2-40b9b1543f6a\",\"type\":\"Chorus\",\"label\":\"Chorus 2\",\"duration\":20,\"energy\":0.5,\"lyrics\":\"Mmm... let it render on\\n(take your time, take your time)\\nOoh... by the morning it'll all be done\\n(one more queue, one more try)\",\"instruments\":[\"Dusty boom-bap drums\",\"low round sub bass\",\"Warm Rhodes piano\",\"mellow jazzy guitar\",\"piano\",\"brushed hi-hats\",\"kick\",\"snare\",\"vinyl crackle\"],\"vocal\":\"\",\"directives\":\"\"},{\"id\":\"instrumental-1833d764-f578-440d-bccd-873591abb32e\",\"type\":\"Instrumental\",\"label\":\"Instrumental 3\",\"duration\":16,\"energy\":0.5,\"lyrics\":\"\",\"instruments\":[\"Rhodes\",\"guitar\",\"muted trumpet\"],\"vocal\":\"\",\"directives\":\"guitar and Rhodes trade relaxed jazzy phrases over the beat, occasional muted trumpet ghost notes far in the background\"},{\"id\":\"outro-8c89ff81-dc5c-4213-a7ed-b9d7c4ba5983\",\"type\":\"Outro\",\"label\":\"Outro\",\"duration\":8,\"energy\":0.5,\"lyrics\":\"Mmm...\\n(node to node)\\nOoh... goodnight\",\"instruments\":[\"Rhodes\",\"vinyl crackle\"],\"vocal\":\"\",\"directives\":\"elements fade one by one until only vinyl crackle and a last unresolved Rhodes chord remain\"}],\"instrument_catalog\":[\"drums\",\"Rhodes\",\"vinyl noise\",\"rain\",\"bass\",\"soft guitar\",\"guitar\",\"muted trumpet\",\"Dusty boom-bap drums\",\"low round sub bass\",\"Warm Rhodes piano\",\"mellow jazzy guitar\",\"piano\",\"brushed hi-hats\",\"kick\",\"snare\",\"vinyl crackle\",\"floating detuned Rhodes\",\"crackle\"]},\"audio_edits\":[],\"takes\":[],\"conditioning_tracks\":[]}",
+        42,
+        "fixed",
+        60,
+        1.7,
+        50
+      ],
+      "widgets_values_named": {
+        "project_json": "{\"schema_version\":1,\"project_id\":\"project-a3e6944a-05ce-44d1-9673-884b54a62223\",\"global\":{\"title\":\"\",\"genre\":\"Lo-fi hip-hop, chillhop\",\"subgenres\":[],\"bpm\":78,\"key\":\"D flat\",\"scale\":\"major\",\"meter\":\"4/4\",\"mood\":\"78 BPM, D flat major, major scale with jazzy extensions. Laid-back and dreamy throughout, a gentle warm drift with a subtle late-night glow that deepens in the middle and dissolves softly at the end. Studying, raining-outside, headphones-on late-night listening\",\"production\":\"muddy warm texture, heavy vinyl crackle, tape hiss and wow-flutter pitch wobble, low-passed dusty mix, soft-clipped drums, everything slightly detuned and cozy\",\"vocal\":{\"mode\":\"vocal\",\"gender\":\"Soft androgynous vocal\",\"timbre\":\"gentle breathy\",\"delivery\":\"hushed half-sung half-spoken delivery\",\"harmony\":\"\",\"effects\":\"\"}},\"timeline\":{\"sections\":[{\"id\":\"intro-2899e70b-7525-4323-831f-66ca986f1b30\",\"type\":\"Intro\",\"label\":\"Intro\",\"duration\":8,\"energy\":0.5,\"lyrics\":\"Mmm...\\n(rain on the window)\\nOoh...\",\"instruments\":[\"drums\",\"Rhodes\",\"vinyl noise\",\"rain\"],\"vocal\":\"\",\"directives\":\"rain and vinyl noise, solo Rhodes chords fading in, drums slipping in halfway\"},{\"id\":\"verse-dc7e4470-e565-457c-8a8b-ac28b335c4f7\",\"type\":\"Verse\",\"label\":\"Verse 1\",\"duration\":24,\"energy\":0.5,\"lyrics\":\"Midnight and the canvas glows\\nDragging little wires where the current flows\\nType a quiet dream, let the sampler drift\\nNoise into a picture, like the fog just lifts\\nTwenty slow steps, I'm in no hurry now\\nLatents turning colors and I don't know how\\nEvery render's like a polaroid I found\\nSoft focus memories, no sound\",\"instruments\":[\"drums\",\"bass\",\"Rhodes\",\"soft guitar\"],\"vocal\":\"\",\"directives\":\"minimal — drums, bass, Rhodes, soft guitar fills between lines\"},{\"id\":\"instrumental-fc665bd9-e548-4120-9b5d-b43b9b4c19cf\",\"type\":\"Instrumental\",\"label\":\"Instrumental 1\",\"duration\":16,\"energy\":0.5,\"lyrics\":\"\",\"instruments\":[\"Rhodes\",\"guitar\",\"muted trumpet\"],\"vocal\":\"\",\"directives\":\"guitar and Rhodes trade relaxed jazzy phrases over the beat, occasional muted trumpet ghost notes far in the background\"},{\"id\":\"verse-2ef4eaa3-2de0-4767-a1a1-fd25036c19fb\",\"type\":\"Verse\",\"label\":\"Verse 2\",\"duration\":24,\"energy\":0.5,\"lyrics\":\"Queue another frame, let the motion breathe\\nPictures start to move like the falling leaves\\nVideo drifting by at twenty-four\\nLittle animations on my bedroom floor\\nSeed after seed like the rain outside\\nSome of them are keepers, some I let slide\\nSave the ones that feel like a Sunday slow\\nNode to node to node... and off we go\",\"instruments\":[\"drums\",\"bass\",\"Rhodes\",\"soft guitar\"],\"vocal\":\"\",\"directives\":\"minimal — drums, bass, Rhodes, soft guitar fills between lines\"},{\"id\":\"chorus-ea940669-be56-4414-9beb-3058c061c9c0\",\"type\":\"Chorus\",\"label\":\"Chorus 1\",\"duration\":20,\"energy\":0.5,\"lyrics\":\"Mmm... let it render on\\n(take your time, take your time)\\nOoh... by the morning it'll all be done\\n(one more queue, one more try)\",\"instruments\":[\"Dusty boom-bap drums\",\"low round sub bass\",\"Warm Rhodes piano\",\"mellow jazzy guitar\",\"piano\",\"brushed hi-hats\",\"kick\",\"snare\",\"vinyl crackle\"],\"vocal\":\"\",\"directives\":\"\"},{\"id\":\"instrumental-a4ef76b9-52bb-4442-b101-3cf02ed31c40\",\"type\":\"Instrumental\",\"label\":\"Instrumental 2\",\"duration\":16,\"energy\":0.5,\"lyrics\":\"\",\"instruments\":[\"Rhodes\",\"guitar\",\"muted trumpet\"],\"vocal\":\"\",\"directives\":\"guitar and Rhodes trade relaxed jazzy phrases over the beat, occasional muted trumpet ghost notes far in the background\"},{\"id\":\"bridge-29f204d3-f7f6-492c-b037-e8b884ac3b7f\",\"type\":\"Bridge\",\"label\":\"Bridge\",\"duration\":16,\"energy\":0.5,\"lyrics\":\"Rain keeps drawing pictures on the glass...\\nMy machine keeps dreaming...\\nNeither of us fast...\",\"instruments\":[\"drums\",\"floating detuned Rhodes\",\"crackle\",\"rain\"],\"vocal\":\"\",\"directives\":\"drums drop away to rain, crackle, and floating detuned Rhodes, then the beat eases back in\"},{\"id\":\"chorus-1d817793-9e4d-4140-a2b2-40b9b1543f6a\",\"type\":\"Chorus\",\"label\":\"Chorus 2\",\"duration\":20,\"energy\":0.5,\"lyrics\":\"Mmm... let it render on\\n(take your time, take your time)\\nOoh... by the morning it'll all be done\\n(one more queue, one more try)\",\"instruments\":[\"Dusty boom-bap drums\",\"low round sub bass\",\"Warm Rhodes piano\",\"mellow jazzy guitar\",\"piano\",\"brushed hi-hats\",\"kick\",\"snare\",\"vinyl crackle\"],\"vocal\":\"\",\"directives\":\"\"},{\"id\":\"instrumental-1833d764-f578-440d-bccd-873591abb32e\",\"type\":\"Instrumental\",\"label\":\"Instrumental 3\",\"duration\":16,\"energy\":0.5,\"lyrics\":\"\",\"instruments\":[\"Rhodes\",\"guitar\",\"muted trumpet\"],\"vocal\":\"\",\"directives\":\"guitar and Rhodes trade relaxed jazzy phrases over the beat, occasional muted trumpet ghost notes far in the background\"},{\"id\":\"outro-8c89ff81-dc5c-4213-a7ed-b9d7c4ba5983\",\"type\":\"Outro\",\"label\":\"Outro\",\"duration\":8,\"energy\":0.5,\"lyrics\":\"Mmm...\\n(node to node)\\nOoh... goodnight\",\"instruments\":[\"Rhodes\",\"vinyl crackle\"],\"vocal\":\"\",\"directives\":\"elements fade one by one until only vinyl crackle and a last unresolved Rhodes chord remain\"}],\"instrument_catalog\":[\"drums\",\"Rhodes\",\"vinyl noise\",\"rain\",\"bass\",\"soft guitar\",\"guitar\",\"muted trumpet\",\"Dusty boom-bap drums\",\"low round sub bass\",\"Warm Rhodes piano\",\"mellow jazzy guitar\",\"piano\",\"brushed hi-hats\",\"kick\",\"snare\",\"vinyl crackle\",\"floating detuned Rhodes\",\"crackle\"]},\"audio_edits\":[],\"takes\":[],\"conditioning_tracks\":[]}",
+        "seed": 42,
+        "control_after_generate": "fixed",
+        "max_duration": 60,
+        "cfg_scale": 1.7,
+        "top_k": 50
+      },
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
       "id": 69,
       "type": "8ee9872f-9d73-4080-b0fc-c3f1579f9d92",
       "pos": [
@@ -286,7 +347,7 @@
       },
       "widgets_values": [
         120,
-        "exitiumVICTRIX_highEXITIUMVICTRIX.safetensors",
+        "MiniMaxMusic3\\minimax_music3_dit_fp16.safetensors",
         "minimax_music3_text_encoder_pruned_int8_convrot.safetensors",
         "minimax_music3_dav.safetensors",
         false,
@@ -294,73 +355,12 @@
       ],
       "widgets_values_named": {
         "seconds": 120,
-        "unet_name": "exitiumVICTRIX_highEXITIUMVICTRIX.safetensors",
+        "unet_name": "MiniMaxMusic3\\minimax_music3_dit_fp16.safetensors",
         "clip_name": "minimax_music3_text_encoder_pruned_int8_convrot.safetensors",
         "vae_name": "minimax_music3_dav.safetensors",
         "switch": false,
         "seed": 42
       }
-    },
-    {
-      "id": 60,
-      "type": "MiniMaxMusic3SemanticStudio",
-      "pos": [
-        2250,
-        700
-      ],
-      "size": [
-        360,
-        220
-      ],
-      "flags": {},
-      "order": 3,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "clip",
-          "type": "CLIP",
-          "link": 95
-        }
-      ],
-      "outputs": [
-        {
-          "name": "CONDITIONING",
-          "type": "CONDITIONING",
-          "links": [
-            93
-          ]
-        },
-        {
-          "name": "seconds",
-          "type": "FLOAT",
-          "links": [
-            94
-          ]
-        }
-      ],
-      "properties": {
-        "aux_id": "ukr8b3g-cmyk/MiniMax-Music3-Semantic-Studio",
-        "ver": "09699d9d8e36310b9960e1a1e446bb3136fc4c02",
-        "Node name for S&R": "MiniMaxMusic3SemanticStudio"
-      },
-      "widgets_values": [
-        "{\"schema_version\":1,\"project_id\":\"project-a3e6944a-05ce-44d1-9673-884b54a62223\",\"global\":{\"title\":\"\",\"genre\":\"Lo-fi hip-hop, chillhop\",\"subgenres\":[],\"bpm\":78,\"key\":\"D flat\",\"scale\":\"major\",\"meter\":\"4/4\",\"mood\":\"78 BPM, D flat major, major scale with jazzy extensions. Laid-back and dreamy throughout, a gentle warm drift with a subtle late-night glow that deepens in the middle and dissolves softly at the end. Studying, raining-outside, headphones-on late-night listening\",\"production\":\"muddy warm texture, heavy vinyl crackle, tape hiss and wow-flutter pitch wobble, low-passed dusty mix, soft-clipped drums, everything slightly detuned and cozy\",\"vocal\":{\"mode\":\"vocal\",\"gender\":\"Soft androgynous vocal\",\"timbre\":\"gentle breathy\",\"delivery\":\"hushed half-sung half-spoken delivery\",\"harmony\":\"\",\"effects\":\"\"}},\"timeline\":{\"sections\":[{\"id\":\"intro-2899e70b-7525-4323-831f-66ca986f1b30\",\"type\":\"Intro\",\"label\":\"Intro\",\"duration\":8,\"energy\":0.5,\"lyrics\":\"Mmm...\\n(rain on the window)\\nOoh...\",\"instruments\":[\"drums\",\"Rhodes\",\"vinyl noise\",\"rain\"],\"vocal\":\"\",\"directives\":\"rain and vinyl noise, solo Rhodes chords fading in, drums slipping in halfway\"},{\"id\":\"verse-dc7e4470-e565-457c-8a8b-ac28b335c4f7\",\"type\":\"Verse\",\"label\":\"Verse 1\",\"duration\":24,\"energy\":0.5,\"lyrics\":\"Midnight and the canvas glows\\nDragging little wires where the current flows\\nType a quiet dream, let the sampler drift\\nNoise into a picture, like the fog just lifts\\nEvery render's like a polaroid I found\nSoft focus memories, no sound\",\"instruments\":[\"drums\",\"bass\",\"Rhodes\",\"soft guitar\"],\"vocal\":\"\",\"directives\":\"minimal — drums, bass, Rhodes, soft guitar fills between lines\"},... (truncated for brevity) ...]}",
-        42,
-        "fixed",
-        168,
-        1.7,
-        50
-      ],
-      "widgets_values_named": {
-        "project_json": "{\"schema_version\":1,\"project_id\":\"project-a3e6944a-05ce-44d1-9673-884b54a62223\",\"global\":{\"title\":\"\",\"genre\":\"Lo-fi hip-hop, chillhop\",\"subgenres\":[],\"bpm\":78,\"key\":\"D flat\",\"scale\":\"major\",\"meter\":\"4/4\",\"mood\":\"78 BPM, D flat major, major scale with jazzy extensions. Laid-back and dreamy throughout, a gentle warm drift with a subtle late-night glow that deepens in the middle and dissolves softly at the end. Studying, raining-outside, headphones-on late-night listening\",\"production\":\"muddy warm texture, heavy vinyl crackle, tape hiss and wow-flutter pitch wobble, low-passed dusty mix, soft-clipped drums, everything slightly detuned and cozy\",\"vocal\":{\"mode\":\"vocal\",\"gender\":\"Soft androgynous vocal\",\"timbre\":\"gentle breathy\",\"delivery\":\"hushed half-sung half-spoken delivery\",\"harmony\":\"\",\"effects\":\"\"}},\"timeline\":{\"sections\":[{\"id\":\"intro-2899e70b-7525-4323-831f-66ca986f1b30\",\"type\":\"Intro\",\"label\":\"Intro\",\"duration\":8,\"energy\":0.5,\"lyrics\":\"Mmm...\\n(rain on the window)\\nOoh...\",\"instruments\":[\"drums\",\"Rhodes\",\"vinyl noise\",\"rain\"],\"vocal\":\"\",\"directives\":\"rain and vinyl noise, solo Rhodes chords fading in, drums slipping in halfway\"},{\"id\":\"verse-dc7e4470-e565-457c-8a8b-ac28b335c4f7\",\"type\":\"Verse\",\"label\":\"Verse 1\",\"duration\":24,\"energy\":0.5,\"lyrics\":\"Midnight and the canvas glows\\nDragging little wires where the current flows\\nType a quiet dream, let the sampler drift\\nNoise into a picture, like the fog just lifts\\nTwenty slow steps, I'm in no hurry now\\nLatents turning colors and I don't know how\\nEvery render's like a polaroid I found\\nSoft focus memories, no sound\",\"instruments\":[\"drums\",\"bass\",\"Rhodes\",\"soft guitar\"],\"vocal\":\"\",\"directives\":\"minimal — drums, bass, Rhodes, soft guitar fills between lines\"},{\"id\":\"instrumental-fc665bd9-e548-4120-9b5d-b43b9b4c19cf\",\"type\":\"Instrumental\",\"label\":\"Instrumental 1\",\"duration\":16,\"energy\":0.5,\"lyrics\":\"\",\"instruments\":[\"Rhodes\",\"guitar\",\"muted trumpet\"],\"vocal\":\"\",\"directives\":\"guitar and Rhodes trade relaxed jazzy phrases over the beat, occasional muted trumpet ghost notes far in the background\"},{\"id\":\"verse-2ef4eaa3-2de0-4767-a1a1-fd25036c19fb\",\"type\":\"Verse\",\"label\":\"Verse 2\",\"duration\":24,\"energy\":0.5,\"lyrics\":\"Queue another frame, let the motion breathe\\nPictures start to move like the falling leaves\\nVideo drifting by at twenty-four\\nLittle animations on my bedroom floor\\nSeed after seed like the rain outside\\nSome of them are keepers, some I let slide\\nSave the ones that feel like a Sunday slow\\nNode to node to node... and off we go\",\"instruments\":[\"drums\",\"bass\",\"Rhodes\",\"soft guitar\"],\"vocal\":\"\",\"directives\":\"minimal — drums, bass, Rhodes, soft guitar fills between lines\"},... (truncated for brevity) ...}}",
-        "seed": 42,
-        "control_after_generate": "fixed",
-        "max_duration": 168,
-        "cfg_scale": 1.7,
-        "top_k": 50
-      },
-      "color": "#232",
-      "bgcolor": "#353"
     }
   ],
   "links": [
@@ -529,7 +529,7 @@
             ]
           },
           {
-            "id": "9be176ce-5bbb-41a0-8358-c30c249feb8d",
+            "id": "9be176ce-5bbb-41a0-8358-c30c249febe8",
             "name": "seed",
             "type": "INT",
             "linkIds": [
@@ -1210,8 +1210,8 @@
     "ds": {
       "scale": 1.1241290322580648,
       "offset": [
-        -2074.827680211203,
-        -516.9836719467401
+        -2153.11050849403,
+        -536.5543790174468
       ]
     },
     "VHS_latentpreview": false,
