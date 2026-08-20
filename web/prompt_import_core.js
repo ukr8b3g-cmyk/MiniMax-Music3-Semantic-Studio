@@ -18,6 +18,9 @@ const fieldMatch = (text, regex) => { const match = text.match(regex); return ma
 function normalizeTag(raw) {
   let key = clean(raw).toLowerCase().replace(/[‐‑‒–—]/g, "-").replace(/\s+/g, " ");
   key = key.replace(/\s*(?:#?\d+|\d+(?:st|nd|rd|th))\s*$/i, "").trim();
+  key = key.replace(/\s+sections?$/i, "").replace(/s$/i, (suffix) => suffix);
+  if (key === "verses") key = "verse";
+  if (key === "choruses") key = "chorus";
   if (key.startsWith("final chorus")) return "Chorus";
   if (TAG_ALIASES.has(key)) return TAG_ALIASES.get(key);
   for (const [alias, type] of TAG_ALIASES) if (key.startsWith(alias + " ")) return type;
@@ -46,51 +49,74 @@ function parseEnergy(text) {
 }
 
 function splitHeadings(caption) {
-  const blocks = { global: "", vocal: "", arrangement: "" };
-  let current = null;
-  for (const line of clean(caption).split("\n")) {
-    const heading = line.match(/^\s*#{1,6}\s*(Global Metadata|Vocal Details|Arrangement)\s*$/i);
-    if (heading) {
-      const key = heading[1].toLowerCase();
-      current = key.startsWith("global") ? "global" : key.startsWith("vocal") ? "vocal" : "arrangement";
-      continue;
-    }
-    if (current) blocks[current] += (blocks[current] ? "\n" : "") + line;
+  const source = clean(caption), blocks = { global: "", vocal: "", arrangement: "" };
+  if (!source) return blocks;
+  const marker = /(?:^|\n)\s*(?:#{1,6}\s*)?(Global Metadata|Vocal Details|Arrangement)\s*(?::\s*|\n)/gi;
+  const matches = [...source.matchAll(marker)];
+  for (let index = 0; index < matches.length; index++) {
+    const heading = matches[index][1].toLowerCase();
+    const key = heading.startsWith("global") ? "global" : heading.startsWith("vocal") ? "vocal" : "arrangement";
+    const start = (matches[index].index || 0) + matches[index][0].length;
+    const end = index + 1 < matches.length ? matches[index + 1].index : source.length;
+    blocks[key] = clean(source.slice(start, end));
   }
   return blocks;
 }
 
 function parseGlobal(text) {
-  const values = {}, present = [];
-  const genre = fieldMatch(text, /\bGenre\s*:\s*([^\n.]+)/i);
+  const source = clean(text), values = {}, present = [];
+  let genre = fieldMatch(source, /\bGenre\s*:\s*([^\n.]+)/i);
+  if (!genre && source) {
+    const firstSentence = clean((source.match(/^([^.!?]+)[.!?]/) || [])[1]);
+    if (firstSentence && !/^\d+(?:\.\d+)?\s*BPM/i.test(firstSentence)) genre = firstSentence;
+  }
   if (genre) {
     const parts = genre.match(/^(.*?)\s+with\s+(.+?)\s+influences?$/i);
     values.genre = clean(parts ? parts[1] : genre); present.push("genre");
     if (parts) { values.subgenres = parseList(parts[2]); present.push("subgenres"); }
   }
-  const tempo = text.match(/(?:Tempo(?:\s+target)?|BPM)\s*:\s*(?:approximately\s*)?(\d+(?:\.\d+)?)\s*BPM?(?:\s+in\s+([0-9]+\/[0-9]+)\s*(?:meter)?)?/i);
+
+  let tempo = source.match(/(?:Tempo(?:\s+target)?|BPM)\s*:\s*(?:approximately\s*)?(\d+(?:\.\d+)?)\s*BPM?(?:\s+in\s+([0-9]+\/[0-9]+)\s*(?:meter)?)?/i);
+  if (!tempo) tempo = source.match(/\b(\d+(?:\.\d+)?)\s*BPM\b(?:\s*,?\s*([0-9]+\/[0-9]+)\b)?/i);
   if (tempo) {
     values.bpm = Math.round(Number(tempo[1])); present.push("bpm");
     if (tempo[2]) { values.meter = tempo[2]; present.push("meter"); }
   }
   if (!values.meter) {
-    const meter = fieldMatch(text, /(?:Meter|Time signature)\s*:\s*([^\n.]+)/i);
+    const meter = fieldMatch(source, /(?:Meter|Time signature)\s*:\s*([^\n.]+)/i) || clean((source.match(/\b([0-9]+\/[0-9]+)\b/) || [])[1]);
     if (meter) { values.meter = meter; present.push("meter"); }
   }
-  const keyScale = fieldMatch(text, /(?:Key\/scale target|Key\/Scale|Key)\s*:\s*([^\n.]+)/i);
+
+  let keyScale = fieldMatch(source, /(?:Key\/scale target|Key\/Scale|Key)\s*:\s*([^\n.]+)/i);
+  if (!keyScale) keyScale = clean((source.match(/\b([A-G](?:\s+(?:flat|sharp)|[#b])?\s+(?:major|minor))\b/i) || [])[1]);
   if (keyScale) { values.key = keyScale; present.push("key"); }
-  const mood = fieldMatch(text, /(?:Mood and emotional direction|Mood)\s*:\s*([^\n]+)/i);
+
+  const mood = fieldMatch(source, /(?:Mood and emotional direction|Mood)\s*:\s*([^\n]+)/i);
   if (mood) { values.mood = mood.replace(/\.$/, ""); present.push("mood"); }
-  const production = fieldMatch(text, /(?:Production profile|Production)\s*:\s*([^\n]+)/i);
+  else {
+    const productionIndex = source.search(/\b(?:Bedroom\s+)?Production\s*:/i);
+    if (productionIndex > 0) {
+      const prefix = source.slice(0, productionIndex);
+      const sentences = prefix.split(/(?<=[.!?])\s+/).map(clean).filter(Boolean);
+      if (sentences.length > 1) {
+        values.mood = sentences.slice(1).join(" ").replace(/\.$/, ""); present.push("mood");
+      }
+    }
+  }
+
+  let production = fieldMatch(source, /(?:Production profile|Production)\s*:\s*([^\n]+)/i);
+  if (!production) production = fieldMatch(source, /Bedroom production\s*:\s*([^\n]+)/i);
   if (production) { values.production = production.replace(/\.$/, ""); present.push("production"); }
-  return { values, present };
+  return { values, present: [...new Set(present)] };
 }
 
 function parseVocal(text) {
-  const values = {}, present = [];
-  if (!clean(text)) return { values, present };
-  if (/instrumental piece|no lead or backing vocals|\binstrumental\b/i.test(text)) { values.mode = "instrumental"; present.push("mode"); }
-  const lead = fieldMatch(text, /Lead vocal\s*:\s*([^\n.]+)/i);
+  const source = clean(text), values = {}, present = [];
+  if (!source) return { values, present };
+  const explicitInstrumental = /instrumental piece\s+with\s+no\s+lead\s+or\s+backing\s+vocals|no\s+lead\s+or\s+backing\s+vocals/i.test(source);
+  if (explicitInstrumental) { values.mode = "instrumental"; present.push("mode"); }
+
+  const lead = fieldMatch(source, /Lead vocal\s*:\s*([^\n.]+)/i);
   if (lead) {
     values.mode = "vocal"; if (!present.includes("mode")) present.push("mode");
     for (const [index, rawPart] of lead.split(";").entries()) {
@@ -99,10 +125,19 @@ function parseVocal(text) {
       else if (/^delivery\s+/i.test(part)) { values.delivery = part.replace(/^delivery\s+/i, ""); present.push("delivery"); }
       else if (index === 0) { values.gender = part; present.push("gender"); }
     }
+  } else if (!explicitInstrumental && /\bvocal\b/i.test(source)) {
+    values.mode = "vocal"; present.push("mode");
+    const firstClause = clean(source.split(/[,.]/)[0]);
+    if (firstClause) { values.gender = firstClause; present.push("gender"); }
+    const timbre = clean((source.match(/(?:gentle\s+)?([^,.]+?)\s+timbre\b/i) || [])[1]);
+    if (timbre) { values.timbre = timbre; present.push("timbre"); }
+    const delivery = clean((source.match(/([^,.]+?delivery[^,.]*)/i) || [])[1]);
+    if (delivery) { values.delivery = delivery; present.push("delivery"); }
   }
-  const harmony = fieldMatch(text, /Harmony\/backing vocals\s*:\s*([^\n.]+)/i);
+
+  const harmony = fieldMatch(source, /Harmony\/backing vocals\s*:\s*([^\n.]+)/i);
   if (harmony) { values.harmony = harmony; present.push("harmony"); }
-  const effects = fieldMatch(text, /Vocal effects\s*:\s*([^\n.]+)/i);
+  const effects = fieldMatch(source, /Vocal effects\s*:\s*([^\n.]+)/i);
   if (effects) { values.effects = effects; present.push("effects"); }
   return { values, present: [...new Set(present)] };
 }
@@ -149,6 +184,22 @@ function parseArrangement(text, warnings) {
   });
 }
 
+function parseLooseArrangementHints(text) {
+  const source = clean(text), hints = new Map();
+  if (!source) return hints;
+  const marker = /\b(Intro|Verses?|Pre[- ]?Chorus(?:es)?|Choruses?|Bridge|Instrumental(?:\s+sections?)?|Solo|Outro)\s*:\s*/gi;
+  const matches = [...source.matchAll(marker)];
+  for (let index = 0; index < matches.length; index++) {
+    const type = normalizeTag(matches[index][1]);
+    if (!type) continue;
+    const start = (matches[index].index || 0) + matches[index][0].length;
+    const end = index + 1 < matches.length ? matches[index + 1].index : source.length;
+    const body = clean(source.slice(start, end)).replace(/^[.\s]+|[.\s]+$/g, "");
+    if (body && !hints.has(type)) hints.set(type, body);
+  }
+  return hints;
+}
+
 function parseLyrics(text, warnings) {
   const input = clean(text);
   if (!input) return [];
@@ -169,22 +220,39 @@ function parseLyrics(text, warnings) {
   return blocks;
 }
 
-function combineSections(arrangement, lyrics, warnings) {
+function combineSections(arrangement, lyrics, warnings, looseHints = new Map()) {
   const sections = arrangement.map((section) => clone(section)), byType = new Map();
-  for (const section of sections) { const items = byType.get(section.type) || []; items.push(section); byType.set(section.type, items); }
+  for (const section of sections) { const items = byType.get(section.type) || []; items.push(section); existingPush(byType, section.type, section); }
   const seen = new Map();
   for (const block of lyrics) {
     const occurrence = seen.get(block.type) || 0; seen.set(block.type, occurrence + 1);
     const target = (byType.get(block.type) || [])[occurrence];
     if (target) {
       target.lyrics = block.lyrics; if (!target.present.includes("lyrics")) target.present.push("lyrics");
-    } else {
-      const created = { ...block, duration: DEFAULT_DURATION[block.type] || 16, energy: .5, instruments: [], vocal: "", directives: "", present: [...block.present, "duration", "energy", "instruments", "vocal", "directives"], duration_defaulted: true };
-      sections.push(created); const items = byType.get(block.type) || []; items.push(created); byType.set(block.type, items);
-      warnings.push(`${created.label}: section was created from Lyrics only; duration/energy use defaults.`);
+      continue;
     }
+    const hint = looseHints.get(block.type) || "";
+    const created = {
+      ...block,
+      duration: DEFAULT_DURATION[block.type] || 16,
+      energy: .5,
+      instruments: [],
+      vocal: "",
+      directives: hint,
+      present: [...block.present, "duration", "energy", "instruments", "vocal", "directives"],
+      duration_defaulted: true,
+    };
+    sections.push(created);
+    existingPush(byType, block.type, created);
+    warnings.push(`${created.label}: timing/energy use defaults because the Caption does not provide exact values.`);
   }
   return sections;
+}
+
+function existingPush(map, key, value) {
+  const items = map.get(key) || [];
+  if (!items.includes(value)) items.push(value);
+  map.set(key, items);
 }
 
 function splitCombined(caption, lyrics) {
@@ -200,7 +268,8 @@ export function analyzePromptImport({ caption = "", lyrics = "" } = {}) {
   const structured = !!(blocks.global || blocks.vocal || blocks.arrangement);
   const global = parseGlobal(blocks.global || split.caption), vocal = parseVocal(blocks.vocal || split.caption);
   const arrangement = parseArrangement(blocks.arrangement || "", warnings), lyricSections = parseLyrics(split.lyrics, warnings);
-  const sections = combineSections(arrangement, lyricSections, warnings);
+  const looseHints = arrangement.length ? new Map() : parseLooseArrangementHints(blocks.arrangement || "");
+  const sections = combineSections(arrangement, lyricSections, warnings, looseHints);
   if (split.caption && !structured && !Object.keys(global.values).length && !Object.keys(vocal.values).length) warnings.push("Caption is not in a recognized structured Music3 format. No caption fields were imported.");
   if (!split.caption && !split.lyrics) warnings.push("Paste a Caption and/or tagged Lyrics before analyzing.");
   return {
