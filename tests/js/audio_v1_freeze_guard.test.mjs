@@ -31,6 +31,18 @@ test("single-audio compatibility layer installs no MutationObserver", () => {
   assert.match(release, /simplifyAudioEditor\(dialog\)/);
 });
 
+test("Semantic Studio observers are bounded to center replacement and cleaned on shell close", () => {
+  const seed = source("web/zz_generation_seed_behavior.js");
+  const quick = source("web/zz_semantic_quick_generation_controls.js");
+
+  for (const [path, text] of [["seed", seed], ["quick", quick]]) {
+    assert.doesNotMatch(text, /\.observe\(dialog,\s*\{[^}]*subtree:\s*true/, path);
+    assert.match(text, /\.observe\(center, \{ childList: true, subtree: false \}\)/, path);
+    assert.match(text, /m3ss-shell-close/, path);
+    assert.match(text, /\.disconnect\(\)/, path);
+  }
+});
+
 test("Audio and Semantic Studio enhancements are mounted from explicit open/dialog scope", () => {
   const audio = source("web/zz_audio_effects_foundation.js");
   const dsp = source("web/zz_audio_dsp_ui.js");
@@ -42,7 +54,7 @@ test("Audio and Semantic Studio enhancements are mounted from explicit open/dial
   assert.match(dsp, /m3ss-audio-workspace-ready/);
   assert.match(chrome, /m3ss-audio-workspace-ready/);
   assert.match(vst3, /m3ss-audio-workspace-ready/);
-  assert.match(seed, /observer\.observe\(dialog, \{ childList: true, subtree: true \}\)/);
+  assert.match(seed, /m3ss-shell-close/);
 });
 
 test("Audio Editor DSP refresh cannot feed back from high-frequency dialog text updates", () => {

@@ -202,13 +202,31 @@ function ensureQuickControls(dialog) {
 
 function installDialogBridge(dialog) {
   if (!dialog || dialog.dataset.m3ssQuickGenerationBridge === "1") return;
+  const center = dialog.querySelector(".m3ss-center");
+  if (!center) return;
+
   dialog.dataset.m3ssQuickGenerationBridge = "1";
   if (!quickDraft) {
     const node = resolveNode();
     if (node) resetQuickDraft(node);
   }
 
-  dialog.addEventListener("click", (event) => {
+  let closed = false;
+  let refreshQueued = false;
+  let observer = null;
+
+  const refreshSoon = () => {
+    if (closed || refreshQueued) return;
+    refreshQueued = true;
+    queueMicrotask(() => {
+      refreshQueued = false;
+      if (closed || !dialog.isConnected) return;
+      ensureQuickControls(dialog);
+      refreshAutoSyncedDuration(dialog);
+    });
+  };
+
+  const clickBridge = (event) => {
     const button = event.target.closest?.("button");
     if (!button) return;
     if (button.matches('.m3ss-top-tab[data-view="timeline"]')) captureVisibleGeneration(dialog);
@@ -216,18 +234,21 @@ function installDialogBridge(dialog) {
       queueMicrotask(() => syncVisibleGeneration(dialog));
     }
     if (/Save to Node|ノードに保存/i.test(button.textContent || "")) syncDraftBeforeSave(dialog);
-  }, true);
+  };
 
-  const observer = new MutationObserver(() => {
-    if (!dialog.isConnected) {
-      observer.disconnect();
-      return;
-    }
-    ensureQuickControls(dialog);
-    refreshAutoSyncedDuration(dialog);
-  });
-  observer.observe(dialog, { childList: true, subtree: true });
-  ensureQuickControls(dialog);
+  const cleanup = () => {
+    if (closed) return;
+    closed = true;
+    observer?.disconnect();
+    dialog.removeEventListener("click", clickBridge, true);
+    dialog.removeEventListener("m3ss-shell-close", cleanup);
+  };
+
+  dialog.addEventListener("click", clickBridge, true);
+  dialog.addEventListener("m3ss-shell-close", cleanup, { once: true });
+  observer = new MutationObserver(refreshSoon);
+  observer.observe(center, { childList: true, subtree: false });
+  refreshSoon();
 }
 
 function installNewestDialogBridge() {

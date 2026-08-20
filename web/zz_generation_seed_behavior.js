@@ -134,24 +134,47 @@ function bindGenerationView(dialog, node, controlWidget) {
 
 function watchStudio(node, controlWidget, attempt = 0) {
   node._m3ssSeedBehaviorObserver?.disconnect?.();
+
   const dialogs = [...document.querySelectorAll(".m3ss-dialog")];
   const dialog = dialogs.at(-1);
-  if (!dialog) {
+  const center = dialog?.querySelector?.(".m3ss-center");
+  if (!dialog || !center) {
     if (attempt < 16) requestAnimationFrame(() => watchStudio(node, controlWidget, attempt + 1));
     return;
   }
 
-  const bind = () => bindGenerationView(dialog, node, controlWidget);
-  bind();
-  const observer = new MutationObserver(() => {
-    if (!dialog.isConnected) {
-      observer.disconnect();
-      return;
-    }
-    bind();
-  });
-  observer.observe(dialog, { childList: true, subtree: true });
+  let closed = false;
+  let bindQueued = false;
+  let observer = null;
+
+  const cleanup = () => {
+    if (closed) return;
+    closed = true;
+    observer?.disconnect();
+    dialog.removeEventListener("m3ss-shell-close", cleanup);
+    if (node._m3ssSeedBehaviorObserver === observer) node._m3ssSeedBehaviorObserver = null;
+  };
+
+  const bind = () => {
+    if (closed) return;
+    if (!dialog.isConnected) return cleanup();
+    bindGenerationView(dialog, node, controlWidget);
+  };
+
+  const bindSoon = () => {
+    if (closed || bindQueued) return;
+    bindQueued = true;
+    queueMicrotask(() => {
+      bindQueued = false;
+      bind();
+    });
+  };
+
+  observer = new MutationObserver(bindSoon);
+  observer.observe(center, { childList: true, subtree: false });
+  dialog.addEventListener("m3ss-shell-close", cleanup, { once: true });
   node._m3ssSeedBehaviorObserver = observer;
+  bind();
 }
 
 function resizeNodeForGenerationControls(node) {
