@@ -45,6 +45,28 @@ test('Fade In works on an interior selection and preserves audio outside it', ()
   assert.deepEqual(selected.fade_in, { duration: 3, curve: 'equal_power' });
 });
 
+test('selection fade accepts a small rounded overshoot at the final clip end', () => {
+  const track = { clips: [clip({ source_out: 54.988 })], gain_envelope: [] };
+  assert.equal(canApplySelectionFade(track, 50, 55), true);
+  const selected = applySelectionFade(track, 50, 55, 'fade_out');
+  assert.ok(selected);
+  assert.equal(selected.timeline_start, 50);
+  assert.equal(selected.source_out, 54.988);
+  assert.ok(Math.abs(selected.fade_out.duration - 4.988) < 1e-9);
+});
+
+test('selection fade accepts clip-end overshoot below 50 ms', () => {
+  const track = { clips: [clip()], gain_envelope: [] };
+  assert.equal(canApplySelectionFade(track, 7, 10.01), true);
+  assert.equal(canApplySelectionFade(track, 7, 10.049), true);
+});
+
+test('selection fade rejects clip-end overshoot above 50 ms', () => {
+  const track = { clips: [clip()], gain_envelope: [] };
+  assert.equal(canApplySelectionFade(track, 7, 10.1), false);
+  assert.equal(applySelectionFade(track, 7, 10.1, 'fade_out'), null);
+});
+
 test('selection fade rejects ranges that cross multiple clips', () => {
   const track = {
     clips: [
@@ -56,4 +78,16 @@ test('selection fade rejects ranges that cross multiple clips', () => {
   assert.equal(canApplySelectionFade(track, 4, 6), false);
   assert.equal(applySelectionFade(track, 4, 6, 'fade_out'), null);
   assert.equal(track.clips.length, 2);
+});
+
+test('small overshoot into an adjacent clip is not treated as endpoint rounding', () => {
+  const track = {
+    clips: [
+      clip({ id: 'a', source_in: 0, source_out: 5, timeline_start: 0 }),
+      clip({ id: 'b', source_in: 5, source_out: 10, timeline_start: 5 }),
+    ],
+    gain_envelope: [],
+  };
+  assert.equal(canApplySelectionFade(track, 4, 5.03), false);
+  assert.equal(applySelectionFade(track, 4, 5.03, 'fade_out'), null);
 });
