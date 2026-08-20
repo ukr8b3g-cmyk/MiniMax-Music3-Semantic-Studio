@@ -1,6 +1,7 @@
 import { commandClipEnd, commandClipDuration, sliceClipToRange } from "./audio_edit_commands.js";
 
 const EPS = 1e-6;
+const EDGE_SNAP_SECONDS = 0.05;
 const VALID_DIRECTIONS = new Set(["fade_in", "fade_out"]);
 const VALID_CURVES = new Set(["linear", "equal_power"]);
 
@@ -10,19 +11,44 @@ function normalizedRange(start, end) {
   return right > left + EPS ? { start: left, end: right } : null;
 }
 
-export function selectionFadeTarget(track, start, end) {
+function selectionFadeTargetDetails(track, start, end) {
   const range = normalizedRange(start, end);
   if (!range) return null;
-  const matches = (track?.clips || []).filter((clip) => {
+  const clips = track?.clips || [];
+  const matches = clips.flatMap((clip) => {
     const clipStart = Math.max(0, Number(clip?.timeline_start) || 0);
     const clipEnd = commandClipEnd(clip);
-    return range.start >= clipStart - EPS && range.end <= clipEnd + EPS;
+    if (range.start < clipStart - EPS) return [];
+
+    if (range.end <= clipEnd + EPS) {
+      return [{ clip, start: Math.max(range.start, clipStart), end: Math.min(range.end, clipEnd) }];
+    }
+
+    const overshoot = range.end - clipEnd;
+    if (overshoot > EDGE_SNAP_SECONDS + EPS) return [];
+
+    // A small overshoot is usually caused by the UI showing a rounded clip end
+    // (for example 54.988... as 0:55.00). Only snap when the overshoot does not
+    // actually enter another clip, so genuine multi-clip selections stay invalid.
+    const crossesAnotherClip = clips.some((other) => {
+      if (other === clip) return false;
+      const otherStart = Math.max(0, Number(other?.timeline_start) || 0);
+      const otherEnd = commandClipEnd(other);
+      return otherEnd > clipEnd + EPS && otherStart < range.end - EPS && otherEnd > clipEnd + EPS;
+    });
+    if (crossesAnotherClip) return [];
+
+    return [{ clip, start: Math.max(range.start, clipStart), end: clipEnd }];
   });
   return matches.length === 1 ? matches[0] : null;
 }
 
+export function selectionFadeTarget(track, start, end) {
+  return selectionFadeTargetDetails(track, start, end)?.clip || null;
+}
+
 export function canApplySelectionFade(track, start, end) {
-  return !!selectionFadeTarget(track, start, end);
+  return !!selectionFadeTargetDetails(track, start, end);
 }
 
 /**
@@ -40,7 +66,8 @@ export function applySelectionFade(
 ) {
   const range = normalizedRange(start, end);
   if (!range || !VALID_DIRECTIONS.has(direction)) return null;
-  const target = selectionFadeTarget(track, range.start, range.end);
+  const targetDetails = selectionFadeTargetDetails(track, range.start, range.end);
+  const target = targetDetails?.clip || null;
   if (!target) return null;
 
   const clips = Array.isArray(track?.clips) ? track.clips : null;
@@ -49,12 +76,14 @@ export function applySelectionFade(
 
   const clipStart = Math.max(0, Number(target.timeline_start) || 0);
   const clipEnd = commandClipEnd(target);
-  const left = range.start > clipStart + EPS
-    ? sliceClipToRange(target, clipStart, range.start)
+  const effectiveStart = targetDetails.start;
+  const effectiveEnd = targetDetails.end;
+  const left = effectiveStart > clipStart + EPS
+    ? sliceClipToRange(target, clipStart, effectiveStart)
     : null;
-  const selected = sliceClipToRange(target, range.start, range.end);
-  const right = range.end < clipEnd - EPS
-    ? sliceClipToRange(target, range.end, clipEnd)
+  const selected = sliceClipToRange(target, effectiveStart, effectiveEnd);
+  const right = effectiveEnd < clipEnd - EPS
+    ? sliceClipToRange(target, effectiveEnd, clipEnd)
     : null;
   if (!selected) return null;
 
