@@ -120,7 +120,7 @@ The right-side workspaces have separate roles:
 
 The built-in Effects rack includes **Gain / Amplify, Compressor, Limiter, EQ (3-Band), High-Pass Filter, Low-Pass Filter, Stereo Width, Reverb and Stereo Delay**. Effects can be enabled/bypassed, reset, removed and reordered.
 
-**Envelope** means gain automation over time. Use the Envelope tool to add and move points on the waveform so the track becomes louder or quieter across chosen parts of the timeline. This is post-generation audio level automation and is different from the Semantic Studio **Energy** guidance used before generation.
+**Envelope** means gain automation over time. Use the Envelope tool to add and move points on the waveform so the audio becomes louder or quieter across chosen parts of the timeline. This is post-generation audio level automation and is different from the Semantic Studio **Energy** guidance used before generation.
 
 For a conventional fade workflow, drag a range on the waveform, right-click the selection, then choose **Fade In** or **Fade Out**. The selected range is split non-destructively and the fade spans exactly that selection. The Edit workspace still exposes numerical fade duration/curve controls for precise adjustment.
 
