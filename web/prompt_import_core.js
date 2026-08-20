@@ -11,6 +11,25 @@ const ENERGY_PHRASES = [
   [/very sparse and restrained/i, .10], [/low-density and restrained/i, .28], [/moderate and controlled/i, .50],
   [/full and energetic/i, .72], [/high-intensity and expansive/i, .90], [/peak intensity and maximum arrangement density/i, 1.0],
 ];
+const LOOSE_INSTRUMENT_PATTERNS = [
+  /\b(?:dusty boom-bap|tight acoustic|electronic|brushed jazz|soft-clipped|full)?\s*drums?\b/gi,
+  /\b(?:low round sub|sub|fretless|electric|melodic electric)?\s*bass\b/gi,
+  /\b(?:warm|detuned|floating detuned)?\s*Rhodes(?: piano)?\b/gi,
+  /\b(?:mellow jazzy|soft|clean chorus|electric|acoustic)?\s*guitar(?:\s+(?:licks?|fills?|riffs?|fingerpicking))?\b/gi,
+  /\b(?:muted )?trumpet\b/gi,
+  /\b(?:electric|acoustic)?\s*piano\b/gi,
+  /\b(?:soft analog|analog|synth)?\s*pad\b/gi,
+  /\bsynth lead\b/gi,
+  /\bstrings?\b/gi,
+  /\bsaxophone\b/gi,
+  /\bpercussion\b/gi,
+  /\b(?:brushed )?hi[- ]?hats?\b/gi,
+  /\bkick\b/gi,
+  /\bsnare\b/gi,
+  /\b(?:vinyl crackle|vinyl noise|crackle)\b/gi,
+  /\btape hiss\b/gi,
+  /\brain(?: sounds?| noise)?\b/gi,
+];
 
 const clean = (value) => String(value ?? "").replace(/\r\n?/g, "\n").trim();
 const fieldMatch = (text, regex) => { const match = text.match(regex); return match ? clean(match[1]) : ""; };
@@ -184,20 +203,42 @@ function parseArrangement(text, warnings) {
   });
 }
 
-function parseLooseArrangementHints(text) {
-  const source = clean(text), hints = new Map();
-  if (!source) return hints;
+function normalizeLooseInstrument(value) {
+  return clean(value)
+    .replace(/\s+(?:licks?|fills?|riffs?|fingerpicking)$/i, "")
+    .replace(/^full\s+/i, "")
+    .replace(/\s+/g, " ");
+}
+
+function extractLooseInstruments(text) {
+  const source = clean(text), found = [];
+  if (!source) return found;
+  for (const pattern of LOOSE_INSTRUMENT_PATTERNS) {
+    pattern.lastIndex = 0;
+    for (const match of source.matchAll(pattern)) {
+      const item = normalizeLooseInstrument(match[0]);
+      if (item && !found.some((existing) => existing.toLowerCase() === item.toLowerCase())) found.push(item);
+    }
+  }
+  return found.slice(0, 16);
+}
+
+function parseLooseArrangementData(text) {
+  const source = clean(text), byType = new Map();
+  if (!source) return { byType, globalInstruments: [] };
   const marker = /\b(Intro|Verses?|Pre[- ]?Chorus(?:es)?|Choruses?|Bridge|Instrumental(?:\s+sections?)?|Solo|Outro)\s*:\s*/gi;
   const matches = [...source.matchAll(marker)];
+  const preambleEnd = matches.length ? (matches[0].index || 0) : source.length;
+  const globalInstruments = extractLooseInstruments(source.slice(0, preambleEnd));
   for (let index = 0; index < matches.length; index++) {
     const type = normalizeTag(matches[index][1]);
     if (!type) continue;
     const start = (matches[index].index || 0) + matches[index][0].length;
     const end = index + 1 < matches.length ? matches[index + 1].index : source.length;
     const body = clean(source.slice(start, end)).replace(/^[.\s]+|[.\s]+$/g, "");
-    if (body && !hints.has(type)) hints.set(type, body);
+    if (body && !byType.has(type)) byType.set(type, { directive: body, instruments: extractLooseInstruments(body) });
   }
-  return hints;
+  return { byType, globalInstruments };
 }
 
 function parseLyrics(text, warnings) {
@@ -220,9 +261,9 @@ function parseLyrics(text, warnings) {
   return blocks;
 }
 
-function combineSections(arrangement, lyrics, warnings, looseHints = new Map()) {
+function combineSections(arrangement, lyrics, warnings, looseData = { byType: new Map(), globalInstruments: [] }) {
   const sections = arrangement.map((section) => clone(section)), byType = new Map();
-  for (const section of sections) { const items = byType.get(section.type) || []; items.push(section); existingPush(byType, section.type, section); }
+  for (const section of sections) existingPush(byType, section.type, section);
   const seen = new Map();
   for (const block of lyrics) {
     const occurrence = seen.get(block.type) || 0; seen.set(block.type, occurrence + 1);
@@ -231,14 +272,15 @@ function combineSections(arrangement, lyrics, warnings, looseHints = new Map()) 
       target.lyrics = block.lyrics; if (!target.present.includes("lyrics")) target.present.push("lyrics");
       continue;
     }
-    const hint = looseHints.get(block.type) || "";
+    const hint = looseData.byType.get(block.type) || null;
+    const instruments = hint?.instruments?.length ? hint.instruments : looseData.globalInstruments;
     const created = {
       ...block,
       duration: DEFAULT_DURATION[block.type] || 16,
       energy: .5,
-      instruments: [],
+      instruments: clone(instruments || []),
       vocal: "",
-      directives: hint,
+      directives: hint?.directive || "",
       present: [...block.present, "duration", "energy", "instruments", "vocal", "directives"],
       duration_defaulted: true,
     };
@@ -268,8 +310,8 @@ export function analyzePromptImport({ caption = "", lyrics = "" } = {}) {
   const structured = !!(blocks.global || blocks.vocal || blocks.arrangement);
   const global = parseGlobal(blocks.global || split.caption), vocal = parseVocal(blocks.vocal || split.caption);
   const arrangement = parseArrangement(blocks.arrangement || "", warnings), lyricSections = parseLyrics(split.lyrics, warnings);
-  const looseHints = arrangement.length ? new Map() : parseLooseArrangementHints(blocks.arrangement || "");
-  const sections = combineSections(arrangement, lyricSections, warnings, looseHints);
+  const looseData = arrangement.length ? { byType: new Map(), globalInstruments: [] } : parseLooseArrangementData(blocks.arrangement || "");
+  const sections = combineSections(arrangement, lyricSections, warnings, looseData);
   if (split.caption && !structured && !Object.keys(global.values).length && !Object.keys(vocal.values).length) warnings.push("Caption is not in a recognized structured Music3 format. No caption fields were imported.");
   if (!split.caption && !split.lyrics) warnings.push("Paste a Caption and/or tagged Lyrics before analyzing.");
   return {
