@@ -29,6 +29,10 @@ Restart ComfyUI after install/update. The core node package has no additional ma
 
 The V1 template is [`workflows/MiniMax_Music3_Semantic_Studio_V1.json`](workflows/MiniMax_Music3_Semantic_Studio_V1.json).
 
+The complete connected V1 workflow is shown below:
+
+<img src="docs/images/v1-template-workflow.webp" alt="MiniMax Music3 Semantic Studio V1 workflow overview" />
+
 It uses one connected generation-to-editing workflow:
 
 ```text
