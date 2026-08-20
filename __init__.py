@@ -15,6 +15,7 @@ async def comfy_entrypoint():
     from typing_extensions import override
 
     from .audio_editor_node import MiniMaxMusic3SemanticStudioAudioEditor
+    from .audio_freeze_node import MiniMaxMusic3AudioFreeze
     from .nodes import MiniMaxMusic3SemanticStudio
     from .vst3_editor import (
         Vst3EditorBusy,
@@ -120,6 +121,7 @@ async def comfy_entrypoint():
             return [
                 MiniMaxMusic3SemanticStudio,
                 MiniMaxMusic3SemanticStudioAudioEditor,
+                MiniMaxMusic3AudioFreeze,
             ]
 
     return MiniMaxMusic3SemanticStudioExtension()
