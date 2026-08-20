@@ -6,7 +6,7 @@ from .audio_freeze_core import capture_audio, retrieve_audio
 
 
 class MiniMaxMusic3AudioFreeze(io.ComfyNode):
-    """PoC: capture one generated AUDIO value and reuse it without re-evaluating upstream."""
+    """Capture one generated AUDIO value and reuse it without re-evaluating upstream."""
 
     @classmethod
     def define_schema(cls) -> io.Schema:
@@ -38,13 +38,22 @@ class MiniMaxMusic3AudioFreeze(io.ComfyNode):
         )
 
     @classmethod
-    def check_lazy_status(cls, audio=None, mode="Capture", unique_id=None):
+    def check_lazy_status(cls, audio=None, mode="Capture"):
         if mode == "Capture" and audio is None:
             return ["audio"]
         return []
 
     @classmethod
-    def execute(cls, audio=None, mode="Capture", unique_id=None) -> io.NodeOutput:
+    def _node_id(cls):
+        # ComfyUI's v3 node API exposes requested hidden values through the
+        # per-execution cloned class (`cls.hidden`) rather than forwarding them
+        # as normal execute/check_lazy_status keyword arguments.
+        hidden = getattr(cls, "hidden", None)
+        return getattr(hidden, "unique_id", None) if hidden is not None else None
+
+    @classmethod
+    def execute(cls, audio=None, mode="Capture") -> io.NodeOutput:
+        unique_id = cls._node_id()
         if mode == "Capture":
             if audio is None:
                 raise RuntimeError("Capture mode requires connected AUDIO to be evaluated.")
