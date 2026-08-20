@@ -89,3 +89,62 @@ test('prompt-imported values remain ordinary project state and can be overridden
   assert.match(preview, /Lead vocal: bright female soprano/);
   assert.doesNotMatch(preview, /Genre: Lo-fi hip-hop/);
 });
+
+const officialCaption = `Global Metadata: Lo-fi hip-hop, chillhop. 78 BPM, D flat major, major scale with jazzy extensions. Laid-back and dreamy throughout, a gentle warm drift with a subtle late-night glow that deepens in the middle and dissolves softly at the end. Studying, raining-outside, headphones-on late-night listening. Bedroom production: muddy warm texture, heavy vinyl crackle, tape hiss and wow-flutter pitch wobble, low-passed dusty mix, soft-clipped drums, everything slightly detuned and cozy.
+
+Vocal Details: Soft androgynous vocal, hushed half-sung half-spoken delivery, sitting low in the mix like another instrument, lazy behind-the-beat phrasing, gentle breathy timbre. Sparse murmured double-tracked harmonies, occasional wordless "mmm" and "ooh" hums drenched in tape delay and warm spring reverb. Long stretches with no vocals at all.
+
+Arrangement: Dusty boom-bap drums with a soft thumping kick, cracked snare with lazy swing, brushed hi-hats, low round sub bass. Warm Rhodes piano chords with slow chorus wobble as the harmonic bed, mellow jazzy guitar licks answering the vocal lines, constant vinyl crackle as texture. Intro: rain and vinyl noise, solo Rhodes chords fading in, drums slipping in halfway. Verses: minimal — drums, bass, Rhodes, soft guitar fills between lines. Instrumental sections: guitar and Rhodes trade relaxed jazzy phrases over the beat, occasional muted trumpet ghost notes far in the background. Bridge: drums drop away to rain, crackle, and floating detuned Rhodes, then the beat eases back in. Outro: elements fade one by one until only vinyl crackle and a last unresolved Rhodes chord remain.`;
+
+const officialLyrics = `[Intro]
+Mmm...
+
+[Verse]
+Midnight and the canvas glows
+
+[Instrumental]
+
+[Verse]
+Queue another frame
+
+[Chorus]
+Mmm... let it render on
+
+[Instrumental]
+
+[Bridge]
+Rain keeps drawing pictures on the glass...
+
+[Chorus]
+Ooh... by the morning it'll all be done
+
+[Instrumental]
+
+[Outro]
+Ooh... goodnight`;
+
+test('accepts the official ComfyUI MiniMax Music3 colon-style caption template', () => {
+  const analysis = analyzePromptImport({ caption: officialCaption, lyrics: officialLyrics });
+  assert.equal(analysis.format, 'structured');
+  assert.equal(analysis.global.values.genre, 'Lo-fi hip-hop, chillhop');
+  assert.equal(analysis.global.values.bpm, 78);
+  assert.equal(analysis.global.values.key, 'D flat major');
+  assert.equal(analysis.vocal.values.mode, 'vocal');
+  assert.match(analysis.vocal.values.gender, /Soft androgynous vocal/i);
+  assert.deepEqual(analysis.sections.map((item) => item.type), [
+    'Intro', 'Verse', 'Instrumental', 'Verse', 'Chorus', 'Instrumental', 'Bridge', 'Chorus', 'Instrumental', 'Outro',
+  ]);
+  assert.equal(analysis.sections.length, 10);
+  assert.match(analysis.sections[0].directives, /rain and vinyl noise/i);
+  assert.match(analysis.sections[1].directives, /minimal/i);
+  assert.match(analysis.sections[2].directives, /guitar and Rhodes/i);
+  assert.ok(analysis.warnings.every((item) => !/created from Lyrics only/i.test(item)));
+});
+
+test('the word instrumental in an arrangement does not force a vocal song to instrumental mode', () => {
+  const analysis = analyzePromptImport({
+    caption: `### Vocal Details\nLead vocal: female vocal; timbre warm; delivery relaxed.\n\n### Arrangement\nInstrumental sections: guitar solo.`,
+    lyrics: '[Verse]\nhello',
+  });
+  assert.equal(analysis.vocal.values.mode, 'vocal');
+});
