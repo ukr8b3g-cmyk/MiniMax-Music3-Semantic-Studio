@@ -33,9 +33,13 @@ The normal workflow is:
 ```text
 Import Prompt / design in Semantic Studio
                  ↓
-              Queue
+        Queue (Capture mode)
                  ↓
           generated AUDIO
+                 ↓
+      Capture / Freeze Audio
+                 ↓
+     switch mode to Frozen
                  ↓
           Open Audio Editor
                  ↓
@@ -43,7 +47,7 @@ Import Prompt / design in Semantic Studio
                  ↓
              Save Edits
                  ↓
-              Queue
+        Queue (Frozen mode)
                  ↓
        authoritative edited AUDIO
 ```
