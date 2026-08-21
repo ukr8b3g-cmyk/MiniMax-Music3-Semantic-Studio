@@ -28,18 +28,18 @@ Restart ComfyUI after install/update. The core node package has no additional ma
 
 <img width="1890" height="820" alt="MiniMax Music3 Semantic Studio workflow" src="https://github.com/user-attachments/assets/9c6447d7-c70e-4afe-b3e5-53d647010212" />
 
-The normal workflow is:
+The normal V1 workflow is:
 
 ```text
 Import Prompt / design in Semantic Studio
                  ↓
-        Queue (Capture mode)
+       Queue in Capture mode
                  ↓
           generated AUDIO
                  ↓
-      Capture / Freeze Audio
+       Capture / Freeze Audio
                  ↓
-     switch mode to Frozen
+   switch to Frozen to keep the take
                  ↓
           Open Audio Editor
                  ↓
@@ -47,7 +47,7 @@ Import Prompt / design in Semantic Studio
                  ↓
              Save Edits
                  ↓
-        Queue (Frozen mode)
+              Queue
                  ↓
        authoritative edited AUDIO
 ```
@@ -56,7 +56,7 @@ Import Prompt / design in Semantic Studio
 
 <img width="608" height="469" alt="Music3 Semantic Studio node" src="https://github.com/user-attachments/assets/d8b085fc-c6d8-4f69-804c-8cafb6bcf290" />
 
-The compact graph node keeps the main generation controls close to the workflow. **Music Seed (AR)** controls the MiniMax Music3 autoregressive stage, **Seed Behavior** selects the normal ComfyUI seed behavior such as Randomize or Fixed, and **Duration Limit** sets the AR generation ceiling. **Import Prompt** opens the structured prompt importer; **Open Semantic Studio** opens the full authoring interface.
+The compact graph node keeps the main generation controls close to the workflow. **Music Seed (AR)** controls the MiniMax Music3 autoregressive stage, **Seed Behavior** selects the normal ComfyUI seed behavior such as Randomize or Fixed, and **Duration** sets the AR generation ceiling. **Import Prompt** opens the structured prompt importer; **Open Semantic Studio** opens the full authoring interface.
 
 The Music3 AR seed is separate from the later KSampler seed. Changing one does not replace the other.
 
@@ -109,32 +109,32 @@ These controls are separate from KSampler Seed and KSampler CFG later in the gra
 
 <img width="464" height="425" alt="Audio Editor Effects workspace" src="https://github.com/user-attachments/assets/e0bdcd21-f4fc-434f-8471-016e1bd6c4f4" />
 
-Connect the generated/decoded `AUDIO` to **Music3 Semantic Studio Audio Editor**, Queue once so the source preview is available, then click **Open Audio Editor**.
+Connect the generated/decoded `AUDIO` to **Capture / Freeze Audio**, then connect its `AUDIO` output to **Music3 Semantic Studio Audio Editor**. Start in **Capture** mode and Queue once to generate and snapshot the take. When you want to keep that take for editing, switch to **Frozen** before re-queuing; Frozen reuses the captured in-memory AUDIO so the upstream Music3 generation does not run again. Then click **Open Audio Editor**.
 
 The right-side workspaces have separate roles:
 
 - **Edit** — source range, timeline position, clip gain/pan, fades, reverse and clip mute
-- **Mixer** — track input gain/pan plus master output gain, channel mode and normalization
+- **Mixer** — input gain/pan plus output gain, channel mode and normalization
 - **Effects** — built-in non-destructive DSP rack
 - **VST3** — optional third-party Windows VST3 effects
 
 The built-in Effects rack includes **Gain / Amplify, Compressor, Limiter, EQ (3-Band), High-Pass Filter, Low-Pass Filter, Stereo Width, Reverb and Stereo Delay**. Effects can be enabled/bypassed, reset, removed and reordered.
 
-**Envelope** means gain automation over time. Use the Envelope tool to add and move points on the waveform so the track becomes louder or quieter across chosen parts of the timeline. This is post-generation audio level automation and is different from the Semantic Studio **Energy** guidance used before generation.
+**Envelope** means gain automation over time. Use the Envelope tool to add and move points on the waveform so the audio becomes louder or quieter across chosen parts of the timeline. This is post-generation audio level automation and is different from the Semantic Studio **Energy** guidance used before generation.
 
 For a conventional fade workflow, drag a range on the waveform, right-click the selection, then choose **Fade In** or **Fade Out**. The selected range is split non-destructively and the fade spans exactly that selection. The Edit workspace still exposes numerical fade duration/curve controls for precise adjustment.
 
 ### What happens after editing?
 
-Audio Editor changes are non-destructive. The connected source AUDIO remains the source of truth.
+Audio Editor changes are non-destructive. The connected source AUDIO remains the source of truth; in the V1 template this is the AUDIO held by **Capture / Freeze Audio**.
 
 1. Browser **Draft · Current Edits** gives immediate preview feedback for supported built-in edits/effects.
 2. **Save Edits** stores the current edit state back into the Audio Editor node.
-3. **Queue** the workflow again.
-4. The Python/PyTorch backend applies the saved edit state to the original connected AUDIO and outputs the authoritative edited `AUDIO`.
+3. Keep **Capture / Freeze Audio** in **Frozen** mode and **Queue** the workflow again.
+4. The Python/PyTorch backend applies the saved edit state to the frozen source AUDIO and outputs the authoritative edited `AUDIO` without re-running upstream Music3 generation.
 5. A downstream Preview/Save Audio node receives that edited output.
 
-So **Save Edits does not permanently rewrite the source file**. The final result is created when the Audio Editor node is queued again.
+So **Save Edits does not permanently rewrite the source file**. The final result is created when the Audio Editor node is queued again. The Frozen snapshot lives in process memory and is cleared when ComfyUI restarts; after a restart, use **Capture** and Queue once to create a new snapshot.
 
 ### 5. Optional VST3 effects and native plug-in UI
 
@@ -267,13 +267,16 @@ See [`docs/PROMPT_IMPORT.md`](docs/PROMPT_IMPORT.md).
 
 The public V1.0 Audio Editor uses one connected AUDIO input.
 
-Place the Audio Editor after audio decode:
+In the V1 template, place **Capture / Freeze Audio** between audio decode and the Audio Editor:
 
 ```text
 KSampler
    |
    v
 VAE Decode Audio
+   |
+   v
+Capture / Freeze Audio
    |
    v
 Music3 Semantic Studio Audio Editor
@@ -284,16 +287,17 @@ Preview Audio / Save Audio (Advanced)
 
 ### First use / empty editor
 
-The editor can open before source AUDIO has been queued. In that state it shows the normal empty waveform workspace, semantic structure reference when available and disabled audio-dependent controls.
+The editor can open before source AUDIO has been queued. In that state it shows the normal empty waveform workspace and disabled audio-dependent controls.
 
-For actual editing:
+For actual editing with the V1 template:
 
-1. Connect decoded AUDIO to the Audio Editor.
-2. Queue once to create the source preview and last queued Rendered A reference.
-3. Click **Open Audio Editor**.
-4. Edit on **Draft · Current Edits**.
-5. Click **Save Edits**.
-6. Queue again to produce authoritative edited AUDIO.
+1. Connect decoded AUDIO to **Capture / Freeze Audio**, and connect its AUDIO output to the Audio Editor.
+2. Set **Capture / Freeze Audio** to **Capture** and Queue once to generate and snapshot the source AUDIO.
+3. When you want to keep that take, switch **Capture / Freeze Audio** to **Frozen**.
+4. Click **Open Audio Editor**.
+5. Edit on **Draft · Current Edits**.
+6. Click **Save Edits**.
+7. Queue again while Frozen to produce authoritative edited AUDIO without re-running upstream generation.
 
 The Browser Draft Preview is immediate authoring feedback. The Python/PyTorch renderer remains the final source of truth.
 
@@ -307,7 +311,7 @@ One waveform is the primary editing surface:
 - right-click a selected range for **Fade In / Fade Out**
 - selection Loop audition repeats the selected range without changing `edit_json`
 - thin clip boundaries expose non-destructive clip/source assignments
-- track height can be resized vertically and reset; stereo L/R resize together
+- waveform height can be resized vertically and reset; stereo L/R resize together
 - Position and Selection time readouts support precise editing
 - semantic Tempo / Meter / Key reference and optional Snap are available when one upstream Semantic Studio is resolvable
 
@@ -317,7 +321,7 @@ The right workspace is deliberately compact:
 Edit | Mixer | Effects | VST3
 ```
 
-`Edit` follows the current Clip/Envelope editing context; `Mixer` combines Track and Master controls; `Effects` provides built-in DSP; `VST3` provides optional third-party plug-in hosting on Windows.
+`Edit` follows the current Clip/Envelope editing context; `Mixer` combines Audio input controls with final Output controls; `Effects` provides built-in DSP; `VST3` provides optional third-party plug-in hosting on Windows.
 
 Tool modes:
 
@@ -330,7 +334,7 @@ The visual roles remain distinct: thin cyan playhead, violet selected clip, blue
 
 ### Draft Preview
 
-`Draft · Current Edits` renders the current `edit_json` locally and reflects non-VST3 edits without a Queue round trip, including clip edits, Track Mute/Solo/Gain/Pan, Track Gain Envelope, supported built-in effects, Master processing and channel/normalization settings.
+`Draft · Current Edits` renders the current `edit_json` locally and reflects non-VST3 edits without a Queue round trip, including clip edits, Audio Mute/Solo/Gain/Pan, Audio Gain Envelope, supported built-in effects, Output processing and channel/normalization settings.
 
 `Rendered A · Last Queue` remains available for A/B comparison. Draft Preview is not authoritative; **Save Edits -> Queue** runs the Python renderer against the original connected AUDIO tensor.
 
@@ -342,7 +346,7 @@ The visual roles remain distinct: thin cyan playhead, violet selected clip, blue
 - Silence / Leave Gap
 - Cut & Leave Gap
 - selection Fade In / Fade Out
-- clip Mute and track Mute
+- clip Mute and Audio Mute
 - equal-power Crossfade Next helper
 - selection Loop audition
 - Undo / Redo
@@ -362,7 +366,7 @@ Ctrl/Cmd+D       Duplicate
 Delete/Backspace Delete / Ripple
 Ctrl/Cmd+L       Silence / Leave Gap
 Ctrl/Cmd+Alt+X   Cut & Leave Gap
-M                Mute / unmute track
+M                Mute / unmute Audio
 Shift+M          Mute / unmute selected clip
 Ctrl/Cmd+Z       Undo
 Ctrl/Cmd+Shift+Z Redo
@@ -379,7 +383,7 @@ End              Go to end
 
 `edit_json.edit_schema_version` is **2**. Existing schema-1 projects migrate automatically and retain clip ranges, gain, pan, mute, reverse, fades and legacy clip-envelope data.
 
-Schema 2 adds neutral-by-default track state:
+Internally, Schema 2 retains neutral-by-default track state for compatibility:
 
 ```json
 {
@@ -393,13 +397,13 @@ Schema 2 adds neutral-by-default track state:
 }
 ```
 
-The backend render order is clip processing -> track automation/controls -> track effects -> track mix -> master effects -> master processing. Source AUDIO remains immutable.
+Internally, the backend render order is clip processing -> track automation/controls -> track effects -> track mix -> master effects -> master processing. Source AUDIO remains immutable.
 
 See [`docs/PHASE_B_AUDIO_EDITOR.md`](docs/PHASE_B_AUDIO_EDITOR.md) and [`docs/V2_SPEC.md`](docs/V2_SPEC.md).
 
 ## Built-in Effects / DSP
 
-The compact **Effects** workspace uses the existing schema-2 track/master `effects[]` arrays. Effects can be collapsed so only one detailed parameter editor needs to occupy vertical space at a time.
+The compact **Effects** workspace presents one combined user-visible pipeline. Internally, the existing schema-2 track/master `effects[]` arrays are preserved for compatibility. Effects can be collapsed so only one detailed parameter editor needs to occupy vertical space at a time.
 
 The Effects Rack supports:
 
@@ -409,7 +413,7 @@ The Effects Rack supports:
 - reset and delete
 - move up/down and drag-handle reordering
 - English/Japanese UI labels
-- Track and Master processing
+- one combined user-visible Effects pipeline
 - preservation of unknown effect objects
 
 The following effects execute in both Browser Draft and authoritative Python/PyTorch rendering:
