@@ -4,6 +4,7 @@ import pytest
 import torch
 
 from audio_freeze_core import (
+    SOURCE_IDENTITY_KEY,
     capture_audio,
     clear_all_audio,
     frozen_audio_info,
@@ -43,19 +44,33 @@ def test_capture_and_retrieve_are_isolated_from_downstream_mutation():
 
     retrieved = retrieve_audio("node-1")
     assert torch.allclose(retrieved["waveform"], torch.full_like(retrieved["waveform"], 0.25))
+    assert retrieved[SOURCE_IDENTITY_KEY] == captured[SOURCE_IDENTITY_KEY]
 
     retrieved["waveform"].zero_()
     again = retrieve_audio("node-1")
     assert torch.allclose(again["waveform"], torch.full_like(again["waveform"], 0.25))
+    assert again[SOURCE_IDENTITY_KEY] == captured[SOURCE_IDENTITY_KEY]
 
 
 def test_recapture_replaces_previous_take_for_same_node_only():
-    capture_audio("node-a", _audio(1.0))
-    capture_audio("node-b", _audio(2.0))
-    capture_audio("node-a", _audio(3.0))
+    first_a = capture_audio("node-a", _audio(1.0))
+    first_b = capture_audio("node-b", _audio(2.0))
+    second_a = capture_audio("node-a", _audio(3.0))
 
     assert float(retrieve_audio("node-a")["waveform"].mean()) == pytest.approx(3.0)
     assert float(retrieve_audio("node-b")["waveform"].mean()) == pytest.approx(2.0)
+    assert second_a[SOURCE_IDENTITY_KEY] != first_a[SOURCE_IDENTITY_KEY]
+    assert retrieve_audio("node-a")[SOURCE_IDENTITY_KEY] == second_a[SOURCE_IDENTITY_KEY]
+    assert retrieve_audio("node-b")[SOURCE_IDENTITY_KEY] == first_b[SOURCE_IDENTITY_KEY]
+
+
+def test_recapture_gets_new_identity_even_when_audio_shape_matches():
+    first = capture_audio("node-same", _audio(1.0))
+    second = capture_audio("node-same", _audio(1.0))
+
+    assert first[SOURCE_IDENTITY_KEY]
+    assert second[SOURCE_IDENTITY_KEY]
+    assert first[SOURCE_IDENTITY_KEY] != second[SOURCE_IDENTITY_KEY]
 
 
 def test_missing_frozen_take_fails_instead_of_falling_back_to_upstream():
