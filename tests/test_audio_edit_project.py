@@ -224,3 +224,104 @@ def test_track_and_clip_limits_truncate_instead_of_stopping():
 def test_invalid_json_remains_actionable_to_protect_persistent_edits():
     with pytest.raises(ValueError, match="audio edit JSON is invalid"):
         load_edit_project("{bad")
+
+
+def test_new_source_identity_resets_audio_edits_but_preserves_view_and_project_metadata():
+    raw = json.loads(DEFAULT_EDIT_JSON)
+    raw["project_id"] = "project-keep"
+    raw["future"] = {"keep": True}
+    raw["view"] = {"zoom": 2.5, "scroll_seconds": 1.25, "waveform_height": 512}
+    raw["reserved"] = {"source_identity": "capture-old", "keep": True}
+    raw["tracks"][0].update(
+        {
+            "gain_db": -6,
+            "pan": 0.5,
+            "gain_envelope": [{"time": 0.5, "gain_db": -3}],
+            "effects": [{"id": "fx-1", "type": "reverb", "enabled": True, "params": {"wet": 0.5}}],
+        }
+    )
+    raw["tracks"][0]["clips"] = [
+        {
+            "id": "edited",
+            "source_id": "take-1",
+            "source_in": 0.25,
+            "source_out": 1.5,
+            "timeline_start": 0.4,
+            "gain_db": -4,
+            "pan": -0.2,
+            "muted": False,
+            "reverse": True,
+            "fade_in": {"duration": 0.3, "curve": "linear"},
+            "fade_out": {"duration": 0.4, "curve": "equal_power"},
+            "gain_envelope": [{"time": 0.5, "gain_db": -8}],
+        }
+    ]
+    raw["master"].update(
+        {
+            "gain_db": -2,
+            "effects": [{"id": "master-fx", "type": "delay", "enabled": True, "params": {}}],
+        }
+    )
+
+    project = normalize_edit_project(raw, [source(duration=3.0)], source_identity="capture-new")
+    track = project["tracks"][0]
+    clip = track["clips"][0]
+
+    assert project["project_id"] == "project-keep"
+    assert project["future"] == {"keep": True}
+    assert project["view"] == {"zoom": 2.5, "scroll_seconds": 1.25, "waveform_height": 512.0}
+    assert project["reserved"]["keep"] is True
+    assert project["reserved"]["source_identity"] == "capture-new"
+    assert track["gain_db"] == 0.0
+    assert track["pan"] == 0.0
+    assert track["gain_envelope"] == []
+    assert track["effects"] == []
+    assert clip["source_in"] == 0.0
+    assert clip["source_out"] == 3.0
+    assert clip["timeline_start"] == 0.0
+    assert clip["gain_db"] == 0.0
+    assert clip["pan"] == 0.0
+    assert clip["reverse"] is False
+    assert clip["fade_in"] == {"duration": 0.0, "curve": "linear"}
+    assert clip["fade_out"] == {"duration": 0.0, "curve": "linear"}
+    assert project["master"]["gain_db"] == 0.0
+    assert project["master"]["effects"] == []
+
+
+def test_same_source_identity_preserves_existing_audio_edits():
+    raw = json.loads(DEFAULT_EDIT_JSON)
+    raw["reserved"] = {"source_identity": "capture-same"}
+    raw["tracks"][0]["gain_db"] = -3
+    raw["tracks"][0]["effects"] = [{"id": "fx", "type": "reverb", "enabled": True, "params": {}}]
+    raw["tracks"][0]["clips"] = [
+        {
+            "id": "clip",
+            "source_id": "take-1",
+            "source_in": 0,
+            "source_out": 2,
+            "timeline_start": 0,
+            "fade_in": {"duration": 0.5, "curve": "linear"},
+            "fade_out": {"duration": 0.25, "curve": "linear"},
+        }
+    ]
+
+    project = normalize_edit_project(raw, [source(duration=2)], source_identity="capture-same")
+
+    assert project["tracks"][0]["gain_db"] == -3.0
+    assert project["tracks"][0]["effects"][0]["type"] == "reverb"
+    assert project["tracks"][0]["clips"][0]["fade_in"]["duration"] == 0.5
+    assert project["tracks"][0]["clips"][0]["fade_out"]["duration"] == 0.25
+
+
+def test_direct_audio_without_source_identity_keeps_existing_behavior():
+    raw = json.loads(DEFAULT_EDIT_JSON)
+    raw["reserved"] = {"source_identity": "capture-old"}
+    raw["tracks"][0]["gain_db"] = -5
+    raw["tracks"][0]["clips"] = [
+        {"id": "clip", "source_id": "take-1", "source_in": 0, "source_out": 2, "timeline_start": 0}
+    ]
+
+    project = normalize_edit_project(raw, [source(duration=2)])
+
+    assert project["tracks"][0]["gain_db"] == -5.0
+    assert project["reserved"]["source_identity"] == "capture-old"

@@ -192,6 +192,27 @@ def _source_lookup(source_infos: Iterable[SourceInfo]) -> dict[str, SourceInfo]:
     return lookup
 
 
+def _reset_audio_edits_for_source_identity(project: dict[str, Any], source_identity: str) -> None:
+    identity = _text(source_identity)
+    reserved = project.get("reserved")
+    if not isinstance(reserved, dict):
+        reserved = {}
+    reserved = deepcopy(reserved)
+
+    if identity:
+        previous = _text(reserved.get("source_identity"))
+        if previous != identity:
+            # A newly captured take must not inherit edits from the previous
+            # waveform. Keep project/view/unknown top-level state, but reset
+            # all source-dependent audio editing and processing state.
+            project["takes"] = []
+            project["tracks"] = deepcopy(DEFAULT_EDIT_PROJECT["tracks"])
+            project["master"] = deepcopy(DEFAULT_EDIT_PROJECT["master"])
+        reserved["source_identity"] = identity
+
+    project["reserved"] = reserved
+
+
 def _normalize_take_records(project: dict[str, Any], source_infos: list[SourceInfo]) -> list[dict[str, Any]]:
     existing = project.get("takes")
     existing_by_id: dict[str, dict[str, Any]] = {}
@@ -329,6 +350,8 @@ def _normalize_clip(
 def normalize_edit_project(
     edit_json: str | dict[str, Any] | None,
     source_infos: Iterable[SourceInfo],
+    *,
+    source_identity: str = "",
 ) -> dict[str, Any]:
     """Normalize edit state against connected audio without rejecting repairable state."""
 
@@ -338,6 +361,7 @@ def normalize_edit_project(
 
     project.setdefault("project_id", "")
     project["project_id"] = _text(project.get("project_id"))
+    _reset_audio_edits_for_source_identity(project, source_identity)
 
     view = project.get("view")
     if not isinstance(view, dict):
