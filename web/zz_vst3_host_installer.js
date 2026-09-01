@@ -22,14 +22,11 @@ async function readHostStatus() {
   return result || {};
 }
 
-async function installHost() {
-  const response = await api.fetchApi("/m3ss/vst3/install-host", { method: "POST" });
-  let result = null;
-  try { result = await response.json(); } catch {}
-  if (!response.ok || !result?.ok) {
-    throw new Error(result?.message || `VST3 host installation failed: HTTP ${response.status}`);
-  }
-  return result;
+function powerShellCommand(parts) {
+  const values = Array.isArray(parts) ? parts : [];
+  if (!values.length) return "";
+  const quoted = values.map((part) => `'${String(part).replaceAll("'", "''")}'`);
+  return `& ${quoted.join(" ")}`;
 }
 
 function installIntoDialog(dialog) {
@@ -44,61 +41,57 @@ function installIntoDialog(dialog) {
 
   const detail = document.createElement("span");
   detail.className = "m3ssv2-vst3-host-install-detail";
-  const install = document.createElement("button");
-  install.type = "button";
-  install.className = "m3ssv2-button m3ssv2-vst3-host-install-button";
-  install.textContent = tr("Install VST3 Host", "VST3 Hostをインストール");
-  bar.append(detail, install);
+  const copy = document.createElement("button");
+  copy.type = "button";
+  copy.className = "m3ssv2-button m3ssv2-vst3-host-install-button";
+  copy.textContent = tr("Copy Install Command", "インストールコマンドをコピー");
+  bar.append(detail, copy);
 
   const utility = panel.querySelector(".m3ssv2-vst3-utility");
   utility?.after(bar);
   if (!bar.isConnected) panel.prepend(bar);
 
   let refreshing = false;
-  let installing = false;
+  let command = "";
 
   async function refresh() {
-    if (refreshing || installing || !dialog.isConnected) return;
+    if (refreshing || !dialog.isConnected) return;
     refreshing = true;
     try {
       const status = await readHostStatus();
       const ready = !!status?.ready;
-      const available = !!status?.install_available;
-      bar.hidden = ready || !available;
+      const manualInstallRequired = !!status?.manual_install_required;
+      command = powerShellCommand(status?.manual_install_command);
+      bar.hidden = ready || !manualInstallRequired;
       detail.textContent = String(status?.message || tr(
-        "VST3 Host is optional. Install it only if you want to use VST3 effects.",
-        "VST3 Hostは任意です。VST3を使用する場合だけインストールしてください。",
+        "VST3 Host is optional. Install it manually only if you want to use VST3 effects.",
+        "VST3 Hostは任意です。VST3を使用する場合のみ手動でインストールしてください。",
       ));
-      install.disabled = !available;
-      install.title = detail.textContent;
+      copy.disabled = !command;
+      copy.title = command || detail.textContent;
     } catch (error) {
       bar.hidden = false;
       detail.textContent = String(error);
-      install.disabled = true;
+      command = "";
+      copy.disabled = true;
     } finally {
       refreshing = false;
     }
   }
 
-  install.onclick = async () => {
-    if (installing) return;
-    installing = true;
-    install.disabled = true;
-    install.textContent = tr("Installing…", "インストール中…");
-    detail.textContent = tr(
-      "Installing Pedalboard into the Python environment currently running ComfyUI…",
-      "現在ComfyUIを実行しているPython環境へPedalboardをインストールしています…",
-    );
+  copy.onclick = async () => {
+    if (!command) return;
     try {
-      const result = await installHost();
-      detail.textContent = String(result?.message || tr("VST3 Host installed.", "VST3 Hostをインストールしました。"));
-      await panel.runScan?.();
-    } catch (error) {
-      detail.textContent = String(error);
-    } finally {
-      installing = false;
-      install.textContent = tr("Install VST3 Host", "VST3 Hostをインストール");
-      await refresh();
+      await navigator.clipboard.writeText(command);
+      copy.textContent = tr("Copied", "コピーしました");
+      setTimeout(() => {
+        copy.textContent = tr("Copy Install Command", "インストールコマンドをコピー");
+      }, 1600);
+    } catch {
+      globalThis.prompt?.(tr(
+        "Copy and run this command in a local PowerShell terminal, then restart ComfyUI:",
+        "このコマンドをコピーしてローカルのPowerShellで実行し、ComfyUIを再起動してください:",
+      ), command);
     }
   };
 

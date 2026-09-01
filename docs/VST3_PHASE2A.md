@@ -4,9 +4,7 @@ Phase 2A adds Windows 64-bit VST3 **effect** processing to the Audio Editor's au
 
 ## VST3 host dependency
 
-Starting with Phase 2B distribution, the repository root `requirements.txt` installs Pedalboard automatically on Windows when the custom node is installed or updated through ComfyUI Manager.
-
-`requirements-vst3.txt` remains only as a manual recovery/fallback path for installations where the normal dependency step was skipped or damaged:
+Pedalboard is not installed automatically. Install it only when VST3 processing is needed, using a local terminal:
 
 ```bash
 python -m pip install -r requirements-vst3.txt

@@ -28,4 +28,5 @@
 - Keep prompt parsing/merge logic in `prompt_import_core.js`; the dialog/controller must not duplicate parser rules.
 - Track/master `effects[]` are reserved for V2.1. Until DSP exists, enabled unsupported effects must fail explicitly rather than being silently ignored.
 - Playwright is a development-only dependency. UI smoke tests must not become a runtime requirement for the ComfyUI custom node.
+- Never expose Python/package installation through a ComfyUI HTTP route. Keep VST3 setup manual. VST3 discovery/status/native-editor routes must fail closed unless the ComfyUI listener, request peer, server socket, and Host are loopback, and must reject forwarded/proxied requests; process-control POSTs must also require same-origin JSON and the explicit local UI action marker.
 - Before committing Python changes, run `python -m pytest` and `python -m compileall -q .`. Before committing frontend changes, run `node --check` on all changed frontend modules. Run `npm run test:audio` for V2 schema/render/Draft changes and `npm run test:semantic` for Prompt Import / semantic preset changes. When Playwright and a browser binary are available, also run `npm run test:ui`.

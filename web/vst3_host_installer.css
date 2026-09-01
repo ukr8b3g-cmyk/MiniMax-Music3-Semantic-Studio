@@ -19,6 +19,7 @@
   flex: 1 1 auto;
   font-size: 11px;
   line-height: 1.35;
+  overflow-wrap: anywhere;
   color: var(--fg-color, #d6d9df);
 }
 

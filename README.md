@@ -144,7 +144,9 @@ So **Save Edits does not permanently rewrite the source file**. The final result
 
 VST3 support is for users who already work with third-party audio plug-ins. The example above shows **MuseFX Chorus** and **MuseFX Compress**; MuseFX is only an example and is **not bundled** with this repository. VST3 plug-ins themselves must be installed by the user in the normal Windows VST3 locations.
 
-The VST3 host is also optional. On Windows, when the Audio Editor detects that the host is missing, the VST3 workspace shows **Install VST3 Host**. Clicking that button explicitly installs the fixed Pedalboard host package into the same Python environment currently running ComfyUI. Users who never open/use VST3 do not need to install it.
+The VST3 host is also optional. Automatic package installation is intentionally not exposed through a ComfyUI HTTP route. On Windows, when the Audio Editor detects that the host is missing, the VST3 workspace shows a fixed PowerShell command for the same Python environment currently running ComfyUI. Copy that command, run it in a local terminal, and restart ComfyUI. Users who never open/use VST3 do not need to install it.
+
+VST3 discovery and native editor controls are available only when ComfyUI itself is bound to a loopback address and the UI is opened locally. They are disabled when ComfyUI listens on a LAN or public interface.
 
 After the host reports **Ready**:
 

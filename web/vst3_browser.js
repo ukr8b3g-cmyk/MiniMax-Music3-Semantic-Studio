@@ -3,6 +3,10 @@ import { el, button, input } from "./audio_editor_core.js";
 import { getNodeWidget } from "./node_compact.js";
 
 const VST3_TYPE = "vst3";
+const LOCAL_ACTION_HEADERS = {
+  "Content-Type": "application/json",
+  "X-M3SS-Local-Action": "vst3-ui",
+};
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
 export async function scanVst3Plugins() {
@@ -21,7 +25,7 @@ export async function openVst3NativeEditor(effect) {
   const params = effect?.params && typeof effect.params === "object" ? effect.params : {};
   const response = await api.fetchApi("/m3ss/vst3/open-editor", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: LOCAL_ACTION_HEADERS,
     body: JSON.stringify({
       path: params.path || "",
       plugin_name: params.plugin_name || params.name || "",
@@ -39,7 +43,11 @@ export async function openVst3NativeEditor(effect) {
 }
 
 export async function closeVst3NativeEditor() {
-  const response = await api.fetchApi("/m3ss/vst3/close-editor", { method: "POST" });
+  const response = await api.fetchApi("/m3ss/vst3/close-editor", {
+    method: "POST",
+    headers: LOCAL_ACTION_HEADERS,
+    body: "{}",
+  });
   let result = null;
   try { result = await response.json(); } catch {}
   if (!response.ok || !result?.ok) {

@@ -38,9 +38,8 @@ def host_status() -> dict[str, Any]:
             "backend": "pedalboard",
             "version": "",
             "message": (
-                "VST3 host is missing. On Windows it is installed automatically from requirements.txt "
-                "when the custom node is installed/updated through ComfyUI Manager. "
-                f"Reinstall dependencies if needed. ({exc})"
+                "VST3 host is missing. Open the local VST3 workspace, copy its fixed install "
+                f"command, run it in PowerShell, then restart ComfyUI. ({exc})"
             ),
         }
     return {
@@ -65,8 +64,8 @@ def _default_loader(path: str, plugin_name: str):
         from pedalboard import load_plugin
     except Exception as exc:  # pragma: no cover - environment dependent
         raise RuntimeError(
-            "VST3 effect is enabled but Pedalboard is unavailable. On Windows, reinstall/update "
-            "the custom node dependencies so requirements.txt is applied."
+            "VST3 effect is enabled but Pedalboard is unavailable. Open the local VST3 workspace, "
+            "copy its fixed install command, run it in PowerShell, then restart ComfyUI."
         ) from exc
 
     kwargs: dict[str, Any] = {"initialization_timeout": 10.0}

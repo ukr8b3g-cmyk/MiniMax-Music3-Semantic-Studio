@@ -3,6 +3,7 @@ import base64
 import pytest
 import torch
 
+import vst3_host
 from vst3_host import apply_effect_chain, apply_vst3_effect, effect_chain_tail_samples
 
 
@@ -41,6 +42,19 @@ def vst_effect(enabled=True):
             'name': 'Test FX',
         },
     }
+
+
+def test_missing_host_status_points_to_manual_local_setup(monkeypatch):
+    monkeypatch.setattr(vst3_host.os, "name", "nt")
+
+    def missing(_distribution):
+        raise ImportError("pedalboard is absent")
+
+    monkeypatch.setattr(vst3_host.importlib.metadata, "version", missing)
+    status = vst3_host.host_status()
+    assert status["ready"] is False
+    assert "copy its fixed install command" in status["message"]
+    assert "requirements.txt" not in status["message"]
 
 
 def test_vst3_effect_preserves_shape_device_and_dtype():

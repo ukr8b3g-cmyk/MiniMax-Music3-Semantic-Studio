@@ -6,20 +6,20 @@ Phase 2B adds the original/native Windows VST3 editor window on top of the Phase
 
 Pedalboard is **not installed as part of the normal custom-node installation**. Users who do not use VST3 therefore receive no VST3-specific Python dependency.
 
-On Windows, open Audio Editor → `VST3`. When Pedalboard is missing the panel shows **Install VST3 Host**. Clicking it installs the fixed package range below into the same Python environment currently running ComfyUI:
+On Windows, open Audio Editor → `VST3`. When Pedalboard is missing the panel shows **Copy Install Command**. The command targets the same Python environment currently running ComfyUI and installs this fixed package range:
 
 ```text
 pedalboard>=0.9.24,<1
 ```
 
-The installer uses `sys.executable -m pip` without a shell and accepts no package name or command from the browser. Only the fixed Pedalboard package range can be installed. Concurrent install requests are rejected.
+Run the copied command yourself in a local PowerShell terminal, then restart ComfyUI. No ComfyUI HTTP route executes `pip` or installs packages.
 
-`requirements-vst3.txt` remains as a manual recovery/fallback file when the one-click installer cannot run or the Python environment needs manual repair.
+`requirements-vst3.txt` remains as a manual alternative when the Python environment needs repair.
 
 ## User flow
 
 1. Open Audio Editor → `VST3`.
-2. If the VST3 Host is unavailable, click `Install VST3 Host` and wait for the status to become `Ready`.
+2. If the VST3 Host is unavailable, click `Copy Install Command`, run it in a local PowerShell terminal, restart ComfyUI, and reopen the VST3 workspace.
 3. Add an installed VST3 effect to the rack.
 4. Click `Open UI` on that rack entry.
 5. The plugin's original VST3 interface opens in a separate native window.
@@ -76,8 +76,10 @@ The stored plugin identifier is checked before restoring state during Queue rend
 
 - Windows 64-bit VST3 effects only.
 - VST instruments are rejected.
-- Pedalboard installation requires an explicit button click; normal node installation does not install it.
-- The install endpoint runs only the fixed Pedalboard package range with the current ComfyUI Python and never uses `shell=True`.
+- Normal node installation does not install Pedalboard, and no HTTP endpoint performs dependency installation.
+- The UI only displays and copies a fixed manual command for the current ComfyUI Python; the user runs it in a local terminal.
+- VST3 scan/status and native-editor routes require a loopback listener, peer, server socket, and Host; forwarded/proxied requests are rejected.
+- Native-editor open/close additionally require same-origin JSON requests with the explicit VST3 UI action marker.
 - The native-editor route only accepts paths returned by the current installed VST3 scan; arbitrary executable/plugin paths cannot be requested through this endpoint.
 - State payloads have explicit size limits.
 - `Save Edits` is blocked while a native plugin window is still open so the latest state cannot be lost.
