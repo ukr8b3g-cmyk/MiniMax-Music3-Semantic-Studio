@@ -107,11 +107,26 @@ export function defaultProject(meta) {
   };
 }
 
+function resetAudioEditsForSourceIdentity(project, fallback, meta) {
+  const identity = String(meta?.source_identity || "").trim();
+  project.reserved = project.reserved && typeof project.reserved === "object" ? project.reserved : {};
+  if (!identity) return;
+
+  const previous = String(project.reserved.source_identity || "").trim();
+  if (previous !== identity) {
+    project.takes = [];
+    project.tracks = clone(fallback.tracks);
+    project.master = clone(fallback.master);
+  }
+  project.reserved.source_identity = identity;
+}
+
 export function normalizeProject(raw, meta) {
   const fallback = defaultProject(meta);
   const project = migrateProject(raw && typeof raw === "object" ? raw : fallback);
   const takeMap = new Map((meta?.takes || []).map((take) => [take.id, take]));
   project.project_id = typeof project.project_id === "string" ? project.project_id : "";
+  resetAudioEditsForSourceIdentity(project, fallback, meta);
   project.view = project.view && typeof project.view === "object" ? project.view : {};
   project.view.zoom = clamp(project.view.zoom || 1, .05, 100);
   project.view.scroll_seconds = Math.max(0, Number(project.view.scroll_seconds) || 0);

@@ -3,8 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from threading import RLock
 from typing import Any
+from uuid import uuid4
 
 import torch
+
+
+SOURCE_IDENTITY_KEY = "_m3ss_source_identity"
 
 
 @dataclass(frozen=True)
@@ -51,15 +55,22 @@ def snapshot_audio(audio: dict[str, Any]) -> dict[str, Any]:
 
 
 def clone_snapshot(audio: dict[str, Any]) -> dict[str, Any]:
-    return {
+    cloned = {
         "waveform": audio["waveform"].clone(),
         "sample_rate": int(audio["sample_rate"]),
     }
+    source_identity = str(audio.get(SOURCE_IDENTITY_KEY) or "").strip()
+    if source_identity:
+        cloned[SOURCE_IDENTITY_KEY] = source_identity
+    return cloned
 
 
 def capture_audio(unique_id: object, audio: dict[str, Any]) -> dict[str, Any]:
     key = _cache_key(unique_id)
     frozen = snapshot_audio(audio)
+    # Every Capture operation represents a new take, even when its shape or
+    # samples happen to match the previous one. Frozen retrieval keeps this id.
+    frozen[SOURCE_IDENTITY_KEY] = uuid4().hex
     with _LOCK:
         _CACHE[key] = frozen
     return clone_snapshot(frozen)

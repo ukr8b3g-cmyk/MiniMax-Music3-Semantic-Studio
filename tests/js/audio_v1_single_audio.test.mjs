@@ -14,8 +14,8 @@ test("V1.0 Audio Editor renders edits while preserving the stable single-audio f
   assert.doesNotMatch(node, /take_2=None/);
   assert.doesNotMatch(node, /def validate_inputs/);
   assert.match(node, /sources, infos = collect_sources\(audio\)/);
-  assert.match(node, /render_audio_edit\(audio, edit_json\)/);
-  assert.match(node, /normalize_edit_project\(edit_json, infos\)/);
+  assert.match(node, /normalize_edit_project\(edit_json, infos, source_identity=source_identity\)/);
+  assert.match(node, /render_audio_edit\(audio, project\)/);
   assert.match(node, /AudioSaveHelper\.save_audio/);
   assert.match(node, /"takes": source_previews/);
   assert.match(node, /"m3ss_v2": \[metadata\]/);

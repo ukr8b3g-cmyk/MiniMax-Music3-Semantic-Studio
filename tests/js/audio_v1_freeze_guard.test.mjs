@@ -71,11 +71,29 @@ test("Audio Editor DSP refresh cannot feed back from high-frequency dialog text 
   assert.doesNotMatch(audio, /characterData:\s*true/);
 });
 
+test("new Capture identity resets source-dependent editor state while Frozen preserves it", () => {
+  const freeze = source("audio_freeze_core.py");
+  const project = source("audio_edit_project.py");
+  const node = source("audio_editor_node.py");
+  const core = source("web/audio_editor_core.js");
+
+  assert.match(freeze, /SOURCE_IDENTITY_KEY = "_m3ss_source_identity"/);
+  assert.match(freeze, /frozen\[SOURCE_IDENTITY_KEY\] = uuid4\(\)\.hex/);
+  assert.match(project, /_reset_audio_edits_for_source_identity/);
+  assert.match(project, /project\["tracks"\] = deepcopy\(DEFAULT_EDIT_PROJECT\["tracks"\]\)/);
+  assert.match(project, /project\["master"\] = deepcopy\(DEFAULT_EDIT_PROJECT\["master"\]\)/);
+  assert.match(node, /"source_identity": source_identity/);
+  assert.match(core, /resetAudioEditsForSourceIdentity/);
+  assert.match(core, /meta\?\.source_identity/);
+  assert.match(core, /project\.tracks = clone\(fallback\.tracks\)/);
+  assert.match(core, /project\.master = clone\(fallback\.master\)/);
+});
+
 test("final renderer is restored without reintroducing the single-audio freeze observer", () => {
   const node = source("audio_editor_node.py");
   const release = source("web/zz_audio_v1_single_audio.js");
 
-  assert.match(node, /render_audio_edit\(audio, edit_json\)/);
+  assert.match(node, /render_audio_edit\(audio, project\)/);
   assert.match(node, /AudioSaveHelper\.save_audio/);
   assert.match(node, /"m3ss_v2": \[metadata\]/);
   assert.match(node, /return io\.NodeOutput\(rendered_audio, ui=ui_payload\)/);

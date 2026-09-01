@@ -5,6 +5,7 @@ from typing import Any
 from comfy_api.latest import io, ui
 
 from .audio_edit_project import DEFAULT_EDIT_JSON, EDIT_SCHEMA_VERSION, normalize_edit_project, project_timeline_duration
+from .audio_freeze_core import SOURCE_IDENTITY_KEY
 from .audio_render import collect_sources, render_audio_edit
 
 
@@ -60,15 +61,22 @@ class MiniMaxMusic3SemanticStudioAudioEditor(io.ComfyNode):
     @classmethod
     def execute(cls, audio, edit_json, bypass=False) -> io.NodeOutput:
         sources, infos = collect_sources(audio)
+        source_identity = ""
+        if isinstance(audio, dict):
+            source_identity = str(audio.get(SOURCE_IDENTITY_KEY) or "").strip()
+
+        # Normalize against the current Capture / Freeze take before rendering.
+        # A new capture identity resets source-dependent edit state while keeping
+        # project/view metadata intact; Frozen re-queues keep the same identity.
+        project = normalize_edit_project(edit_json, infos, source_identity=source_identity)
 
         if bypass:
-            project = normalize_edit_project(edit_json, infos)
             rendered_audio = {
                 "waveform": sources["take-1"]["waveform"],
                 "sample_rate": infos[0].sample_rate,
             }
         else:
-            result = render_audio_edit(audio, edit_json)
+            result = render_audio_edit(audio, project)
             project = result.project
             rendered_audio = result.audio
 
@@ -102,6 +110,7 @@ class MiniMaxMusic3SemanticStudioAudioEditor(io.ComfyNode):
 
         metadata = {
             "edit_schema_version": EDIT_SCHEMA_VERSION,
+            "source_identity": source_identity,
             "bypass": bool(bypass),
             "interactive_supported": infos[0].batch_size == 1,
             "takes": source_previews,
