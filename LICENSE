@@ -1,0 +1,81 @@
+License scope
+
+The MIT License below applies to original code and documentation authored for
+MiniMax Music3 Semantic Studio by ukr8b3g-cmyk and its contributors. It does not
+relicense third-party code, reference material, model weights, images,
+screenshots, logos, trademarks, audio, or installed plug-ins. Their respective
+rights and license terms continue to apply.
+
+MIT License
+
+Copyright (c) 2026 ukr8b3g-cmyk and contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Third-party attribution and license preservation
+
+The reverb delay tuning in audio_effects_dsp.py and web/audio_effects_dsp.js
+is derived from STK FreeVerb tuning. The existing implementation notes in
+docs/V2_1C_DSP_NOTES.md credit Perry R. Cook and Gary P. Scavone, and the STK
+FreeVerb port by Gregory Burlet. This project uses its own deterministic
+Python/browser renderer, rather than vendoring the STK library. The upstream
+STK notice is reproduced below to preserve its terms:
+https://github.com/thestk/stk/blob/master/LICENSE
+
+The Synthesis ToolKit in C++ (STK)
+
+Copyright (c) 1995-2023 Perry R. Cook and Gary P. Scavone
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+Any person wishing to distribute modifications to the Software is
+asked to send the modifications to the original developer so that they
+can be incorporated into the canonical version.  This is, however, not
+a binding provision of this license.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR
+ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+Other references and external components
+
+docs/V2_1C_DSP_NOTES.md records Signalsmith DSP concepts and Audacity/libSoX
+UI/parameter references; it states that their implementation source is not
+vendored/copied. Preserve that provenance when redistributing this project.
+
+docs/SEMANTIC_PRESETS.md and web/semantic_presets.js record MiniMax prompt-guide
+references. This license grants no additional rights in MiniMax reference
+material or other third-party content.
+
+ComfyUI, MiniMax models, the optional Pedalboard host and user-installed VST3
+plug-ins retain their own licenses. Screenshots may depict third-party plug-in
+interfaces and marks; they are not a grant to redistribute those plug-ins.

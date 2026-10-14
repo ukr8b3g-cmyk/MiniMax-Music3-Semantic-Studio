@@ -4,6 +4,15 @@ version = "1.0.0"
 description = "Semantic generation and non-destructive audio editing studio for MiniMax Music 3 in ComfyUI"
 requires-python = ">=3.10"
 dependencies = []
+readme = "README.md"
+license = { file = "LICENSE" }
+
+[project.urls]
+Repository = "https://github.com/ukr8b3g-cmyk/MiniMax-Music3-Semantic-Studio"
+
+[tool.comfy]
+PublisherId = "ukr8b3g-cmyk"
+DisplayName = "MiniMax Music3 Semantic Studio"
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

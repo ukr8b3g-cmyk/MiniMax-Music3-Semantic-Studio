@@ -1,0 +1,14 @@
+# Development and automation files only.
+# Keep Python runtime modules, web/, locales/, workflows/, docs/, LICENSE,
+# README.md, pyproject.toml and requirements-vst3.txt in the package.
+/.github/
+/AGENTS.md
+/tests/
+/package.json
+/playwright.config.mjs
+/node_modules/
+/playwright-report/
+/test-results/
+__pycache__/
+*.py[cod]
+.pytest_cache/

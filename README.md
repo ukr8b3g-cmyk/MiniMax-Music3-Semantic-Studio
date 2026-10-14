@@ -17,6 +17,14 @@ Current status:
 
 Neither Semantic Studio nor the Audio Editor patches ComfyUI core, MiniMax Music3 model code, KSampler, or VAE code.
 
+## Requirements
+
+- Python 3.10 or later, as declared in `pyproject.toml`.
+- A ComfyUI installation with the V3 `comfy_api.latest` extension API and built-in MiniMax Music3 support. This package registers through the async `comfy_entrypoint`.
+- A working MiniMax Music3 model/CLIP/VAE workflow for generation. Model weights are not included.
+- ComfyUI supplies the core Python/PyTorch environment. There are no additional mandatory Python dependencies for this package.
+- Optional Windows VST3 processing uses Pedalboard from `requirements-vst3.txt`; it is not a core dependency. Third-party VST3 plug-ins must be installed separately.
+
 ## Installation
 
 ```bash
@@ -24,7 +32,7 @@ cd ComfyUI/custom_nodes
 git clone https://github.com/ukr8b3g-cmyk/MiniMax-Music3-Semantic-Studio.git
 ```
 
-Restart ComfyUI after install/update. The core node package has no additional mandatory Python runtime dependency. The Windows VST3 host is optional and is installed only when a user explicitly requests it from the VST3 workspace.
+Restart ComfyUI after install/update. The core node package has no additional mandatory Python runtime dependency. The Windows VST3 host is optional and installed manually in a local terminal using the command shown in the VST3 workspace; the UI does not install packages automatically.
 
 ## Quick start — visual workflow
 
@@ -285,3 +293,29 @@ Capture / Freeze Audio
    v
 Music3 Semantic Studio Audio Editor
    |
+   v
+Preview / Save Audio
+```
+
+Load the supplied [V1 template workflow](workflows/MiniMax_Music3_Semantic_Studio_V1.json) into ComfyUI and select the models available in your installation. Capture / Freeze Audio keeps the take in memory; it is not permanent audio-file storage.
+
+## Troubleshooting
+
+- **Nodes do not appear:** check the ComfyUI startup log and confirm that your installation provides `comfy_api.latest` and built-in MiniMax Music3 support, then restart ComfyUI.
+- **Editor UI is missing or stale:** restart ComfyUI after updating and refresh the browser. Keep the package's `web/` and `locales/` directories intact.
+- **VST3 is unavailable:** it is optional, Windows-only and local-only. Use the VST3 workspace's manual installation command with the same Python environment as ComfyUI, then restart. LAN/public listeners do not expose VST3 controls.
+- **Edits are not in the final output:** use **Save Edits**, then Queue the Audio Editor. Browser Draft is a preview; the queued Python render is authoritative.
+
+## Registry metadata and package contents
+
+`pyproject.toml` keeps the package identifier `minimax-music3-semantic-studio` and version `1.0.0`, with repository and publisher metadata for ComfyUI Registry preparation. These metadata files do not by themselves publish a Registry version.
+
+`.comfyignore` excludes development tests and automation from Registry archives while retaining the Python modules, frontend, translations, template workflow, documentation, license and optional VST3 requirements. Git clone installations retain the repository contents.
+
+## License and acknowledgements
+
+Original project code and documentation are licensed under the [MIT License](LICENSE). This grant does not relicense third-party material, model weights, images/screenshots, logos, trademarks, audio or installed plug-ins.
+
+- Reverb delay tuning follows STK FreeVerb references. [DSP implementation notes](docs/V2_1C_DSP_NOTES.md) record the provenance; [LICENSE](LICENSE) preserves the STK notice and attribution.
+- [Semantic preset notes](docs/SEMANTIC_PRESETS.md) explain the MiniMax prompt-guide references and the distinction between reference suggestions and model-side enums.
+- ComfyUI, MiniMax models, the optional Pedalboard host and user-installed VST3 plug-ins retain their respective licenses. MuseFX appears only as an example in screenshots and is not bundled.
