@@ -1,0 +1,9 @@
+{
+  "node": "minimax-music3-semantic-studio",
+  "publisher": "ukr8b3g-cmyk",
+  "repository": "https://github.com/ukr8b3g-cmyk/MiniMax-Music3-Semantic-Studio",
+  "includes": [],
+  "license": {
+    "file": "LICENSE"
+  }
+}
